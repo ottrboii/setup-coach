@@ -317,12 +317,13 @@
           "use_in_obs": false
         }
       ],
-      "vendor_app": "GoXLR App (or open-source GoXLR Utility)",
+      "vendor_app": "GoXLR Utility (open source; replaces the discontinued official GoXLR App)",
       "name_patterns": [
         "tc-helicon goxlr",
         "goxlr"
       ],
       "gotchas": [
+        "Install GoXLR Utility (open source, winget/GitHub) and uninstall the official GoXLR App: the official app is no longer maintained, the two can't run together, and the Utility lets Setup Coach read and set gain, mic type/phantom, processing and routing.",
         "OBS should capture 'Broadcast Stream Mix', not 'Chat Mic' - Chat Mic is for Discord.",
         "For condenser mics (like the NT1-A) set the mic type to Condenser in the GoXLR app to turn on 48V phantom power.",
         "Mic gain is set in the GoXLR app's mic setup, not in Windows.",
@@ -368,7 +369,7 @@
           "use_in_obs": false
         }
       ],
-      "vendor_app": "GoXLR App (or open-source GoXLR Utility)",
+      "vendor_app": "GoXLR Utility (open source; replaces the discontinued official GoXLR App)",
       "name_patterns": [
         "goxlr mini",
         "goxlrmini",
@@ -376,6 +377,7 @@
         "tc-helicon goxlrmini"
       ],
       "gotchas": [
+        "Install GoXLR Utility (open source, winget/GitHub) and uninstall the official GoXLR App: the official app is no longer maintained, the two can't run together, and the Utility lets Setup Coach read and set gain, mic type/phantom, processing and routing.",
         "OBS should capture 'Broadcast Stream Mix'.",
         "Discontinued; open-source GoXLR Utility available."
       ],
