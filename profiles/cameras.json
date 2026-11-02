@@ -1,0 +1,2130 @@
+{
+  "schema_version": 1,
+  "cameras": [
+    {
+      "id": "logitech_c920",
+      "brand": "Logitech",
+      "model": "C920 / C920s / C920x / C920e",
+      "family": "logitech_c920",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "082d"
+        },
+        {
+          "vid": "046d",
+          "pid": "08e5"
+        }
+      ],
+      "name_patterns": [
+        "c920",
+        "hd pro webcam c920"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "RightLight",
+        "LED"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        },
+        {
+          "type": "ignores_controls_before_stream"
+        },
+        {
+          "type": "yuy2_1080p_low_fps"
+        },
+        {
+          "type": "coarse_exposure_steps"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1280,
+          "height": 720,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logitech G HUB / Logi Tune",
+      "gotchas": [
+        "Turn off 'Low Light Compensation' (RightLight) or the frame rate drops to 15 in dim rooms.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts.",
+        "Use MJPEG at 1080p in OBS - uncompressed YUY2 at 1080p is only about 5 fps.",
+        "Exposure steps are coarse (whole stops) through DirectShow."
+      ],
+      "verified": false,
+      "verify_first": true,
+      "sources": [
+        "https://obsproject.com/forum/threads/my-camera-settings-for-my-two-logitech-c920s-returns-to-default-in-obs-everytime-i-restart-my-desktop.140379/",
+        "https://obsproject.com/forum/threads/low-fps-in-preview-when-switching-to-yuy2.139809/",
+        "https://github.com/torvalds/linux/blob/master/drivers/media/usb/uvc/uvc_driver.c"
+      ]
+    },
+    {
+      "id": "logitech_c922",
+      "brand": "Logitech",
+      "model": "C922 / C922x Pro Stream",
+      "family": "logitech_c922",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "085c"
+        }
+      ],
+      "name_patterns": [
+        "c922"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "RightLight"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        },
+        {
+          "type": "ignores_controls_before_stream"
+        },
+        {
+          "type": "yuy2_1080p_low_fps"
+        },
+        {
+          "type": "coarse_exposure_steps"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1280,
+          "height": 720,
+          "fps": 60,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "gotchas": [
+        "Turn off 'Low Light Compensation' (RightLight) or the frame rate drops to 15 in dim rooms.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts.",
+        "720p60 only holds 60 fps in good light."
+      ],
+      "verified": false,
+      "sources": [
+        "https://support.logi.com/hc/en-gb/articles/360023345533",
+        "https://obsproject.com/forum/threads/logitech-c922-issues-only-on-obs-not-on-any-other-programs.58702/"
+      ]
+    },
+    {
+      "id": "logitech_c925e_c930e",
+      "brand": "Logitech",
+      "model": "C925e / C930e",
+      "family": "logitech_c922",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "085b"
+        },
+        {
+          "vid": "046d",
+          "pid": "0843"
+        }
+      ],
+      "name_patterns": [
+        "c925e",
+        "c930e"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        },
+        {
+          "type": "ignores_controls_before_stream"
+        },
+        {
+          "type": "yuy2_1080p_low_fps"
+        },
+        {
+          "type": "coarse_exposure_steps"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "gotchas": [
+        "Turn off 'Low Light Compensation' (RightLight) or the frame rate drops to 15 in dim rooms.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts."
+      ],
+      "verified": false,
+      "sources": [
+        "https://obsproject.com/forum/threads/logitech-webcam-c930e-settings-reset-after-machine-restarts.54107"
+      ]
+    },
+    {
+      "id": "logitech_c270_c310",
+      "brand": "Logitech",
+      "model": "C270 / C310",
+      "family": "logitech_c270",
+      "class": "limited_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "0825"
+        },
+        {
+          "vid": "046d",
+          "pid": "081b"
+        }
+      ],
+      "name_patterns": [
+        "c270",
+        "c310"
+      ],
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "power_line_frequency"
+        }
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "fixed_focus"
+        },
+        {
+          "type": "ae_priority_fps_drop"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1280,
+          "height": 720,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "gotchas": [
+        "720p, fixed focus: sit at arm's length; light matters most.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_brio_4k",
+      "brand": "Logitech",
+      "model": "Brio 4K / Brio Stream Edition",
+      "family": "logitech_brio",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "085e"
+        },
+        {
+          "vid": "046d",
+          "pid": "086b"
+        }
+      ],
+      "name_patterns": [
+        "logitech brio",
+        "brio 4k",
+        "brio stream",
+        "brio"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "Field of view (90/78/65)",
+        "HDR / RightLight 3"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        },
+        {
+          "type": "ignores_controls_before_stream"
+        },
+        {
+          "type": "requires_usb3"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logitech G HUB / Logi Tune",
+      "gotchas": [
+        "4K30 and 1080p60 need a USB 3 port.",
+        "Has a Windows Hello IR sensor that shows up as an extra camera - pick the colour one.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_mx_brio",
+      "brand": "Logitech",
+      "model": "MX Brio",
+      "family": "logitech_brio",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "0944"
+        }
+      ],
+      "name_patterns": [
+        "mx brio"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "Field of view",
+        "Show Mode",
+        "RightLight"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        },
+        {
+          "type": "requires_usb3"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logi Tune / Logi Options+",
+      "gotchas": [
+        "Auto light correction is on by default (unverified) - turn it off before locking exposure.",
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_brio_500",
+      "brand": "Logitech",
+      "model": "Brio 500 / 505",
+      "family": "logitech_brio_500",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "0943"
+        },
+        {
+          "vid": "046d",
+          "pid": "0919"
+        }
+      ],
+      "name_patterns": [
+        "brio 500",
+        "brio 505",
+        "logitech brio 500",
+        "logitech brio 505"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "Field of view",
+        "Show Mode",
+        "RightLight"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "ae_priority_fps_drop"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logi Tune",
+      "gotchas": [
+        "Forgets its settings when unplugged or after a restart - Setup Coach re-applies them after the stream starts."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_brio_100",
+      "brand": "Logitech",
+      "model": "Brio 100 / 101 / 300",
+      "family": "logitech_brio_100",
+      "class": "limited_uvc",
+      "name_patterns": [
+        "brio 100",
+        "brio 101",
+        "brio 300",
+        "logitech brio 100",
+        "logitech brio 101",
+        "logitech brio 300"
+      ],
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "power_line_frequency"
+        }
+      ],
+      "vendor_xu_only": [
+        "Auto light balance"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "fixed_focus"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logi Tune",
+      "gotchas": [
+        "Few manual controls and fixed focus - lighting and position do most of the work."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_streamcam",
+      "brand": "Logitech",
+      "model": "StreamCam",
+      "family": "logitech_streamcam",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "046d",
+          "pid": "0893"
+        }
+      ],
+      "name_patterns": [
+        "streamcam"
+      ],
+      "controls": [
+        {
+          "name": "brightness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "contrast",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "saturation",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "sharpness",
+          "min": 0,
+          "max": 255,
+          "default": 128,
+          "step": 1
+        },
+        {
+          "name": "gain",
+          "min": 0,
+          "max": 255,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 6500,
+          "default": 4000,
+          "step": 10
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "backlight_compensation",
+          "min": 0,
+          "max": 1,
+          "default": 0,
+          "step": 1
+        },
+        {
+          "name": "power_line_frequency",
+          "min": 0,
+          "max": 2,
+          "default": 2,
+          "step": 1
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "focus",
+          "min": 0,
+          "max": 250,
+          "step": 5
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "zoom",
+          "min": 100,
+          "max": 500,
+          "default": 100,
+          "step": 1
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "Auto-framing",
+        "HDR"
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "coarse_exposure_steps"
+        },
+        {
+          "type": "requires_usb3"
+        },
+        {
+          "type": "ae_priority_fps_drop"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "gotchas": [
+        "1080p60 needs USB 3 (USB-C cable included).",
+        "Exposure jumps in big steps - light the room so a step in between isn't needed.",
+        "Turn auto-framing off."
+      ],
+      "verified": false,
+      "sources": [
+        "https://obsproject.com/forum/threads/how-to-precisely-control-camera-exposure-in-obs.138203/"
+      ]
+    },
+    {
+      "id": "elgato_facecam",
+      "brand": "Elgato",
+      "model": "Facecam / Facecam MK.2 / Facecam Neo",
+      "family": "elgato_facecam",
+      "class": "full_uvc",
+      "name_patterns": [
+        "elgato facecam",
+        "facecam mk.2",
+        "facecam mk2",
+        "facecam neo",
+        "facecam"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "power_line_frequency"
+        },
+        {
+          "name": "zoom"
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "Shutter speed / ISO (DSLR-style)",
+        "Noise reduction",
+        "HDR"
+      ],
+      "persistence": "on_device_save_cmd",
+      "quirks": [
+        {
+          "type": "fixed_focus",
+          "min_cm": 30.0,
+          "max_cm": 120.0
+        },
+        {
+          "type": "runs_hot"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "any"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "any"
+        }
+      ],
+      "vendor_app": "Elgato Camera Hub",
+      "gotchas": [
+        "Settings only survive a restart after 'Save to device' in Camera Hub.",
+        "Original Facecam: fixed focus and USB 3 only (uncompressed). Fixed-focus range unverified.",
+        "Can get warm over long streams."
+      ],
+      "verified": false,
+      "sources": [
+        "https://help.elgato.com/hc/en-us/articles/4404978593549-Elgato-Facecam-Saving-Settings-to-Facecam",
+        "https://techpowerup.com/review/elgato-facecam",
+        "https://www.windowscentral.com/hardware/elgato-facecam-mk2-review"
+      ]
+    },
+    {
+      "id": "elgato_facecam_pro",
+      "brand": "Elgato",
+      "model": "Facecam Pro / Facecam 4K",
+      "family": "elgato_facecam",
+      "class": "full_uvc",
+      "name_patterns": [
+        "facecam pro",
+        "facecam 4k",
+        "elgato facecam pro",
+        "elgato facecam 4k"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "power_line_frequency"
+        },
+        {
+          "name": "zoom"
+        }
+      ],
+      "vendor_xu_only": [
+        "Shutter speed / ISO",
+        "HDR",
+        "Noise reduction"
+      ],
+      "persistence": "on_device_save_cmd",
+      "quirks": [
+        {
+          "type": "requires_usb3"
+        },
+        {
+          "type": "runs_hot"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "format": "any"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "any"
+        }
+      ],
+      "vendor_app": "Elgato Camera Hub",
+      "gotchas": [
+        "Use 'Save to device' in Camera Hub so settings persist.",
+        "4K60 needs USB 3 (unverified for the 4K model)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_kiyo",
+      "brand": "Razer",
+      "model": "Kiyo / Kiyo X",
+      "family": "razer_kiyo",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "1532",
+          "pid": "0e03"
+        }
+      ],
+      "name_patterns": [
+        "razer kiyo",
+        "kiyo x",
+        "kiyo"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        }
+      ],
+      "persistence": "volatile",
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1280,
+          "height": 720,
+          "fps": 60,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Razer Synapse",
+      "gotchas": [
+        "The Kiyo's ring light is set with a physical dial - it can't be controlled from the PC (unverified).",
+        "Settings reset reported - Setup Coach re-applies them."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_kiyo_pro",
+      "brand": "Razer",
+      "model": "Kiyo Pro / Kiyo Pro Ultra",
+      "family": "razer_kiyo",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "1532",
+          "pid": "0e05"
+        }
+      ],
+      "name_patterns": [
+        "kiyo pro ultra",
+        "kiyo pro",
+        "razer kiyo pro",
+        "razer kiyo pro ultra"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "zoom"
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "HDR on/off",
+        "Field of view",
+        "AF mode"
+      ],
+      "persistence": "on_device_save_cmd",
+      "quirks": [
+        {
+          "type": "hdr_halves_fps"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Razer Synapse",
+      "gotchas": [
+        "HDR halves the frame rate (60 to 30) - keep it off.",
+        "Close the Synapse preview before unplugging or settings may not save."
+      ],
+      "verified": false,
+      "sources": [
+        "https://mysupport.razer.com/app/answers/detail/a_id/4104",
+        "https://github.com/soyersoyer/cameractrls"
+      ]
+    },
+    {
+      "id": "obsbot_tiny",
+      "brand": "OBSBOT",
+      "model": "Tiny 2 / Tiny 2 Lite / Tiny 3",
+      "family": "obsbot",
+      "class": "full_uvc",
+      "name_patterns": [
+        "obsbot tiny",
+        "tiny 2",
+        "tiny 3"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "zoom"
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "AI tracking",
+        "Gesture control",
+        "Presets"
+      ],
+      "persistence": "vendor_app_preset",
+      "quirks": [
+        {
+          "type": "onboard_ai_tracking"
+        },
+        {
+          "type": "hdr_halves_fps"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "OBSBOT Center",
+      "gotchas": [
+        "Turn AI tracking off - it reframes on its own and makes the picture move.",
+        "Whether image settings survive a power cycle is unverified."
+      ],
+      "verified": false,
+      "sources": [
+        "https://obsbot.com/explore/obsbot-tiny-2/how-to-set-tiny-2-initial-working-state",
+        "https://raw.githubusercontent.com/lxman/obsbot-mcp/HEAD/README.md"
+      ]
+    },
+    {
+      "id": "obsbot_meet",
+      "brand": "OBSBOT",
+      "model": "Meet 2 / Meet SE",
+      "family": "obsbot",
+      "class": "full_uvc",
+      "name_patterns": [
+        "obsbot meet",
+        "meet 2",
+        "meet se"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        }
+      ],
+      "vendor_xu_only": [
+        "AI framing",
+        "Background effects"
+      ],
+      "persistence": "vendor_app_preset",
+      "quirks": [
+        {
+          "type": "onboard_ai_tracking"
+        }
+      ],
+      "vendor_app": "OBSBOT Center",
+      "gotchas": [
+        "Turn AI framing and background effects off."
+      ],
+      "verified": false
+    },
+    {
+      "id": "insta360_link",
+      "brand": "Insta360",
+      "model": "Link / Link 2 / Link 2C",
+      "family": "insta360_link",
+      "class": "full_uvc",
+      "usb_ids": [
+        {
+          "vid": "2e1a",
+          "pid": "4c01"
+        }
+      ],
+      "name_patterns": [
+        "insta360 link",
+        "link 2c",
+        "link 2"
+      ],
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance",
+          "min": 2000,
+          "max": 10000
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "zoom"
+        },
+        {
+          "name": "pan"
+        },
+        {
+          "name": "tilt"
+        }
+      ],
+      "vendor_xu_only": [
+        "AI tracking",
+        "HDR",
+        "Presets"
+      ],
+      "persistence": "vendor_app_preset",
+      "quirks": [
+        {
+          "type": "onboard_ai_tracking"
+        }
+      ],
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "mjpeg"
+        },
+        {
+          "width": 3840,
+          "height": 2160,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "vendor_app": "Insta360 Link Controller",
+      "gotchas": [
+        "Turn AI tracking off.",
+        "OBS sometimes doesn't re-detect it after a restart - replug or re-select the device."
+      ],
+      "verified": false,
+      "sources": [
+        "https://onlinemanual.insta360.com/link/en-us/faq/troubleshooting",
+        "https://en.pronews.com/reviews/2022120705251132.html"
+      ]
+    },
+    {
+      "id": "nexigo_n60",
+      "brand": "NexiGo",
+      "model": "N60 / N930AF",
+      "family": "nexigo",
+      "class": "limited_uvc",
+      "name_patterns": [
+        "nexigo",
+        "n60",
+        "n930"
+      ],
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "power_line_frequency"
+        }
+      ],
+      "persistence": "volatile",
+      "quirks": [
+        {
+          "type": "fixed_focus"
+        }
+      ],
+      "gotchas": [
+        "Budget camera: control set unverified; light matters most."
+      ],
+      "verified": false
+    },
+    {
+      "id": "emeet_c960",
+      "brand": "EMEET",
+      "model": "C960 / S600 / Nova 4K",
+      "family": "emeet",
+      "class": "limited_uvc",
+      "name_patterns": [
+        "emeet"
+      ],
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        }
+      ],
+      "persistence": "volatile",
+      "gotchas": [
+        "Control set unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "anker_powerconf",
+      "brand": "Anker",
+      "model": "PowerConf C200 / C300",
+      "family": "anker_powerconf",
+      "class": "limited_uvc",
+      "name_patterns": [
+        "powerconf",
+        "anker"
+      ],
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        }
+      ],
+      "vendor_xu_only": [
+        "AI framing (C300)"
+      ],
+      "persistence": "volatile",
+      "gotchas": [
+        "Control set unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "microsoft_lifecam",
+      "brand": "Microsoft",
+      "model": "LifeCam (HD-3000 / Studio / Cinema)",
+      "family": "microsoft_lifecam",
+      "class": "limited_uvc",
+      "name_patterns": [
+        "lifecam"
+      ],
+      "persistence": "volatile",
+      "gotchas": [
+        "Older USB 2 camera - 720p; light matters most."
+      ],
+      "verified": false
+    },
+    {
+      "id": "elgato_cam_link_4k",
+      "brand": "Elgato",
+      "model": "Cam Link 4K",
+      "family": "elgato_capture",
+      "class": "capture_card",
+      "usb_ids": [
+        {
+          "vid": "0fd9",
+          "pid": "0066"
+        }
+      ],
+      "name_patterns": [
+        "cam link 4k",
+        "cam link"
+      ],
+      "persistence": "unknown",
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "nv12"
+        },
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 60,
+          "format": "nv12"
+        }
+      ],
+      "vendor_app": "Elgato 4K Capture Utility / Camera Hub",
+      "gotchas": [
+        "The camera's own settings matter here - the PC can't change them through the Cam Link.",
+        "Use a USB 3 port directly on the PC.",
+        "The camera's HDMI output decides the frame rate (PAL cameras give 25/50)."
+      ],
+      "verified": false,
+      "verify_first": true,
+      "sources": [
+        "https://help.elgato.com/hc/it/articles/360041141911",
+        "https://techcommunity.microsoft.com/discussions/windows11/elgato-cam-link-issues-in-windows-11/4401913"
+      ]
+    },
+    {
+      "id": "elgato_hd60",
+      "brand": "Elgato",
+      "model": "HD60 S+ / HD60 X",
+      "family": "elgato_capture",
+      "class": "capture_card",
+      "name_patterns": [
+        "hd60 s+",
+        "hd60 x",
+        "game capture hd60"
+      ],
+      "persistence": "unknown",
+      "gotchas": [
+        "Coach-only: settings live in the camera."
+      ],
+      "verified": false
+    },
+    {
+      "id": "avermedia_capture",
+      "brand": "AVerMedia",
+      "model": "Live Gamer / Live Streamer capture",
+      "family": "avermedia_capture",
+      "class": "capture_card",
+      "name_patterns": [
+        "live gamer",
+        "avermedia"
+      ],
+      "persistence": "unknown",
+      "gotchas": [
+        "Check colour range (full vs limited) matches between card and OBS."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.avermedia.com/support/faq/4z0lmPDV"
+      ]
+    },
+    {
+      "id": "ms2109_dongle",
+      "brand": "Generic",
+      "model": "HDMI USB capture dongle (MS2109 / MS2130)",
+      "family": "generic_capture",
+      "class": "capture_card",
+      "name_patterns": [
+        "usb3.0 capture",
+        "hdmi capture"
+      ],
+      "persistence": "unknown",
+      "recommended_modes": [
+        {
+          "width": 1920,
+          "height": 1080,
+          "fps": 30,
+          "format": "mjpeg"
+        }
+      ],
+      "gotchas": [
+        "Cheap dongles are often USB 2 + MJPEG at 1080p30 - fine for a camera at 30 fps.",
+        "Often shows as 'USB Video' in Windows."
+      ],
+      "verified": false
+    },
+    {
+      "id": "camo",
+      "brand": "Reincubate",
+      "model": "Camo",
+      "family": "phone_app",
+      "class": "phone",
+      "name_patterns": [
+        "camo"
+      ],
+      "persistence": "unknown",
+      "vendor_app": "Camo",
+      "gotchas": [
+        "Lock exposure and white balance in the Camo app on the PC."
+      ],
+      "verified": false
+    },
+    {
+      "id": "droidcam",
+      "brand": "Dev47Apps",
+      "model": "DroidCam",
+      "family": "phone_app",
+      "class": "phone",
+      "name_patterns": [
+        "droidcam"
+      ],
+      "persistence": "unknown",
+      "vendor_app": "DroidCam",
+      "gotchas": [
+        "Use a USB connection rather than Wi-Fi for a steady frame rate."
+      ],
+      "verified": false
+    },
+    {
+      "id": "iriun",
+      "brand": "Iriun",
+      "model": "Iriun Webcam",
+      "family": "phone_app",
+      "class": "phone",
+      "name_patterns": [
+        "iriun"
+      ],
+      "persistence": "unknown",
+      "vendor_app": "Iriun",
+      "verified": false
+    },
+    {
+      "id": "windows_phone_link",
+      "brand": "Microsoft",
+      "model": "Windows connected camera (Phone Link)",
+      "family": "phone_app",
+      "class": "phone",
+      "name_patterns": [
+        "windows virtual camera"
+      ],
+      "persistence": "unknown",
+      "gotchas": [
+        "Reported as 'Windows Virtual Camera'; settings are on the phone side."
+      ],
+      "verified": false,
+      "sources": [
+        "https://pureinfotech.com/use-phone-camera-as-webcam-windows-11/"
+      ]
+    },
+    {
+      "id": "obs_virtual_camera",
+      "brand": "OBS",
+      "model": "OBS Virtual Camera",
+      "family": "virtual_cam",
+      "class": "virtual",
+      "name_patterns": [
+        "obs virtual camera",
+        "obs-camera"
+      ],
+      "persistence": "unknown",
+      "verified": false
+    },
+    {
+      "id": "nvidia_broadcast_camera",
+      "brand": "NVIDIA",
+      "model": "NVIDIA Broadcast camera",
+      "family": "virtual_cam",
+      "class": "virtual",
+      "name_patterns": [
+        "nvidia broadcast"
+      ],
+      "persistence": "unknown",
+      "gotchas": [
+        "AI effects (background blur, eye contact, auto-frame) should be off - fix light and position instead."
+      ],
+      "verified": false
+    }
+  ]
+}

@@ -1,0 +1,573 @@
+{
+  "schema_version": 1,
+  "mics": [
+    {
+      "id": "generic.usb_condenser_side",
+      "brand": "Generic",
+      "model": "USB condenser mic (side-address)",
+      "family": "generic",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Most USB desk mics are spoken into from the side (logo side), not the top."
+      ],
+      "verified": false,
+      "generic_class": "usb_condenser_side"
+    },
+    {
+      "id": "generic.usb_condenser_end",
+      "brand": "Generic",
+      "model": "USB condenser mic (top/end-address)",
+      "family": "generic",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "top"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "verified": false,
+      "generic_class": "usb_condenser_end"
+    },
+    {
+      "id": "generic.hybrid_dynamic_end",
+      "brand": "Generic",
+      "model": "USB/XLR dynamic mic",
+      "family": "generic",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Dynamic mics need to be close: about a fist away, talking into the end."
+      ],
+      "verified": false,
+      "generic_class": "hybrid_dynamic_end"
+    },
+    {
+      "id": "generic.xlr_dynamic_low_output",
+      "brand": "Generic",
+      "model": "XLR dynamic mic (low output)",
+      "family": "generic",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "gain_needed_db": 60.0,
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Low-output dynamics need lots of clean gain (around 60 dB); small interfaces may hiss when maxed."
+      ],
+      "verified": false,
+      "generic_class": "xlr_dynamic_low_output"
+    },
+    {
+      "id": "generic.xlr_condenser",
+      "brand": "Generic",
+      "model": "XLR condenser mic",
+      "family": "generic",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "needs_phantom": true,
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 300,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Needs 48V phantom power.",
+        "Condensers hear the whole room - closer and a pop filter help."
+      ],
+      "verified": false,
+      "generic_class": "xlr_condenser"
+    },
+    {
+      "id": "generic.headset_analog",
+      "brand": "Generic",
+      "model": "Headset mic (3.5 mm jack)",
+      "family": "generic",
+      "connection": {
+        "type": "headset",
+        "path": "analog35"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Shows as 'Realtek' in Windows. Check that Microphone Boost isn't adding hiss.",
+        "Boom at the corner of the mouth, 1-2 fingers away."
+      ],
+      "verified": false,
+      "generic_class": "headset_analog"
+    },
+    {
+      "id": "generic.headset_usb_wireless",
+      "brand": "Generic",
+      "model": "Headset mic (USB / 2.4 GHz)",
+      "family": "generic",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Some wireless dongles limit the mic to 16-32 kHz - fine for voice, but it won't sound like a desk mic.",
+        "Boom at the corner of the mouth, 1-2 fingers away."
+      ],
+      "verified": false,
+      "generic_class": "headset_usb_wireless"
+    },
+    {
+      "id": "generic.headset_bluetooth",
+      "brand": "Generic",
+      "model": "Bluetooth headset (Hands-Free mode)",
+      "family": "generic",
+      "connection": {
+        "type": "headset",
+        "path": "bluetooth_hfp"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 120,
+          "gain_db": 0,
+          "q": 0.707
+        }
+      ],
+      "gotchas": [
+        "Bluetooth Hands-Free mode turns the mic into phone-call quality and makes your game audio worse too. Use a cable, a 2.4 GHz dongle or a separate mic for streaming."
+      ],
+      "verified": false,
+      "generic_class": "headset_bluetooth"
+    },
+    {
+      "id": "generic.builtin_mic",
+      "brand": "Generic",
+      "model": "Laptop / webcam built-in mic",
+      "family": "generic",
+      "connection": {
+        "type": "builtin"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 40,
+        "ideal": 60,
+        "max": 80
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 120,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 300,
+          "gain_db": -2,
+          "q": 1.0
+        }
+      ],
+      "gotchas": [
+        "Built-in mics are far away and pick up fans and keyboard. Any headset or USB mic will be a big upgrade."
+      ],
+      "verified": false,
+      "generic_class": "builtin_mic"
+    },
+    {
+      "id": "generic.wireless_lav",
+      "brand": "Generic",
+      "model": "Wireless clip-on mic (lavalier)",
+      "family": "generic",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it centred on your chest, a hand's width below the chin.",
+        "Turn off on-device noise cancellation and auto gain for streaming (if the system has them)."
+      ],
+      "verified": false,
+      "generic_class": "wireless_lav"
+    }
+  ],
+  "cameras": [
+    {
+      "id": "generic.uvc_webcam",
+      "brand": "Generic",
+      "model": "USB webcam",
+      "family": "generic",
+      "class": "full_uvc",
+      "generic": true,
+      "controls": [
+        {
+          "name": "exposure"
+        },
+        {
+          "name": "auto_exposure"
+        },
+        {
+          "name": "auto_exposure_priority"
+        },
+        {
+          "name": "gain"
+        },
+        {
+          "name": "white_balance"
+        },
+        {
+          "name": "auto_white_balance"
+        },
+        {
+          "name": "focus"
+        },
+        {
+          "name": "auto_focus"
+        },
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "backlight_compensation"
+        },
+        {
+          "name": "power_line_frequency"
+        }
+      ],
+      "persistence": "volatile",
+      "gotchas": [
+        "Most webcams forget their settings when unplugged or restarted - Setup Coach re-applies them.",
+        "Turn off 'Low Light Compensation' so the frame rate doesn't drop in dim rooms."
+      ],
+      "verified": false
+    },
+    {
+      "id": "generic.capture_card",
+      "brand": "Generic",
+      "model": "Capture card (HDMI camera)",
+      "family": "generic",
+      "class": "capture_card",
+      "generic": true,
+      "gotchas": [
+        "The PC can't change the camera's settings through a capture card - we'll walk you through the camera's own menus.",
+        "Image controls here only adjust the capture chip, not the camera."
+      ],
+      "verified": false
+    },
+    {
+      "id": "generic.phone",
+      "brand": "Generic",
+      "model": "Phone as webcam",
+      "family": "generic",
+      "class": "phone",
+      "generic": true,
+      "gotchas": [
+        "Exposure, white balance and focus are set in the phone app (Camo, DroidCam, Iriun...)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "generic.virtual",
+      "brand": "Generic",
+      "model": "Virtual camera",
+      "family": "generic",
+      "class": "virtual",
+      "generic": true,
+      "gotchas": [
+        "This is a virtual camera (OBS, NVIDIA Broadcast...). We analyse the image but settings live in the source app. AI effects should be off."
+      ],
+      "verified": false
+    },
+    {
+      "id": "generic.laptop",
+      "brand": "Generic",
+      "model": "Laptop built-in camera",
+      "family": "generic",
+      "class": "laptop",
+      "generic": true,
+      "controls": [
+        {
+          "name": "brightness"
+        },
+        {
+          "name": "contrast"
+        },
+        {
+          "name": "saturation"
+        },
+        {
+          "name": "sharpness"
+        },
+        {
+          "name": "power_line_frequency"
+        }
+      ],
+      "persistence": "volatile",
+      "gotchas": [
+        "Built-in cameras have few manual controls - light matters most. Raise the laptop so the camera is at eye level."
+      ],
+      "verified": false
+    }
+  ]
+}

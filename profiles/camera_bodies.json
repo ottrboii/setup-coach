@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "camera_bodies": [
+    {
+      "id": "sony_a6000",
+      "brand": "Sony",
+      "model": "α6000 (ILCE-6000)",
+      "aliases": [
+        "a6000",
+        "ilce-6000",
+        "alpha 6000",
+        "α6000"
+      ],
+      "connections": [
+        "hdmi_capture"
+      ],
+      "dummy_battery": "NP-FW50 dummy battery, e.g. Sony AC-PW20",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Menu: Setup > HDMI Settings > HDMI Info. Display: Off, so menus and the focus box don't show on stream."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Power Save Start Time to the longest option, and Auto Power OFF Temp to High if your model has it."
+        },
+        {
+          "topic": "dummy_battery",
+          "text": "Run it on mains power with a dummy battery (NP-FW50 type, e.g. AC-PW20) - a battery won't last a stream and USB power alone often isn't enough."
+        },
+        {
+          "topic": "frame_rate",
+          "text": "Check the NTSC/PAL setting: NTSC gives 30/60 fps output, PAL gives 25/50. Match it to your stream frame rate and your mains (PAL + 50 Hz lights avoids flicker)."
+        },
+        {
+          "topic": "overheating",
+          "text": "Flip the screen away from the body and keep the camera ventilated on long streams."
+        }
+      ],
+      "gotchas": [
+        "Clean HDMI output behaviour, HDMI output resolution/frame rate and auto power-off limits on the a6000 are unverified - check on your camera.",
+        "Sony's Imaging Edge Webcam USB support for the a6000 is unverified; use the Cam Link (HDMI) route.",
+        "The PC can't change the camera's settings - Setup Coach walks you through the camera menus and checks the result in the image."
+      ],
+      "verified": false,
+      "verify_first": true,
+      "sources": [
+        "https://helpguide.sony.net/ilc/1930/v1/en/contents/TP0002688477.html",
+        "https://support.d-imaging.sony.co.jp/app/disoft/en/"
+      ]
+    },
+    {
+      "id": "sony_zv_e10",
+      "brand": "Sony",
+      "model": "ZV-E10 / ZV-E10 II",
+      "aliases": [
+        "zv-e10",
+        "zve10",
+        "zv-e10 ii",
+        "zv-e10m2"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "native_uvc"
+      ],
+      "clean_hdmi": true,
+      "dummy_battery": "NP-FW50 (ZV-E10) / NP-FZ100 (ZV-E10 II) dummy battery",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Menu: Setup > HDMI Settings > HDMI Info. Display: Off, so menus and the focus box don't show on stream."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Power Save Start Time to the longest option, and Auto Power OFF Temp to High if your model has it."
+        },
+        {
+          "topic": "overheating",
+          "text": "Set Auto Power OFF Temp to High and keep the screen flipped out."
+        }
+      ],
+      "gotchas": [
+        "Can work as a USB webcam (UVC) without a capture card on recent firmware; HDMI via Cam Link also works.",
+        "Can overheat on long streams."
+      ],
+      "verified": false,
+      "sources": [
+        "https://nono.ma/internal-temp-high-allow-it-to-cool-sony-zv-e10"
+      ]
+    },
+    {
+      "id": "sony_a6400",
+      "brand": "Sony",
+      "model": "α6100 / α6400",
+      "aliases": [
+        "a6100",
+        "a6400",
+        "ilce-6100",
+        "ilce-6400"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "clean_hdmi": true,
+      "dummy_battery": "NP-FW50 dummy battery",
+      "webcam_utility": "Sony Imaging Edge Webcam",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Menu: Setup > HDMI Settings > HDMI Info. Display: Off, so menus and the focus box don't show on stream."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Power Save Start Time to the longest option, and Auto Power OFF Temp to High if your model has it."
+        },
+        {
+          "topic": "dummy_battery",
+          "text": "Run it on mains power with a dummy battery (NP-FW50 type) - a battery won't last a stream and USB power alone often isn't enough."
+        }
+      ],
+      "gotchas": [
+        "Imaging Edge Webcam carries no camera audio and is lower quality than HDMI capture."
+      ],
+      "verified": false,
+      "sources": [
+        "https://helpguide.sony.net/ilc/1930/v1/en/contents/TP0002688477.html"
+      ]
+    },
+    {
+      "id": "sony_zv_1",
+      "brand": "Sony",
+      "model": "ZV-1",
+      "aliases": [
+        "zv-1",
+        "zv1"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "clean_hdmi": true,
+      "webcam_utility": "Sony Imaging Edge Webcam",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Menu: Setup > HDMI Settings > HDMI Info. Display: Off, so menus and the focus box don't show on stream."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Power Save Start Time to the longest option, and Auto Power OFF Temp to High if your model has it."
+        }
+      ],
+      "gotchas": [
+        "Reports of HDMI output capped at 30p on some settings (unverified).",
+        "Small body heats up on long streams."
+      ],
+      "verified": false,
+      "sources": [
+        "https://community.sony.bg/t5/cyber-shot-compact-cameras/high-quality-hdmi-output-on-zv-1/m-p/3684442"
+      ]
+    },
+    {
+      "id": "canon_m50",
+      "brand": "Canon",
+      "model": "EOS M50 / M50 Mark II",
+      "aliases": [
+        "m50",
+        "eos m50",
+        "m50 mark ii"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "dummy_battery": "LP-E12 dummy battery (DR-E12 + AC adapter)",
+      "webcam_utility": "Canon EOS Webcam Utility (free tier reportedly 720p30)",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Turn off the on-screen info (press INFO until the display is clean) before HDMI output; clean HDMI behaviour varies by firmware (unverified)."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Auto power off to Disable and turn off Eco mode."
+        }
+      ],
+      "gotchas": [
+        "Reports of the M50 shutting off after a while - use a dummy battery and disable auto power off."
+      ],
+      "verified": false,
+      "sources": [
+        "https://community.usa.canon.com/t5/EOS-DSLR-Mirrorless-Cameras/EOS-M-50-shutting-off/td-p/417725",
+        "https://www.notebookcheck.com/Das-Canon-EOS-Webcam-Utility-Pro-verwandelt-ueber-40-Canon-Kameras-in-Profi-Webcams.667606.0.html"
+      ]
+    },
+    {
+      "id": "canon_r50",
+      "brand": "Canon",
+      "model": "EOS R50",
+      "aliases": [
+        "r50",
+        "eos r50"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "native_uvc"
+      ],
+      "clean_hdmi": true,
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Auto power off to Disable."
+        }
+      ],
+      "gotchas": [
+        "Works as a USB webcam natively (UVC) - no capture card needed."
+      ],
+      "verified": false,
+      "sources": [
+        "https://canon-europe.com/get-inspired/tips-and-techniques/eos-r50-vs-eos-r10"
+      ]
+    },
+    {
+      "id": "canon_r10",
+      "brand": "Canon",
+      "model": "EOS R10",
+      "aliases": [
+        "r10",
+        "eos r10"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "clean_hdmi": true,
+      "webcam_utility": "Canon EOS Webcam Utility",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Auto power off to Disable."
+        }
+      ],
+      "verified": false,
+      "sources": [
+        "https://canon-europe.com/get-inspired/tips-and-techniques/eos-r50-vs-eos-r10"
+      ]
+    },
+    {
+      "id": "panasonic_g7",
+      "brand": "Panasonic",
+      "model": "Lumix G7 / G85 / GH5",
+      "aliases": [
+        "g7",
+        "g85",
+        "gh5",
+        "lumix g7",
+        "lumix g85",
+        "lumix gh5",
+        "dmc-g7"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "clean_hdmi": true,
+      "dummy_battery": "DMW-DCC8 (G7, BLC12 battery) / model-specific DC coupler",
+      "webcam_utility": "LUMIX Webcam Software",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "clean_hdmi",
+          "text": "Turn off HDMI info display in the video output menu so overlays don't show."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Turn Sleep Mode / Economy off."
+        }
+      ],
+      "gotchas": [
+        "DC coupler model numbers per body unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fujifilm_x_s10",
+      "brand": "Fujifilm",
+      "model": "X-S10",
+      "aliases": [
+        "x-s10",
+        "xs10"
+      ],
+      "connections": [
+        "hdmi_capture",
+        "vendor_utility"
+      ],
+      "clean_hdmi": true,
+      "webcam_utility": "FUJIFILM X Webcam",
+      "guidance": [
+        {
+          "topic": "shutter",
+          "text": "Use manual (M) or shutter priority. Set the shutter to 1/50 if your mains power is 50 Hz (Europe, most of Asia/Africa/Oceania) or 1/60 if it's 60 Hz (Americas) - this stops light flicker. For 60 fps, use 1/100 (50 Hz) or 1/120 (60 Hz) and add light."
+        },
+        {
+          "topic": "iso",
+          "text": "Keep ISO as low as your light allows (under about 1000). If the picture is dark, add light rather than raising ISO."
+        },
+        {
+          "topic": "white_balance",
+          "text": "Set white balance manually (Kelvin or a custom white balance from a white sheet of paper) instead of auto, so colours don't drift."
+        },
+        {
+          "topic": "autofocus",
+          "text": "Use continuous autofocus with face/eye detection, or manual focus on your sitting position."
+        },
+        {
+          "topic": "picture_profile",
+          "text": "Use a standard/neutral picture profile, not a log profile."
+        },
+        {
+          "topic": "audio",
+          "text": "Don't use the camera's built-in mic - use your real mic in OBS and set an audio sync offset if lips are late."
+        },
+        {
+          "topic": "auto_power_off",
+          "text": "Set Auto power off to Off."
+        }
+      ],
+      "gotchas": [
+        "Overheating and dummy-battery options unverified."
+      ],
+      "verified": false
+    }
+  ]
+}

@@ -1,0 +1,4080 @@
+{
+  "schema_version": 1,
+  "mics": [
+    {
+      "id": "blue_yeti",
+      "brand": "Logitech (Blue)",
+      "model": "Yeti",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Mute button",
+        "Headphone volume",
+        "Pattern knob"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn Blue VO!CE off in G HUB so our settings aren't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "sample_rates": [
+        48000
+      ],
+      "channel_layout": "mono_as_stereo",
+      "usb_ids": [
+        {
+          "vid": "b58e",
+          "pid": "9e84"
+        }
+      ],
+      "endpoint_name_patterns": [
+        "yeti stereo microphone",
+        "yeti",
+        "blue yeti"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Pattern knob on omni or stereo picks up the whole room - use cardioid (heart symbol).",
+        "The gain knob on the back is the real gain; keep the Windows slider at 100%."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.thepodcasthost.com/equipment/microphones/how-to-make-the-blue-yeti-sound-better/",
+        "https://www.thepodcasthost.com/business-of-podcasting/gear-survey-2024/"
+      ]
+    },
+    {
+      "id": "blue_yeti_nano",
+      "brand": "Logitech (Blue)",
+      "model": "Yeti Nano",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni"
+      ],
+      "hardware_controls": [
+        "Headphone volume knob",
+        "Mute button"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn Blue VO!CE off in G HUB so our settings aren't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "channel_layout": "mono_as_stereo",
+      "endpoint_name_patterns": [
+        "yeti nano",
+        "blue yeti nano"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "No gain knob on the mic - gain is set in G HUB / Windows."
+      ],
+      "verified": false
+    },
+    {
+      "id": "blue_yeti_x",
+      "brand": "Logitech (Blue)",
+      "model": "Yeti X",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Smart knob (gain/headphone/blend)",
+        "Mute",
+        "Pattern button",
+        "LED meter"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn Blue VO!CE off in G HUB so our settings aren't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "channel_layout": "mono_as_stereo",
+      "endpoint_name_patterns": [
+        "yeti x",
+        "blue yeti x"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Low volume reports are usually Blue VO!CE or the smart knob set to headphone mode, not mic gain."
+      ],
+      "verified": false,
+      "sources": [
+        "https://support.logi.com/hc/de/articles/14162183334423"
+      ]
+    },
+    {
+      "id": "logitech_yeti_gx",
+      "brand": "Logitech G",
+      "model": "Yeti GX",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "supercardioid"
+      ],
+      "hardware_controls": [
+        "Gain wheel",
+        "Mute"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn Blue VO!CE off in G HUB so our settings aren't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "yeti gx"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "This one is a dynamic mic you speak into the end - unlike other Yetis. Keep it close (a fist away)."
+      ],
+      "verified": false,
+      "sources": [
+        "https://logitech.com/en-ae/shop/p/yeti-gx-gaming-microphone"
+      ]
+    },
+    {
+      "id": "logitech_yeti_orb",
+      "brand": "Logitech G",
+      "model": "Yeti Orb",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Auto gain",
+          "kind": "auto_level",
+          "can_disable": null,
+          "recommendation": "If it can be turned off, turn it off once gain is set, so your level stays steady."
+        },
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn Blue VO!CE off in G HUB so our settings aren't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "yeti orb"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Which way to speak into it is unverified - check on hardware."
+      ],
+      "verified": false
+    },
+    {
+      "id": "blue_snowball_ice",
+      "brand": "Logitech (Blue)",
+      "model": "Snowball iCE",
+      "family": "yeti",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "windows_slider_is_hw_gain": true,
+      "endpoint_name_patterns": [
+        "snowball"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the front (logo side).",
+        "No gain knob - the Windows input slider is the gain."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_quadcast",
+      "brand": "HyperX",
+      "model": "QuadCast",
+      "family": "quadcast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Gain knob (bottom)",
+        "Tap-to-mute (top)",
+        "Pattern knob (back)"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "quadcast",
+        "hyperx quadcast"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Tap-to-mute on top is easy to leave on - a red light means muted.",
+        "Pattern knob on omni/stereo picks up keyboard and room - use cardioid."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_quadcast_s",
+      "brand": "HyperX",
+      "model": "QuadCast S",
+      "family": "quadcast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Gain knob (bottom)",
+        "Tap-to-mute (top)",
+        "Pattern knob (back)"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "quadcast s",
+        "hyperx quadcast s"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Tap-to-mute on top is easy to leave on - a red light means muted.",
+        "Pattern knob on omni/stereo picks up keyboard and room - use cardioid."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_quadcast_2",
+      "brand": "HyperX",
+      "model": "QuadCast 2",
+      "family": "quadcast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Gain knob (bottom)",
+        "Tap-to-mute (top)",
+        "Pattern knob (back)"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "quadcast 2",
+        "hyperx quadcast 2"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Tap-to-mute on top is easy to leave on - a red light means muted.",
+        "Pattern knob on omni/stereo picks up keyboard and room - use cardioid."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.pcworld.com/article/2509663/hyperx-quadcast-2-review.html"
+      ]
+    },
+    {
+      "id": "hyperx_quadcast_2_s",
+      "brand": "HyperX",
+      "model": "QuadCast 2 S",
+      "family": "quadcast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "multi_pattern",
+        "default": "cardioid",
+        "facing": "side"
+      },
+      "patterns": [
+        "cardioid",
+        "omni",
+        "figure8",
+        "stereo"
+      ],
+      "hardware_controls": [
+        "Gain knob (bottom)",
+        "Tap-to-mute (top)",
+        "Pattern knob (back)"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "quadcast 2 s",
+        "hyperx quadcast 2 s"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Tap-to-mute on top is easy to leave on - a red light means muted.",
+        "Pattern knob on omni/stereo picks up keyboard and room - use cardioid."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_solocast",
+      "brand": "HyperX",
+      "model": "SoloCast",
+      "family": "solocast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "top"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "windows_slider_is_hw_gain": true,
+      "hardware_controls": [
+        "Tap-to-mute"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "solocast"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the top of the mic.",
+        "No gain knob - the Windows input slider is the gain (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_solocast_2",
+      "brand": "HyperX",
+      "model": "SoloCast 2",
+      "family": "solocast",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "top"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "solocast 2"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the top of the mic.",
+        "No gain knob - the Windows input slider is the gain (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fifine_k669",
+      "brand": "Fifine",
+      "model": "K669 / K669B",
+      "family": "fifine",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Volume/gain knob"
+      ],
+      "endpoint_name_patterns": [
+        "fifine",
+        "k669"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away. (address unverified)",
+        "Often shows in Windows as a generic 'USB PnP Audio Device' - we may need to ask which model it is."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fifine_k678",
+      "brand": "Fifine",
+      "model": "K678",
+      "family": "fifine",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Mute"
+      ],
+      "endpoint_name_patterns": [
+        "fifine",
+        "k678"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified.",
+        "Often shows in Windows as a generic 'USB PnP Audio Device' - we may need to ask which model it is."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fifine_am8",
+      "brand": "Fifine",
+      "model": "AM8 / AmpliGame AM8",
+      "family": "fifine",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Tap-to-mute",
+        "RGB"
+      ],
+      "endpoint_name_patterns": [
+        "fifine",
+        "am8"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Dynamic mic: talk into the end from about a fist away.",
+        "Has USB and XLR - with XLR it needs an interface with plenty of gain."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fifine_a6",
+      "brand": "Fifine",
+      "model": "AmpliGame A6 / A6T",
+      "family": "fifine",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Tap-to-mute"
+      ],
+      "endpoint_name_patterns": [
+        "fifine",
+        "ampligame a6",
+        "a6t"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "fifine_k688",
+      "brand": "Fifine",
+      "model": "K688",
+      "family": "fifine",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Mute"
+      ],
+      "endpoint_name_patterns": [
+        "fifine",
+        "k688"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Dynamic: keep it close, talk into the end."
+      ],
+      "verified": false
+    },
+    {
+      "id": "elgato_wave_1",
+      "brand": "Elgato",
+      "model": "Wave:1",
+      "family": "elgato_wave",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Dial (gain/volume)",
+        "Mute"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Clipguard",
+          "kind": "limiter",
+          "can_disable": true,
+          "recommendation": "Keep it on as a safety net, but set gain so it rarely kicks in."
+        }
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "endpoint_name_patterns": [
+        "wave:1",
+        "wave 1"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified - check on hardware.",
+        "With Wave Link, OBS should use the Wave Link stream mix, not the raw mic."
+      ],
+      "verified": false
+    },
+    {
+      "id": "elgato_wave_3",
+      "brand": "Elgato",
+      "model": "Wave:3 / Wave:3 MK.2",
+      "family": "elgato_wave",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "supercardioid"
+      ],
+      "hardware_controls": [
+        "Dial (gain/monitor mix/volume)",
+        "Capacitive mute"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Clipguard",
+          "kind": "limiter",
+          "can_disable": true,
+          "recommendation": "Keep it on as a safety net, but set gain so it rarely kicks in."
+        },
+        {
+          "name": "Auto Gain Wizard / Gain Lock",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Fine to use once to set gain; keep Gain Lock on so apps can't change it."
+        }
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "sample_rates": [
+        48000,
+        96000
+      ],
+      "endpoint_name_patterns": [
+        "wave:3",
+        "wave 3"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Supercardioid: you must talk straight at it - turning away drops your level a lot.",
+        "With Wave Link, OBS should use the Wave Link stream mix, not the raw mic (unverified naming).",
+        "Address direction unverified."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.elgato.com/explorer/products/wave/what-is-clipguard-2-0/",
+        "https://help.elgato.com/hc/en-us/articles/360044558092"
+      ]
+    },
+    {
+      "id": "elgato_wave_neo",
+      "brand": "Elgato",
+      "model": "Wave Neo",
+      "family": "elgato_wave",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "endpoint_name_patterns": [
+        "wave neo"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "elgato_wave_dx",
+      "brand": "Elgato",
+      "model": "Wave DX",
+      "family": "wave_dx",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Dynamic XLR: needs an interface with plenty of clean gain; talk into the end."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_seiren_mini",
+      "brand": "Razer",
+      "model": "Seiren Mini",
+      "family": "seiren",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "top"
+      },
+      "patterns": [
+        "supercardioid"
+      ],
+      "windows_slider_is_hw_gain": true,
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "seiren mini"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the top. Supercardioid: stay in front of it.",
+        "No gain knob - the Windows slider is the gain (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_seiren_v3_mini",
+      "brand": "Razer",
+      "model": "Seiren V3 Mini",
+      "family": "seiren",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "top"
+      },
+      "patterns": [
+        "supercardioid"
+      ],
+      "hardware_controls": [
+        "Tap-to-mute"
+      ],
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "seiren v3 mini"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_seiren_v2_x",
+      "brand": "Razer",
+      "model": "Seiren V2 X",
+      "family": "seiren",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "supercardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Mute"
+      ],
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "seiren v2 x",
+        "seiren x"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_nt_usb",
+      "brand": "RØDE",
+      "model": "NT-USB",
+      "family": "rode_nt_usb",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Mix knob",
+        "Headphone level"
+      ],
+      "endpoint_name_patterns": [
+        "nt-usb"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_nt_usb_plus",
+      "brand": "RØDE",
+      "model": "NT-USB+",
+      "family": "rode_nt_usb",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "APHEX processing (RODE Central / UNIFY)",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Turn it off (or pick one place to process) so the voice isn't processed twice."
+        }
+      ],
+      "vendor_app": "RODE Central / UNIFY",
+      "endpoint_name_patterns": [
+        "nt-usb+"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_nt_usb_mini",
+      "brand": "RØDE",
+      "model": "NT-USB Mini",
+      "family": "rode_nt_usb",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "RODE Central / UNIFY",
+      "endpoint_name_patterns": [
+        "nt-usb mini"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_podmic_usb",
+      "brand": "RØDE",
+      "model": "PodMic USB",
+      "family": "podmic",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "APHEX processing (RODE Central / UNIFY)",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Turn it off (or pick one place to process) so the voice isn't processed twice."
+        }
+      ],
+      "vendor_app": "RODE Central / UNIFY",
+      "endpoint_name_patterns": [
+        "podmic usb"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Talk into the end from about a fist away.",
+        "Gain is digital in RODE Central."
+      ],
+      "verified": false
+    },
+    {
+      "id": "shure_mv7",
+      "brand": "Shure",
+      "model": "MV7",
+      "family": "shure_mv7",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Touch panel (gain/mute)"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Auto Level",
+          "kind": "auto_level",
+          "can_disable": true,
+          "recommendation": "Turn Auto Level off and set fixed gain - it fights the compressor and changes your level."
+        }
+      ],
+      "vendor_app": "Shure MOTIV Mix",
+      "endpoint_name_patterns": [
+        "mv7"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Auto Level fights other processing - turn it off once gain is set.",
+        "The MOTIV app only works over USB; in XLR mode it does nothing."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.soundonsound.com/reviews/shure-mv7"
+      ]
+    },
+    {
+      "id": "shure_mv7_plus",
+      "brand": "Shure",
+      "model": "MV7+",
+      "family": "shure_mv7",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Touch panel (gain/mute)",
+        "LED"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Auto Level",
+          "kind": "auto_level",
+          "can_disable": true,
+          "recommendation": "Turn Auto Level off and set fixed gain - it fights the compressor and changes your level."
+        },
+        {
+          "name": "Real-time Denoiser",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix the noise at the source; denoisers make voices sound processed."
+        }
+      ],
+      "vendor_app": "Shure MOTIV Mix",
+      "endpoint_name_patterns": [
+        "mv7+"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Auto Level and the denoiser should be off for a clean, steady voice.",
+        "Talk into the end, a fist away."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.laptopmag.com/laptops/headsets-microphones/shure-mv7-review-a-winning-legacy"
+      ]
+    },
+    {
+      "id": "shure_mv6",
+      "brand": "Shure",
+      "model": "MV6",
+      "family": "shure_mv7",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Auto Level",
+          "kind": "auto_level",
+          "can_disable": true,
+          "recommendation": "Turn Auto Level off and set fixed gain - it fights the compressor and changes your level."
+        },
+        {
+          "name": "Real-time Denoiser",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix the noise at the source; denoisers make voices sound processed."
+        }
+      ],
+      "vendor_app": "Shure MOTIV Mix",
+      "endpoint_name_patterns": [
+        "mv6"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Capsule type and processing details unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "shure_mv7x",
+      "brand": "Shure",
+      "model": "MV7X",
+      "family": "shure_mv7",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "XLR only - needs an interface with plenty of clean gain."
+      ],
+      "verified": false
+    },
+    {
+      "id": "samson_q2u",
+      "brand": "Samson",
+      "model": "Q2U",
+      "family": "samson_q2u",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "On/off switch"
+      ],
+      "endpoint_name_patterns": [
+        "q2u",
+        "samson q2u"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Talk into the end (the top of the stick), a fist away.",
+        "The on/off switch on the handle is a common 'my mic is dead' cause."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.thepodcasthost.com/business-of-podcasting/gear-survey-2024/"
+      ]
+    },
+    {
+      "id": "at_atr2100x",
+      "brand": "Audio-Technica",
+      "model": "ATR2100x-USB",
+      "family": "atr2100",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "On/off switch",
+        "Headphone volume"
+      ],
+      "endpoint_name_patterns": [
+        "atr2100x",
+        "atr2100"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Talk into the end, a fist away."
+      ],
+      "verified": false
+    },
+    {
+      "id": "maono_pd200x",
+      "brand": "Maono",
+      "model": "PD200X",
+      "family": "maono_pd",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Gain knob",
+        "Mute",
+        "Headphone volume"
+      ],
+      "endpoint_name_patterns": [
+        "pd200x",
+        "maono"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Talk into the end, a fist away."
+      ],
+      "verified": false
+    },
+    {
+      "id": "at_at2020usb",
+      "brand": "Audio-Technica",
+      "model": "AT2020USB+ / AT2020USB-X",
+      "family": "at2020usb",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "hardware_controls": [
+        "Mix knob",
+        "Headphone volume"
+      ],
+      "endpoint_name_patterns": [
+        "at2020usb",
+        "at2020 usb"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
+      ],
+      "verified": false
+    },
+    {
+      "id": "tonor_tc777",
+      "brand": "Tonor",
+      "model": "TC-777",
+      "family": "tonor",
+      "connection": {
+        "type": "usb"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "endpoint_name_patterns": [
+        "tc-777",
+        "tc777",
+        "tonor"
+      ],
+      "distance_cm": {
+        "min": 10,
+        "ideal": 15,
+        "max": 20
+      },
+      "angle_deg": 10,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 400,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Address direction unverified.",
+        "Generic Windows name; we may need to ask which mic this is."
+      ],
+      "verified": false
+    },
+    {
+      "id": "shure_sm7b",
+      "brand": "Shure",
+      "model": "SM7B",
+      "family": "sm7",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "sensitivity_dbv_pa": -59.0,
+      "gain_needed_db": 60.0,
+      "switches": [
+        "Bass roll-off: flat / on",
+        "Presence boost: flat / on"
+      ],
+      "distance_cm": {
+        "min": 2,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Needs about 60 dB of clean gain - small interfaces (Scarlett Solo) can't give that, which causes hiss. A booster (Cloudlifter/FetHead) or a stronger interface fixes it.",
+        "Built to be used very close: 2-5 cm. Sitting back makes it quiet and noisy.",
+        "It doesn't need 48V phantom power (a booster does)."
+      ],
+      "verified": false,
+      "sources": [
+        "https://service.shure.com/Service/articles/en_US/Knowledge/sm7-output-level-and-preamp-gain-specifications"
+      ]
+    },
+    {
+      "id": "shure_sm7db",
+      "brand": "Shure",
+      "model": "SM7dB",
+      "family": "sm7",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "needs_phantom": true,
+      "sensitivity_dbv_pa": -59.0,
+      "switches": [
+        "Preamp: bypass / +18 dB / +28 dB",
+        "Bass roll-off",
+        "Presence boost"
+      ],
+      "distance_cm": {
+        "min": 2,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Built-in preamp needs 48V phantom power when it's switched on.",
+        "Use +18 or +28 dB on the mic with small interfaces instead of maxing the interface knob."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_podmic",
+      "brand": "RØDE",
+      "model": "PodMic",
+      "family": "podmic",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 20,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Gain-hungry: needs a lot of clean gain, similar to the SM7B.",
+        "Talk into the end, close."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_procaster",
+      "brand": "RØDE",
+      "model": "Procaster",
+      "family": "procaster",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Low output: needs plenty of clean gain.",
+        "End-address: talk into the top of the mic, close."
+      ],
+      "verified": false
+    },
+    {
+      "id": "ev_re20",
+      "brand": "Electro-Voice",
+      "model": "RE20",
+      "family": "re20",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "sensitivity_dbv_pa": -56.5,
+      "switches": [
+        "Bass tilt (low-cut) switch"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 15
+      },
+      "angle_deg": 0,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 70,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4000,
+          "gain_db": 1.5,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Variable-D design: very little extra bass when you get close, so distance changes tone less than other dynamics.",
+        "Talk into the end (the top), not the side.",
+        "Needs a lot of clean gain (similar class to the SM7B); doesn't need phantom power.",
+        "Bass-tilt switch cuts low end - check its position before EQ."
+      ],
+      "verified": false,
+      "verify_first": true,
+      "sources": [
+        "https://obsproject.com/forum/threads/shure-sm7b-mic-noise.100364/"
+      ]
+    },
+    {
+      "id": "ev_re320",
+      "brand": "Electro-Voice",
+      "model": "RE320",
+      "family": "re20",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "switches": [
+        "Voice / kick-drum curve switch"
+      ],
+      "distance_cm": {
+        "min": 3,
+        "ideal": 5,
+        "max": 15
+      },
+      "angle_deg": 0,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 70,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 4000,
+          "gain_db": 1.5,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Keep the curve switch on the voice (flat) setting.",
+        "Talk into the end."
+      ],
+      "verified": false
+    },
+    {
+      "id": "shure_sm58",
+      "brand": "Shure",
+      "model": "SM58 / Beta 58A",
+      "family": "sm58",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "dynamic",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "sensitivity_dbv_pa": -54.5,
+      "distance_cm": {
+        "min": 2,
+        "ideal": 5,
+        "max": 10
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 250,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 5000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "A stage mic: works close; at desk distance it sounds thin and quiet."
+      ],
+      "verified": false
+    },
+    {
+      "id": "at_at2020",
+      "brand": "Audio-Technica",
+      "model": "AT2020 (XLR)",
+      "family": "at2020",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "needs_phantom": true,
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 300,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
+        "Needs 48V phantom power turned on at the interface.",
+        "Condensers hear the whole room - closer is better in untreated rooms."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.audio-technica.com/en-us/support/audio-solutions-question-of-the-week-what-kind-of-phantom-power-supply-or-audio-interface-do-i-need-for-an-at2020-microphone"
+      ]
+    },
+    {
+      "id": "rode_nt1a",
+      "brand": "RØDE",
+      "model": "NT1-A",
+      "family": "rode_nt1",
+      "connection": {
+        "type": "xlr"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "needs_phantom": true,
+      "sensitivity_dbv_pa": -31.9,
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 300,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Side-address: speak into the front, where the gold dot is.",
+        "Needs 48V phantom power (on a GoXLR, set the mic type to Condenser).",
+        "Very sensitive: it hears keyboard, fans and room echo - use a pop filter, stay 15-25 cm away, and aim the back of the mic at noise sources."
+      ],
+      "verified": false,
+      "verify_first": true
+    },
+    {
+      "id": "rode_nt1",
+      "brand": "RØDE",
+      "model": "NT1 (4th / 5th gen)",
+      "family": "rode_nt1",
+      "connection": {
+        "type": "usb_xlr_hybrid"
+      },
+      "capsule": "condenser",
+      "address": {
+        "type": "side"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "needs_phantom": true,
+      "endpoint_name_patterns": [
+        "nt1"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "angle_deg": 15,
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 80,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 300,
+          "gain_db": -2,
+          "q": 1.0
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 7000,
+          "gain_db": -1.5,
+          "q": 2.0
+        }
+      ],
+      "gotchas": [
+        "Speak into the front (gold dot side).",
+        "XLR needs 48V phantom power; 5th gen also has USB-C.",
+        "Very sensitive to room and keyboard noise."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.thomannmusic.com/microphoning.html"
+      ]
+    },
+    {
+      "id": "dji_mic_3",
+      "brand": "DJI",
+      "model": "Mic 3",
+      "family": "dji_mic",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        },
+        {
+          "name": "Voice tone presets",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Use the flat/regular tone so our EQ starts from a neutral sound (unverified naming)."
+        }
+      ],
+      "vendor_app": "DJI Mimo",
+      "endpoint_name_patterns": [
+        "dji mic 3",
+        "dji mic"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified).",
+        "Receiver via USB-C shows up as a USB mic; check its gain mode before tuning (specifics unverified)."
+      ],
+      "verified": false,
+      "verify_first": true
+    },
+    {
+      "id": "dji_mic_2",
+      "brand": "DJI",
+      "model": "Mic 2",
+      "family": "dji_mic",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        },
+        {
+          "name": "Voice tone presets",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Use the flat/regular tone so our EQ starts from a neutral sound (unverified naming)."
+        }
+      ],
+      "endpoint_name_patterns": [
+        "dji mic 2",
+        "dji mic"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "dji_mic_mini",
+      "brand": "DJI",
+      "model": "Mic Mini",
+      "family": "dji_mic",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        },
+        {
+          "name": "Voice tone presets",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Use the flat/regular tone so our EQ starts from a neutral sound (unverified naming)."
+        }
+      ],
+      "endpoint_name_patterns": [
+        "dji mic mini",
+        "dji mic"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_wireless_go",
+      "brand": "RØDE",
+      "model": "Wireless GO / GO II / PRO",
+      "family": "rode_wireless",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        }
+      ],
+      "vendor_app": "RODE Central",
+      "endpoint_name_patterns": [
+        "wireless go",
+        "wireless pro"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_wireless_me",
+      "brand": "RØDE",
+      "model": "Wireless ME",
+      "family": "rode_wireless",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        }
+      ],
+      "vendor_app": "RODE Central",
+      "endpoint_name_patterns": [
+        "wireless me"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hollyland_lark",
+      "brand": "Hollyland",
+      "model": "Lark M2 / Lark Max",
+      "family": "hollyland_lark",
+      "connection": {
+        "type": "wireless"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "any"
+      },
+      "patterns": [
+        "omni"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Noise cancellation",
+          "kind": "noise_cancel",
+          "can_disable": true,
+          "recommendation": "Turn it off - fix noise at the source; it makes voices sound processed."
+        },
+        {
+          "name": "Automatic gain / adaptive gain",
+          "kind": "auto_gain",
+          "can_disable": true,
+          "recommendation": "Turn off for streaming so your level stays steady (unverified naming)."
+        }
+      ],
+      "endpoint_name_patterns": [
+        "lark m2",
+        "lark max",
+        "hollyland"
+      ],
+      "distance_cm": {
+        "min": 15,
+        "ideal": 20,
+        "max": 25
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 90,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 750,
+          "gain_db": -2,
+          "q": 1.2
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3500,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Clip it on your chest, about a hand's width below your chin, centred.",
+        "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
+        "The 32-bit float / safety-track recording is for the internal recorder; it doesn't affect a live stream (unverified)."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_cloud_ii",
+      "brand": "HyperX",
+      "model": "Cloud II (USB sound card)",
+      "family": "hyperx_cloud",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "hyperx 7.1 audio",
+        "cloud ii"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_cloud_iii",
+      "brand": "HyperX",
+      "model": "Cloud III",
+      "family": "hyperx_cloud",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "HyperX NGENUITY",
+      "endpoint_name_patterns": [
+        "cloud iii"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_cloud_alpha",
+      "brand": "HyperX",
+      "model": "Cloud Alpha (3.5 mm)",
+      "family": "hyperx_cloud",
+      "connection": {
+        "type": "headset",
+        "path": "analog35"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Plugged into the PC jack: Windows only sees 'Realtek' - check Microphone Boost.",
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "hyperx_cloud_alpha_wireless",
+      "brand": "HyperX",
+      "model": "Cloud Alpha Wireless / Cloud III Wireless",
+      "family": "hyperx_cloud",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "endpoint_name_patterns": [
+        "cloud alpha wireless",
+        "cloud iii wireless"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_g_pro_x",
+      "brand": "Logitech G",
+      "model": "PRO X (USB)",
+      "family": "logitech_g_headset",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn it off so the voice isn't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "pro x gaming headset",
+        "g pro x"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_g_pro_x_2",
+      "brand": "Logitech G",
+      "model": "PRO X 2 LIGHTSPEED",
+      "family": "logitech_g_headset",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "pro x 2"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_g432",
+      "brand": "Logitech G",
+      "model": "G432",
+      "family": "logitech_g_headset",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "g432"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_g435",
+      "brand": "Logitech G",
+      "model": "G435",
+      "family": "logitech_g_headset",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "g435"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Also has Bluetooth - over Bluetooth the mic drops to phone-call quality.",
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "logitech_g733",
+      "brand": "Logitech G",
+      "model": "G733",
+      "family": "logitech_g_headset",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "Blue VO!CE (G HUB)",
+          "kind": "preset",
+          "can_disable": true,
+          "recommendation": "Turn it off so the voice isn't processed twice."
+        }
+      ],
+      "vendor_app": "Logitech G HUB",
+      "endpoint_name_patterns": [
+        "g733"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_blackshark_v2",
+      "brand": "Razer",
+      "model": "BlackShark V2 (USB sound card)",
+      "family": "razer_blackshark",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "blackshark v2",
+        "razer usb sound card"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_blackshark_v2_x",
+      "brand": "Razer",
+      "model": "BlackShark V2 X (3.5 mm)",
+      "family": "razer_blackshark",
+      "connection": {
+        "type": "headset",
+        "path": "analog35"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_blackshark_v3",
+      "brand": "Razer",
+      "model": "BlackShark V3 / V2 Pro (wireless)",
+      "family": "razer_blackshark",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "blackshark v3",
+        "blackshark v2 pro"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "razer_kraken",
+      "brand": "Razer",
+      "model": "Kraken (USB variants)",
+      "family": "razer_kraken",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Razer Synapse",
+      "endpoint_name_patterns": [
+        "kraken"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "steelseries_arctis_nova_1",
+      "brand": "SteelSeries",
+      "model": "Arctis Nova 1 (3.5 mm)",
+      "family": "arctis",
+      "connection": {
+        "type": "headset",
+        "path": "analog35"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "steelseries_arctis_nova_3",
+      "brand": "SteelSeries",
+      "model": "Arctis Nova 3 (USB)",
+      "family": "arctis",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "SteelSeries GG / Sonar",
+      "endpoint_name_patterns": [
+        "arctis nova 3"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "steelseries_arctis_nova_7",
+      "brand": "SteelSeries",
+      "model": "Arctis Nova 5 / 7 (wireless)",
+      "family": "arctis",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "SteelSeries GG / Sonar",
+      "endpoint_name_patterns": [
+        "arctis nova 7",
+        "arctis nova 5",
+        "arctis nova"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Sonar adds its own virtual mic and processing - pick one place to process.",
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "steelseries_arctis_nova_pro",
+      "brand": "SteelSeries",
+      "model": "Arctis Nova Pro",
+      "family": "arctis",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "SteelSeries GG / Sonar",
+      "endpoint_name_patterns": [
+        "arctis nova pro"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "corsair_hs80",
+      "brand": "Corsair",
+      "model": "HS80 / HS65 / HS55 (USB/wireless)",
+      "family": "corsair_hs",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Corsair iCUE",
+      "endpoint_name_patterns": [
+        "hs80",
+        "hs65",
+        "hs55",
+        "corsair"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "corsair_virtuoso",
+      "brand": "Corsair",
+      "model": "Virtuoso",
+      "family": "corsair_hs",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "vendor_app": "Corsair iCUE",
+      "endpoint_name_patterns": [
+        "virtuoso"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "turtle_beach_recon_50",
+      "brand": "Turtle Beach",
+      "model": "Recon 50 (3.5 mm)",
+      "family": "turtle_beach",
+      "connection": {
+        "type": "headset",
+        "path": "analog35"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "turtle_beach_stealth_600",
+      "brand": "Turtle Beach",
+      "model": "Stealth 600",
+      "family": "turtle_beach",
+      "connection": {
+        "type": "headset",
+        "path": "wireless24"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "endpoint_name_patterns": [
+        "stealth 600",
+        "turtle beach"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    },
+    {
+      "id": "astro_a50",
+      "brand": "Astro",
+      "model": "A50 / A40 / A10",
+      "family": "astro",
+      "connection": {
+        "type": "headset",
+        "path": "usb_dongle"
+      },
+      "capsule": "electret",
+      "address": {
+        "type": "end"
+      },
+      "patterns": [
+        "cardioid"
+      ],
+      "endpoint_name_patterns": [
+        "astro a50",
+        "astro a40",
+        "astro"
+      ],
+      "distance_cm": {
+        "min": 1,
+        "ideal": 2,
+        "max": 3
+      },
+      "eq_prior": [
+        {
+          "kind": "high_pass",
+          "freq_hz": 100,
+          "gain_db": 0,
+          "q": 0.707
+        },
+        {
+          "kind": "peak",
+          "freq_hz": 3000,
+          "gain_db": 2,
+          "q": 0.8
+        }
+      ],
+      "gotchas": [
+        "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
+      ],
+      "verified": false
+    }
+  ]
+}

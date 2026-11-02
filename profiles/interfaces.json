@@ -1,0 +1,724 @@
+{
+  "schema_version": 1,
+  "interfaces": [
+    {
+      "id": "focusrite_scarlett_solo_g2",
+      "brand": "Focusrite",
+      "model": "Scarlett Solo (2nd gen)",
+      "family": "scarlett_solo",
+      "kind": "interface",
+      "xlr_inputs": 1,
+      "max_gain_db": 50.0,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "direct_monitoring"
+      ],
+      "name_patterns": [
+        "focusrite usb audio",
+        "scarlett solo usb",
+        "scarlett 2i2 usb"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other.",
+        "Only about 50 dB of gain: low-output dynamics (SM7B, RE20, PodMic) will hiss when maxed - a booster helps."
+      ],
+      "verified": false,
+      "sources": [
+        "https://us.focusrite.com/scarlett-range"
+      ]
+    },
+    {
+      "id": "focusrite_scarlett_solo_g3",
+      "brand": "Focusrite",
+      "model": "Scarlett Solo (3rd gen)",
+      "family": "scarlett_solo",
+      "kind": "interface",
+      "xlr_inputs": 1,
+      "max_gain_db": 56.0,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "air_mode",
+        "direct_monitoring"
+      ],
+      "vendor_app": "Focusrite Control",
+      "name_patterns": [
+        "focusrite usb audio",
+        "scarlett solo usb",
+        "scarlett 2i2 usb"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other.",
+        "About 56 dB of gain: an SM7B needs ~60 dB, so expect hiss near the top of the knob - a booster fixes it.",
+        "The Air button brightens the sound; turn it off before tuning."
+      ],
+      "verified": false,
+      "sources": [
+        "https://us.focusrite.com/scarlett-range"
+      ]
+    },
+    {
+      "id": "focusrite_scarlett_solo_g4",
+      "brand": "Focusrite",
+      "model": "Scarlett Solo (4th gen)",
+      "family": "scarlett_solo",
+      "kind": "interface",
+      "xlr_inputs": 1,
+      "max_gain_db": 57.0,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "air_mode",
+        "direct_monitoring"
+      ],
+      "vendor_app": "Focusrite Control 2",
+      "name_patterns": [
+        "analogue 1 + 2 (focusrite",
+        "focusrite usb audio 4th",
+        "scarlett solo 4th"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other.",
+        "57 dB of gain: still a little short for an SM7B or RE20 - a booster gives clean headroom.",
+        "No Auto Gain on the Solo (the 2i2 has it)."
+      ],
+      "verified": false,
+      "sources": [
+        "https://us.focusrite.com/scarlett-range"
+      ]
+    },
+    {
+      "id": "focusrite_scarlett_2i2_g3",
+      "brand": "Focusrite",
+      "model": "Scarlett 2i2 (3rd gen)",
+      "family": "scarlett_2i2",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "max_gain_db": 56.0,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "air_mode",
+        "direct_monitoring"
+      ],
+      "vendor_app": "Focusrite Control",
+      "name_patterns": [
+        "focusrite usb audio",
+        "scarlett solo usb",
+        "scarlett 2i2 usb"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other."
+      ],
+      "verified": false,
+      "sources": [
+        "https://us.focusrite.com/scarlett-range"
+      ]
+    },
+    {
+      "id": "focusrite_scarlett_2i2_g4",
+      "brand": "Focusrite",
+      "model": "Scarlett 2i2 (4th gen)",
+      "family": "scarlett_2i2",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "max_gain_db": 69.0,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "auto_gain",
+        "clip_safe",
+        "air_mode",
+        "direct_monitoring"
+      ],
+      "vendor_app": "Focusrite Control 2",
+      "name_patterns": [
+        "analogue 1 + 2 (focusrite",
+        "focusrite usb audio 4th",
+        "scarlett 2i2 4th"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other.",
+        "Auto Gain sets a good level once; Clip Safe is peak protection - fine to keep on."
+      ],
+      "verified": false,
+      "sources": [
+        "https://us.focusrite.com/scarlett-range",
+        "https://www.production-expert.com/production-expert-1/how-safe-is-focusrite-clip-safe"
+      ]
+    },
+    {
+      "id": "elgato_wave_xlr",
+      "brand": "Elgato",
+      "model": "Wave XLR",
+      "family": "wave_xlr",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 1,
+      "max_gain_db": 75.0,
+      "phantom": true,
+      "features": [
+        "clipguard",
+        "multiple_mixes"
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "wave link stream",
+          "role": "stream_mix",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "wave link monitor",
+          "role": "monitor_mix",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "elgato wave xlr",
+          "role": "mic_raw",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "name_patterns": [
+        "wave xlr"
+      ],
+      "gotchas": [
+        "In OBS use the Wave Link stream mix, not the raw Wave XLR mic, or you may capture twice.",
+        "Capacitive mute on top - a light touch mutes you."
+      ],
+      "verified": false,
+      "sources": [
+        "https://podcastage.com/rev/wavexlr"
+      ]
+    },
+    {
+      "id": "elgato_wave_xlr_mk2",
+      "brand": "Elgato",
+      "model": "Wave XLR MK.2 / Wave XLR Pro",
+      "family": "wave_xlr",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 1,
+      "max_gain_db": 80.0,
+      "phantom": true,
+      "features": [
+        "clipguard",
+        "multiple_mixes"
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "wave link stream",
+          "role": "stream_mix",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "wave link monitor",
+          "role": "monitor_mix",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "name_patterns": [
+        "wave xlr mk.2",
+        "wave xlr mk2",
+        "wave xlr pro"
+      ],
+      "gotchas": [
+        "Enough gain for an SM7B without a booster.",
+        "In OBS use the Wave Link stream mix, not the raw mic."
+      ],
+      "verified": false,
+      "sources": [
+        "https://www.scan.co.uk/products/elgato-wave-xlr-mk2-80db-gain-onboard-effects-led-feedback-touch-mute-works-with-stream-deck-pc-and"
+      ]
+    },
+    {
+      "id": "elgato_xlr_dock",
+      "brand": "Elgato",
+      "model": "XLR Dock",
+      "family": "wave_xlr",
+      "kind": "interface",
+      "xlr_inputs": 1,
+      "phantom": true,
+      "endpoints": [
+        {
+          "name_pattern": "wave link stream",
+          "role": "stream_mix",
+          "use_in_obs": true
+        }
+      ],
+      "vendor_app": "Elgato Wave Link",
+      "name_patterns": [
+        "xlr dock"
+      ],
+      "gotchas": [
+        "Gain figures unverified."
+      ],
+      "verified": false
+    },
+    {
+      "id": "tc_helicon_goxlr",
+      "brand": "TC-Helicon",
+      "model": "GoXLR",
+      "family": "goxlr",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 1,
+      "phantom": true,
+      "features": [
+        "onboard_dsp",
+        "multiple_mixes"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "GoXLR mic processing (gate, compressor, EQ, de-esser, FX)",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Process in one place: either tune the GoXLR's chain or bypass it and let Setup Coach's chain do it - never both."
+        }
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "broadcast stream mix",
+          "role": "stream_mix",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "chat mic",
+          "role": "chat_mic",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "system",
+          "role": "system",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "game",
+          "role": "game",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "music",
+          "role": "music",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "sample",
+          "role": "sample",
+          "use_in_obs": false
+        },
+        {
+          "name_pattern": "chat",
+          "role": "chat_output",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "GoXLR App (or open-source GoXLR Utility)",
+      "name_patterns": [
+        "tc-helicon goxlr",
+        "goxlr"
+      ],
+      "gotchas": [
+        "OBS should capture 'Broadcast Stream Mix', not 'Chat Mic' - Chat Mic is for Discord.",
+        "For condenser mics (like the NT1-A) set the mic type to Condenser in the GoXLR app to turn on 48V phantom power.",
+        "Mic gain is set in the GoXLR app's mic setup, not in Windows.",
+        "Discontinued and no longer officially updated; the open-source GoXLR Utility can replace the app."
+      ],
+      "discontinued": true,
+      "verified": false,
+      "verify_first": true,
+      "sources": [
+        "https://www.elgato.com/us/en/explorer/products/wave/goxlr-vs-wave-xlr-pro-what-you-need-to-know/",
+        "https://github.com/GoXLR-on-Linux/goxlr-utility"
+      ]
+    },
+    {
+      "id": "tc_helicon_goxlr_mini",
+      "brand": "TC-Helicon",
+      "model": "GoXLR Mini",
+      "family": "goxlr",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 1,
+      "phantom": true,
+      "features": [
+        "onboard_dsp",
+        "multiple_mixes"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "GoXLR Mini mic processing (gate, compressor, EQ)",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Process in one place - GoXLR or Setup Coach, not both."
+        }
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "broadcast stream mix",
+          "role": "stream_mix",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "chat mic",
+          "role": "chat_mic",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "GoXLR App (or open-source GoXLR Utility)",
+      "name_patterns": [
+        "goxlr mini",
+        "goxlrmini",
+        "tc-helicon goxlr mini",
+        "tc-helicon goxlrmini"
+      ],
+      "gotchas": [
+        "OBS should capture 'Broadcast Stream Mix'.",
+        "Discontinued; open-source GoXLR Utility available."
+      ],
+      "discontinued": true,
+      "verified": false
+    },
+    {
+      "id": "behringer_umc22",
+      "brand": "Behringer",
+      "model": "UMC22",
+      "family": "behringer_umc",
+      "kind": "interface",
+      "xlr_inputs": 1,
+      "input1_left_only": true,
+      "name_patterns": [
+        "umc22"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "No phantom power - condenser mics won't work.",
+        "The preamp gets noisy near the top of the knob."
+      ],
+      "verified": false
+    },
+    {
+      "id": "behringer_umc202hd",
+      "brand": "Behringer",
+      "model": "UMC202HD",
+      "family": "behringer_umc",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "vendor_app": "Behringer USB driver",
+      "name_patterns": [
+        "umc 202hd",
+        "umc202hd"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other.",
+        "Install the Behringer driver for low latency."
+      ],
+      "verified": false,
+      "sources": [
+        "https://learn.microsoft.com/en-us/answers/a/6745141"
+      ]
+    },
+    {
+      "id": "behringer_umc204hd",
+      "brand": "Behringer",
+      "model": "UMC204HD",
+      "family": "behringer_umc",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "vendor_app": "Behringer USB driver",
+      "name_patterns": [
+        "umc 204hd",
+        "umc204hd"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Direct-monitor button + OBS monitoring = you hear yourself twice. Use one or the other."
+      ],
+      "verified": false
+    },
+    {
+      "id": "rode_rodecaster_pro_ii",
+      "brand": "RØDE",
+      "model": "RØDECaster Pro II",
+      "family": "rodecaster",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 4,
+      "phantom": true,
+      "features": [
+        "onboard_dsp",
+        "multiple_mixes"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "APHEX processing / Voice presets",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Process in one place - RØDECaster or Setup Coach."
+        }
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "main",
+          "role": "main",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "chat",
+          "role": "chat_mic",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "RØDE Central",
+      "name_patterns": [
+        "rodecaster pro ii",
+        "rodecaster pro 2"
+      ],
+      "gotchas": [
+        "Multitrack mode can break some apps on Windows - use the main stereo device in OBS unless you need multitrack."
+      ],
+      "verified": false,
+      "sources": [
+        "https://help.rode.com/hc/en-us/articles/8961922716175"
+      ]
+    },
+    {
+      "id": "rode_rodecaster_duo",
+      "brand": "RØDE",
+      "model": "RØDECaster Duo",
+      "family": "rodecaster",
+      "kind": "streamer_mixer",
+      "xlr_inputs": 2,
+      "phantom": true,
+      "features": [
+        "onboard_dsp",
+        "multiple_mixes"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "APHEX processing / Voice presets",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Process in one place - RØDECaster or Setup Coach."
+        }
+      ],
+      "endpoints": [
+        {
+          "name_pattern": "main",
+          "role": "main",
+          "use_in_obs": true
+        },
+        {
+          "name_pattern": "chat",
+          "role": "chat_mic",
+          "use_in_obs": false
+        }
+      ],
+      "vendor_app": "RØDE Central",
+      "name_patterns": [
+        "rodecaster duo"
+      ],
+      "gotchas": [
+        "Multitrack mode can break some apps on Windows."
+      ],
+      "verified": false,
+      "sources": [
+        "https://help.rode.com/hc/en-us/articles/8961922716175"
+      ]
+    },
+    {
+      "id": "rode_streamer_x",
+      "brand": "RØDE",
+      "model": "Streamer X",
+      "family": "rode_streamer_x",
+      "kind": "capture_and_interface",
+      "xlr_inputs": 1,
+      "phantom": true,
+      "features": [
+        "onboard_dsp"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "APHEX processing",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Process in one place."
+        }
+      ],
+      "vendor_app": "RØDE UNIFY / Central",
+      "name_patterns": [
+        "streamer x"
+      ],
+      "gotchas": [
+        "Also a capture card - the video side is coach-only."
+      ],
+      "verified": false
+    },
+    {
+      "id": "yamaha_ag06",
+      "brand": "Yamaha",
+      "model": "AG03 / AG06 (MK2)",
+      "family": "yamaha_ag",
+      "kind": "mixer",
+      "xlr_inputs": 1,
+      "phantom": true,
+      "features": [
+        "onboard_dsp",
+        "loopback"
+      ],
+      "onboard_dsp": [
+        {
+          "name": "COMP/EQ button",
+          "kind": "processing",
+          "can_disable": true,
+          "recommendation": "Turn it off before tuning so the chain isn't doubled."
+        }
+      ],
+      "vendor_app": "Yamaha AG Controller",
+      "name_patterns": [
+        "ag06",
+        "ag03"
+      ],
+      "gotchas": [
+        "Loopback mode sends PC audio back into the mic channel - turn it off if OBS also captures desktop audio, or viewers hear the game twice."
+      ],
+      "verified": false
+    },
+    {
+      "id": "motu_m2",
+      "brand": "MOTU",
+      "model": "M2",
+      "family": "motu_m",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "name_patterns": [
+        "motu m2",
+        "motu m-series"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono."
+      ],
+      "verified": false
+    },
+    {
+      "id": "ssl_ssl2",
+      "brand": "Solid State Logic",
+      "model": "SSL 2 / SSL 2+",
+      "family": "ssl2",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "name_patterns": [
+        "ssl 2"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "The 4K button adds brightness; turn it off before tuning."
+      ],
+      "verified": false
+    },
+    {
+      "id": "ua_volt_2",
+      "brand": "Universal Audio",
+      "model": "Volt 1 / Volt 2",
+      "family": "ua_volt",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "name_patterns": [
+        "volt 2",
+        "volt 1",
+        "universal audio volt"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Vintage mode colours the sound; turn it off before tuning."
+      ],
+      "verified": false
+    },
+    {
+      "id": "audient_evo4",
+      "brand": "Audient",
+      "model": "EVO 4",
+      "family": "audient_evo",
+      "kind": "interface",
+      "xlr_inputs": 2,
+      "input1_left_only": true,
+      "phantom": true,
+      "features": [
+        "auto_gain"
+      ],
+      "name_patterns": [
+        "evo4",
+        "evo 4"
+      ],
+      "gotchas": [
+        "Your mic on input 1 arrives in Windows as the left channel only - viewers hear you in one ear unless OBS downmixes to mono.",
+        "Smartgain sets a level automatically - fine to use once."
+      ],
+      "verified": false
+    }
+  ],
+  "boosters": [
+    {
+      "id": "booster.cloudlifter_cl1",
+      "brand": "Cloud Microphones",
+      "model": "Cloudlifter CL-1",
+      "aliases": [
+        "cloudlifter"
+      ],
+      "gain_db": 25.0,
+      "needs_phantom": true,
+      "verified": false,
+      "sources": [
+        "https://evezone.evetech.co.za/deep-dives/do-you-need-a-cloudlifter-for-a-low-output-dynamic-microphone"
+      ]
+    },
+    {
+      "id": "booster.fethead",
+      "brand": "Triton Audio",
+      "model": "FetHead",
+      "aliases": [
+        "fethead"
+      ],
+      "gain_db": 27.0,
+      "needs_phantom": true,
+      "verified": false
+    },
+    {
+      "id": "booster.se_dm1",
+      "brand": "sE Electronics",
+      "model": "DM1 Dynamite",
+      "aliases": [
+        "dynamite",
+        "dm1"
+      ],
+      "gain_db": 28.0,
+      "needs_phantom": true,
+      "verified": false
+    },
+    {
+      "id": "booster.generic",
+      "brand": "Generic",
+      "model": "Inline mic booster",
+      "aliases": [
+        "booster",
+        "mic activator"
+      ],
+      "gain_db": 25.0,
+      "needs_phantom": true,
+      "verified": false
+    }
+  ]
+}
