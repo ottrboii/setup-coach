@@ -296,6 +296,10 @@ impl SystemInspector for WinSystem {
         crate::paths::obs_dir()
     }
 
+    fn desktop_dir(&self) -> Option<PathBuf> {
+        super::desktop_dir()
+    }
+
     fn apply(&self, action: &Action) -> Result<(), String> {
         com_init();
         match action {

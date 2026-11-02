@@ -143,7 +143,8 @@ impl AppCore {
         *self.obs.lock().await = Some(obs);
     }
 
-    async fn obs(&self) -> Option<Arc<dyn ObsApi>> {
+    /// The live OBS connection, if any (dropped once OBS went away).
+    pub async fn obs(&self) -> Option<Arc<dyn ObsApi>> {
         let mut g = self.obs.lock().await;
         if g.as_ref().is_some_and(|o| !o.is_alive()) {
             *g = None;

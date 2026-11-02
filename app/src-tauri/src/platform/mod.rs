@@ -72,6 +72,10 @@ pub trait SystemInspector: Send + Sync {
     }
     /// Open a Windows Settings page, URL or app for the user.
     fn open_target(&self, target: &crate::types::OpenTarget) -> Result<(), String>;
+    /// The user's Desktop folder (follows OneDrive redirection on Windows).
+    fn desktop_dir(&self) -> Option<PathBuf> {
+        None
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -109,6 +113,15 @@ pub fn native() -> Platform {
     {
         mock::MockPlatform::demo().platform()
     }
+}
+
+/// Make stdout usable for the command-line modes (`--self-test`). The
+/// release app is a GUI-subsystem program on Windows: started from a console
+/// without redirection it has no stdout, so attach to the parent's console.
+/// No-op elsewhere or when stdout is already a pipe/file.
+pub fn attach_parent_console() {
+    #[cfg(windows)]
+    windows::attach_parent_console();
 }
 
 /// Parse `VID_046D&PID_082D` style substrings from a device id / symbolic link.

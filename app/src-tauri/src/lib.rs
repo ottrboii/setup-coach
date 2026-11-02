@@ -8,6 +8,7 @@ pub mod goxlr;
 pub mod obs;
 pub mod paths;
 pub mod platform;
+pub mod selftest;
 pub mod types;
 
 use app::{AppCore, Emitter, WindowControl};
