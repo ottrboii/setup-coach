@@ -422,6 +422,15 @@ impl SelfTest {
             Err(skip) => return skip,
         };
         let o = o.as_ref();
+        // Never touch OBS while the user is live or recording.
+        let live = obs_live_outputs(o).await;
+        if !live.is_empty() {
+            return Outcome::new(
+                Status::Skip,
+                format!("OBS is {}, so the test left OBS alone. Run the self-test again when you're not live.", live.join(" and ")),
+                json!({ "live_outputs": live }),
+            );
+        }
         // Snapshot the user's sources so cleanup can prove they're untouched.
         match user_filters(o).await {
             Ok(m) => *self.user_filters_before.lock().unwrap() = Some(m),
@@ -605,6 +614,20 @@ pub fn self_test_chain() -> ProcessingChain {
         target_lufs: -16.0,
         notes: vec!["Setup Coach self-test (temporary)".into()],
     }
+}
+
+/// Which OBS outputs are active right now ("streaming", "recording").
+/// A failed request counts as not active.
+async fn obs_live_outputs(o: &dyn ObsApi) -> Vec<String> {
+    let mut live = Vec::new();
+    for (req, label) in [("GetStreamStatus", "streaming"), ("GetRecordStatus", "recording")] {
+        if let Ok(v) = o.request(req, Value::Null).await {
+            if v.get("outputActive").and_then(Value::as_bool) == Some(true) {
+                live.push(label.to_string());
+            }
+        }
+    }
+    live
 }
 
 async fn filter_kinds(o: &dyn ObsApi) -> Result<Vec<String>, String> {

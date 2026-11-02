@@ -100,6 +100,7 @@ async fn full_self_test_with_obs_and_goxlr() {
     std::fs::write(vst3.join("Contents").join("x86_64-win").join("SetupCoachVoice.vst3"), "dll").unwrap();
     // OBS with a VST3 host (atkAudio).
     let obs = Arc::new(FakeObs::typical());
+    obs.state.lock().unwrap().stream["outputActive"] = Value::Bool(false);
     obs.state.lock().unwrap().filter_kinds.push("atkaudio_plugin_host".into());
     w.core.set_obs(obs.clone()).await;
     let user_filters_before = obs.filter_names("Mic/Aux");
@@ -150,6 +151,7 @@ async fn full_self_test_with_obs_and_goxlr() {
 async fn without_obs_vst3_host_the_apply_test_warns_and_still_cleans_up() {
     let w = world();
     let obs = Arc::new(FakeObs::typical());
+    obs.state.lock().unwrap().stream["outputActive"] = Value::Bool(false);
     // A leftover from an interrupted earlier run is removed first.
     obs.request("CreateScene", serde_json::json!({ "sceneName": TEST_SCENE })).await.unwrap();
     w.core.set_obs(obs.clone()).await;
@@ -218,4 +220,24 @@ async fn a_hanging_obs_times_out_without_blocking_other_checks() {
     }
     assert_eq!(check(&report, "microphones")["status"], "pass");
     assert_eq!(check(&report, "saved_setup")["status"], "pass");
+}
+
+#[tokio::test]
+async fn while_live_the_apply_test_leaves_obs_alone() {
+    let w = world();
+    let obs = Arc::new(FakeObs::typical()); // fake OBS reports an active stream
+    w.core.set_obs(obs.clone()).await;
+    let user_filters_before = obs.filter_names("Mic/Aux");
+    let opts = CliOptions { out_dir: Some(w.dir.path().join("out")), ..Default::default() };
+    let zip = run_self_test(w.core.clone(), &opts, None, CHECK_TIMEOUT).await.unwrap();
+    let report: Value = serde_json::from_slice(&read_zip(&zip)["self-test.json"]).unwrap();
+    assert_shape(&report);
+    let apply = check(&report, "obs_apply_test");
+    assert_eq!(apply["status"], "skip", "{apply}");
+    assert_eq!(apply["details"]["live_outputs"], serde_json::json!(["streaming"]));
+    let st = obs.state.lock().unwrap();
+    assert!(!st.scenes.iter().any(|s| s == TEST_SCENE));
+    assert!(!st.log.iter().any(|l| l.contains("CreateScene") || l.contains("CreateInput")), "{:?}", st.log);
+    drop(st);
+    assert_eq!(obs.filter_names("Mic/Aux"), user_filters_before);
 }
