@@ -18,6 +18,7 @@ Rust workspace (`core/` = `coach_core`, `app/src-tauri/` = `setup-coach-app`), s
 - UI preview without the app: open `app/ui/index.html` in a browser (mock mode).
 - Build VST3 first (Windows): `cmake -S vst3 -B build-vst3 -DSC_BUILD_PLUGIN=ON && cmake --build build-vst3 --config Release`. Then the installer, which bundles it and installs it to `%CommonProgramFiles%\VST3` (admin/UAC once): `cd app && npx @tauri-apps/cli@2 build --config src-tauri/tauri.vst3.conf.json`. Without `--config` the installer is built without the VST3.
 - CI: `.github/workflows/ci.yml` builds both and uploads them as artifacts.
+- Installer end-to-end: CI silently installs the built installer, checks the app + VST3 files, launches the app for 10s, then uninstalls and checks everything is gone (`.github/scripts/installer-e2e.ps1`).
 - Local checkout on Otto's PC: `C:\setup-coach`.
 
 ## Where things live
