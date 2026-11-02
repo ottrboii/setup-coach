@@ -8,18 +8,21 @@ backed up. Take a screenshot whenever something looks wrong or confusing.
 
 GitHub → setup-coach → **Actions** → *CI* → latest green run on `main` → **Artifacts**:
 - `setup-coach-installer` (zip with the `.exe`)
-- `setup-coach-voice-vst3` (zip with `SetupCoachVoice.vst3`)
+- `setup-coach-voice-vst3` (zip with `SetupCoachVoice.vst3`; already included in the installer, only needed standalone)
 
 ## 1. Install
 
-1. Copy the `SetupCoachVoice.vst3` folder to `C:\Program Files\Common Files\VST3\`.
-2. OBS 33.0 can't load VST3 yet (native support is expected ~33.1), so install
+1. OBS 33.0 can't load VST3 yet (native support is expected ~33.1), so install
    **atkAudio** (free OBS plugin) for now. Without it the app tells you so and
    still sets OBS's own gate/compressor/limiter.
-3. OBS → *Tools → WebSocket Server Settings* → tick **Enable**. (The app can
+2. OBS → *Tools → WebSocket Server Settings* → tick **Enable**. (The app can
    also read the password itself after you allow it.)
-4. Run the Setup Coach installer. It isn't signed yet, so Windows shows
-   "Windows protected your PC" → **More info → Run anyway**.
+3. Run the Setup Coach installer. It isn't signed yet, so Windows shows
+   "Windows protected your PC" → **More info → Run anyway**. It asks for admin
+   permission once (UAC) because it also installs the VST3 plugin to
+   `C:\Program Files\Common Files\VST3\SetupCoachVoice.vst3` (and removes it on
+   uninstall). No manual copying. If you installed an earlier per-user build,
+   uninstall it first (Settings → Apps).
 
 ## 2. Run through (OBS open)
 

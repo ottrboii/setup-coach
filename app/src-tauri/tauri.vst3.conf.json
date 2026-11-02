@@ -1,0 +1,8 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../../build-vst3/VST3/Release/SetupCoachVoice.vst3": "resources/SetupCoachVoice.vst3"
+    }
+  }
+}

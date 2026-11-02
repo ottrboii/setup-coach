@@ -44,17 +44,19 @@ jobs:
         working-directory: .
         run: cargo test --workspace --release
 
-      - name: Build app installer (unsigned)
-        if: hashFiles('app/src-tauri/Cargo.toml') != ''
-        working-directory: app
-        run: npx --yes @tauri-apps/cli@2 build
-
       - name: Build + test VST3
         if: hashFiles('vst3/CMakeLists.txt') != ''
         run: |
           cmake -S vst3 -B build-vst3 -DSC_BUILD_PLUGIN=ON
           cmake --build build-vst3 --config Release
           ctest --test-dir build-vst3 -C Release --output-on-failure
+
+      # VST3 must exist before this step: the installer packs and installs it
+      # to %CommonProgramFiles%\VST3.
+      - name: Build app installer (unsigned, bundles VST3)
+        if: hashFiles('app/src-tauri/Cargo.toml') != '' && hashFiles('vst3/CMakeLists.txt') != ''
+        working-directory: app
+        run: npx --yes @tauri-apps/cli@2 build --config src-tauri/tauri.vst3.conf.json
 
       - uses: actions/upload-artifact@v4
         with:
