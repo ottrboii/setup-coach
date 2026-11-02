@@ -1,5 +1,6 @@
 //! Compute the static processing chain from measurements.
-//! Order: gain → high-pass → EQ → expander → compressor → de-esser → limiter.
+//! Live order: gain → [our VST3: mono, high-pass, EQ, de-esser] → OBS
+//! expander → compressor → limiter.
 
 use super::analyze::{AudioMetrics, NoiseCharacter};
 use super::dsp::BAND_CENTERS;

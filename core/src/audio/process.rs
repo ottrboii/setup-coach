@@ -1,4 +1,6 @@
-//! Render a [`ProcessingChain`] offline: used for the before/after preview and
+//! Render a [`ProcessingChain`] offline, in the live order: gain → our VST3
+//! (mono, high-pass, EQ, de-esser) → OBS expander → compressor → limiter.
+//! Used for the before/after preview and
 //! to verify a chain by re-analysing its output. Mirrors what OBS + our VST3
 //! will do live, closely enough to judge the result.
 
@@ -60,6 +62,20 @@ pub fn render(buf: &AudioBuffer, chain: &ProcessingChain) -> AudioBuffer {
         for f in filters.iter_mut() {
             x = f.process(x);
         }
+        // De-esser (in our VST3, before OBS's dynamics; split-band, relative): when the 'ess' band carries more than
+        // `threshold_db` of the total energy, turn only the highs down.
+        if let (Some(d), Some(lp), Some(side)) = (chain.deesser.as_ref(), de_lp.as_mut(), de_side.as_mut()) {
+            let sb = side.process(x);
+            env_s = 0.98 * env_s + 0.02 * sb * sb;
+            env_full = 0.995 * env_full + 0.005 * x * x;
+            let share = 10.0 * (env_s.max(1e-18) / env_full.max(1e-18)).log10();
+            // ~1 ms look at the band (fast) vs ~4 ms full-band average.
+            let hf = x - lp.process(x);
+            if share > d.threshold_db {
+                let g = from_db(-((share - d.threshold_db) * 2.0).min(d.max_reduction_db));
+                x += (g - 1.0) * hf;
+            }
+        }
         // Expander (downward, max 30 dB of attenuation).
         let a = x.abs();
         env_e = if a > env_e { ea * env_e + (1.0 - ea) * a } else { er * env_e + (1.0 - er) * a };
@@ -82,20 +98,6 @@ pub fn render(buf: &AudioBuffer, chain: &ProcessingChain) -> AudioBuffer {
             (1.0 - 1.0 / chain.compressor.ratio) * (over + knee / 2.0).powi(2) / (2.0 * knee)
         };
         x *= from_db(-red) * makeup;
-        // De-esser (split-band, relative): when the 'ess' band carries more than
-        // `threshold_db` of the total energy, turn only the highs down.
-        if let (Some(d), Some(lp), Some(side)) = (chain.deesser.as_ref(), de_lp.as_mut(), de_side.as_mut()) {
-            let sb = side.process(x);
-            env_s = 0.98 * env_s + 0.02 * sb * sb;
-            env_full = 0.995 * env_full + 0.005 * x * x;
-            let share = 10.0 * (env_s.max(1e-18) / env_full.max(1e-18)).log10();
-            // ~1 ms look at the band (fast) vs ~4 ms full-band average.
-            let hf = x - lp.process(x);
-            if share > d.threshold_db {
-                let g = from_db(-((share - d.threshold_db) * 2.0).min(d.max_reduction_db));
-                x += (g - 1.0) * hf;
-            }
-        }
         // Peak limiter (instant attack, smooth release) + hard safety clamp.
         let a = x.abs();
         let need = if a > ceiling { ceiling / a } else { 1.0 };
