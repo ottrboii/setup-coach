@@ -4,12 +4,13 @@
 pub mod app;
 pub mod camera;
 pub mod commands;
+pub mod goxlr;
 pub mod obs;
 pub mod paths;
 pub mod platform;
 pub mod types;
 
-use app::{AppCore, Emitter};
+use app::{AppCore, Emitter, WindowControl};
 use std::sync::Arc;
 use tauri::{Emitter as _, Manager};
 
@@ -21,10 +22,30 @@ impl Emitter for TauriEmitter {
     }
 }
 
+struct TauriWindow(tauri::AppHandle);
+
+impl WindowControl for TauriWindow {
+    fn set_mini(&self, on: bool) {
+        if let Some(w) = self.0.get_webview_window("main") {
+            let _ = w.set_always_on_top(on);
+            let size = if on { tauri::LogicalSize::new(420.0, 560.0) } else { tauri::LogicalSize::new(1100.0, 760.0) };
+            let _ = w.set_size(tauri::Size::Logical(size));
+        }
+    }
+    fn focus(&self) {
+        if let Some(w) = self.0.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let core = Arc::new(AppCore::new(platform::native(), paths::data_dir(), Arc::new(TauriEmitter(app.handle().clone()))));
+            core.set_window_control(Arc::new(TauriWindow(app.handle().clone())));
             app.manage(core.clone());
             // Webcams forget their settings on restart: re-apply the saved setup.
             tauri::async_runtime::spawn(async move {
@@ -58,6 +79,10 @@ pub fn run() {
             commands::stop_health_monitor,
             commands::save_setup,
             commands::reapply_saved_setup,
+            commands::coach_plan,
+            commands::start_coach,
+            commands::stop_coach,
+            commands::open_for_user,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Setup Coach");

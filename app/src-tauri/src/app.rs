@@ -21,6 +21,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+mod coaching;
+pub use coaching::{NoWindow, RecordingWindow, WindowControl};
+
 /// Sends events to the UI (Tauri in the app, a collector in tests).
 pub trait Emitter: Send + Sync {
     fn emit(&self, event: &str, payload: Value);
@@ -93,6 +96,7 @@ struct Inner {
     last_camera: Option<(String, CameraReport)>,
     applied_camera: Option<(String, CameraSettings)>,
     health: Option<HealthSession>,
+    coach: Option<coaching::CoachSession>,
 }
 
 pub struct AppCore {
@@ -104,7 +108,13 @@ pub struct AppCore {
     pub health_interval: Duration,
     /// Interval between camera frames during a test step.
     pub frame_interval: Duration,
+    /// Interval between live-coaching ticks (~8 updates/s).
+    pub coach_tick: Duration,
+    /// Look for the GoXLR Utility daemon on localhost (off in tests).
+    pub goxlr_autodetect: AtomicBool,
     obs: tokio::sync::Mutex<Option<Arc<dyn ObsApi>>>,
+    goxlr: tokio::sync::Mutex<Option<Arc<dyn crate::goxlr::GoXlrApi>>>,
+    window: Mutex<Arc<dyn WindowControl>>,
     inner: Mutex<Inner>,
 }
 
@@ -119,7 +129,11 @@ impl AppCore {
             emitter,
             health_interval: Duration::from_secs(2),
             frame_interval: Duration::from_millis(250),
+            coach_tick: Duration::from_millis(125),
+            goxlr_autodetect: AtomicBool::new(cfg!(windows)),
             obs: tokio::sync::Mutex::new(None),
+            goxlr: tokio::sync::Mutex::new(None),
+            window: Mutex::new(Arc::new(NoWindow)),
             inner: Mutex::new(Inner::default()),
         }
     }
@@ -289,11 +303,13 @@ impl AppCore {
         if let Some(c) = camera.as_mut() {
             c.vendor_apps_running = sys.vendor_camera_apps();
         }
+        let mut processing = sys.processing_apps();
+        processing.goxlr_utility_running |= self.goxlr().await.is_some();
         let mut snap = SystemSnapshot {
             windows: sys.windows_audio(),
             obs: obs_state,
             camera,
-            processing: sys.processing_apps(),
+            processing,
             hardware: sys.hardware(),
             network: sys.network(),
             ..Default::default()

@@ -216,8 +216,41 @@ CoachStep = { id: string, finding_id: string | null, task: CoachTaskKind,
 OpenTarget = { kind: "windows_settings" | "vendor_app" | "obs", uri_or_app: string, label: string,
                steps: string[] }                          // click-by-click text shown in the mini coach
 ```
-Event `coach-update`: core `CoachUpdate`. Event `coach-camera-overlay`:
-`{ frame: dataUrl, face?: Rect, paper?: Rect, clipped_mask?: dataUrl, arrows: {x,y,dx,dy}[] }` (~4/s).
+Event `coach-update`: core `CoachUpdate` (also carries `t_s`: seconds since
+the session started, from samples/frame timestamps). Event `coach-camera-overlay`
+(~4/s):
+```ts
+{ frame: dataUrl,                 // small JPEG of the analysed frame
+  width: number, height: number,  // size of that frame; face/paper are pixel rects in it
+  face: Rect | null, paper: Rect | null, clipped_mask: dataUrl | null,
+  arrows: { x, y, dx, dy }[],     // normalised 0–1 frame coords, origin top-left (as the preview is shown)
+  face_ok: boolean }              // face exposure OK right now → draw the face box green
+```
+
+Notes (implementation, 2026-11-02):
+- Camera `HintKind`s (`move_light_left/right`, `move_left/right`,
+  `raise/lower_camera`) are in the preview's screen space; `farther` on
+  `light_face` means "move the light farther away / dim it".
+- `CoachStep.id` is stable per step kind: `check-goxlr-utility`,
+  `check-mic-privacy`, `check-voice_clarity_off`, `check-enhancements_off`,
+  `check-goxlr-phantom`, `check-auto-level`, `talk-into-logo`,
+  `find-distance`, `angle-off-axis`, `set-gain`, `quiet-room`,
+  `keyboard-null`, `check-camera-privacy`, and for camera tasks the task name
+  (`light_face`, `light_direction`, `white_balance`, `camera_height`,
+  `framing`, `flicker`). `finding_id` is always the core finding id (or null
+  for steps not caused by a finding, e.g. GoXLR phantom power).
+- `CheckSetting` predicates (`check`): `goxlr_utility_running`,
+  `goxlr_condenser`, `mic_privacy_allowed`, `voice_clarity_off`,
+  `enhancements_off`, `camera_privacy_allowed`, `obs_running`. A step with
+  `check: null` waits for the user's "Done". Auto `CheckSetting` steps
+  (`check-goxlr-phantom`) make the change themselves, then verify.
+- `CoachArea` is `"mic" | "camera"`. `open_for_user` returns an error string
+  ("Open X yourself, then come back here.") if it can't launch the target.
+- `mic_context` also asks GoXLR Utility (when running and the mic is on a
+  GoXLR): `interface_max_gain_db = 72` and `gain_at_max` from the real gain.
+- Auto `SetGain` uses the Windows endpoint level only when the mic's profile
+  says that slider is the real gain (`windows_slider_is_hw_gain`); otherwise
+  the user turns the knob with live guidance.
 
 GoXLR Utility (preferred for all GoXLR owners — recommend installing it and
 removing the unmaintained official app): when its daemon answers on

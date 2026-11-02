@@ -318,7 +318,10 @@ impl Default for CameraSystemState {
 pub struct KnownProcessingApps {
     pub ghub_blue_voice_active: bool,
     pub wave_link_fx_active: bool,
+    /// The official (unmaintained) TC-Helicon GoXLR App.
     pub goxlr_app_running: bool,
+    /// GoXLR Utility (open source, recommended replacement) daemon.
+    pub goxlr_utility_running: bool,
     /// NVIDIA Broadcast mic effects (AI).
     pub nvidia_broadcast_mic_active: bool,
     /// Krisp (AI).
@@ -345,7 +348,7 @@ impl KnownProcessingApps {
         if self.wave_link_fx_active {
             v.push("Wave Link effects");
         }
-        if self.goxlr_app_running {
+        if self.goxlr_app_running || self.goxlr_utility_running {
             v.push("GoXLR");
         }
         if self.sonar_mic_active {

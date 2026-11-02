@@ -16,6 +16,7 @@ pub const BLUETOOTH_HANDSFREE: &str = "system.bluetooth_handsfree";
 pub const LEVEL_HIJACKED: &str = "system.mic_level_changed_by_app";
 pub const WEBSOCKET_OFF: &str = "system.obs_websocket_off";
 pub const OBS_OLD: &str = "system.obs_outdated";
+pub const GOXLR_OFFICIAL_APP: &str = "system.goxlr_official_app";
 
 // OBS mic source
 pub const OBS_DEFAULT_DEVICE: &str = "mic.obs_uses_default_device";

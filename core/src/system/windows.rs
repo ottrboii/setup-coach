@@ -5,6 +5,18 @@ use super::state::{DuckingPreference, SystemSnapshot};
 use crate::finding::{Area, Finding, FixKind, Severity};
 
 pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
+    // GoXLR owners: the open-source GoXLR Utility comes first.
+    if s.processing.goxlr_app_running && !s.processing.goxlr_utility_running {
+        out.push(Finding::new(
+            ids::GOXLR_OFFICIAL_APP,
+            Area::System,
+            Severity::Major,
+            "Switch your GoXLR to GoXLR Utility",
+            "The official GoXLR App is no longer maintained and its firmware is out of date. GoXLR Utility is the free, open-source replacement — and it lets Setup Coach set your mic gain and phantom power for you.",
+            "Install GoXLR Utility and uninstall the official GoXLR App (the two can't run at the same time). We'll walk you through it step by step.",
+            FixKind::Guided,
+        ));
+    }
     let Some(win) = &s.windows else { return };
 
     if !win.mic_privacy_desktop_allowed {

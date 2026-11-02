@@ -6,6 +6,7 @@
 //! settings only.
 
 pub mod audio;
+pub mod coach;
 pub mod constraints;
 pub mod finding;
 pub mod health;

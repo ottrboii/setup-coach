@@ -12,11 +12,33 @@ pub struct MockAudio {
     /// The next capture feeds this recording (whole, in 10 ms chunks).
     pub recording: Mutex<Option<MicTest>>,
     pub played: Mutex<usize>,
+    /// When set, captures stream this source live (in a thread) instead.
+    pub live: Mutex<Option<LiveMock>>,
+}
+
+/// A live mock mic: loops `source` (mono) scaled by `offset_db + gain_db`,
+/// where `gain_db` is shared with the mock "hardware" (Windows level or a
+/// fake GoXLR), so gain changes are audible to the coach.
+#[derive(Clone)]
+pub struct LiveMock {
+    pub source: Arc<Vec<f32>>,
+    pub sample_rate: u32,
+    pub gain_db: Arc<Mutex<f64>>,
+    pub offset_db: f64,
+    /// Faster than real time (10 = 10× speed).
+    pub speed: f64,
 }
 
 struct NoopHandle;
 impl StreamHandle for NoopHandle {
     fn stop(self: Box<Self>) {}
+}
+
+struct LiveHandle(Arc<std::sync::atomic::AtomicBool>);
+impl StreamHandle for LiveHandle {
+    fn stop(self: Box<Self>) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 impl AudioBackend for MockAudio {
@@ -27,6 +49,23 @@ impl AudioBackend for MockAudio {
     fn start_capture(&self, device_id: &str, mut sink: SampleSink) -> Result<Box<dyn StreamHandle>, String> {
         if !self.inputs.iter().any(|d| d.id == device_id) {
             return Err("That microphone isn't connected any more.".into());
+        }
+        if let Some(live) = self.live.lock().unwrap().clone() {
+            let running = Arc::new(std::sync::atomic::AtomicBool::new(true));
+            let r = running.clone();
+            std::thread::spawn(move || {
+                let chunk = (live.sample_rate / 100) as usize;
+                let mut pos = 0usize;
+                let pause = std::time::Duration::from_secs_f64(0.01 / live.speed.max(0.1));
+                while r.load(std::sync::atomic::Ordering::SeqCst) {
+                    let g = 10f64.powf((live.offset_db + *live.gain_db.lock().unwrap()) / 20.0) as f32;
+                    let buf: Vec<f32> = (0..chunk).map(|i| (live.source[(pos + i) % live.source.len()] * g).clamp(-1.0, 1.0)).collect();
+                    pos = (pos + chunk) % live.source.len();
+                    sink(&buf, 1, live.sample_rate);
+                    std::thread::sleep(pause);
+                }
+            });
+            return Ok(Box::new(LiveHandle(running)));
         }
         let test = self.recording.lock().unwrap().clone().unwrap_or_else(|| synth::build(&Scenario::default()));
         let ch = test.audio.channels.len() as u16;
@@ -55,6 +94,12 @@ impl AudioBackend for MockAudio {
 }
 
 pub struct MockSystem {
+    /// Software mic level in dB (shared with a `LiveMock`).
+    pub mic_gain_db: Arc<Mutex<f64>>,
+    pub mic_gain_range: (f64, f64),
+    /// Whether the mock mic's Windows level is a real (hardware) gain.
+    pub mic_gain_adjustable: bool,
+    pub opened: Mutex<Vec<crate::types::OpenTarget>>,
     pub windows: Mutex<WindowsAudioState>,
     pub camera: CameraSystemState,
     pub processing: KnownProcessingApps,
@@ -117,6 +162,25 @@ impl SystemInspector for MockSystem {
             other => return Err(format!("mock can't apply {other:?}")),
         }
         self.applied.lock().unwrap().push(action.clone());
+        Ok(())
+    }
+    fn endpoint_gain_db(&self, endpoint_id: &str) -> Option<GainControl> {
+        let w = self.windows.lock().unwrap();
+        (self.mic_gain_adjustable && w.endpoints.iter().any(|e| e.id == endpoint_id)).then(|| GainControl {
+            current_db: *self.mic_gain_db.lock().unwrap(),
+            min_db: self.mic_gain_range.0,
+            max_db: self.mic_gain_range.1,
+        })
+    }
+    fn set_endpoint_gain_db(&self, endpoint_id: &str, db: f64) -> Result<(), String> {
+        if self.endpoint_gain_db(endpoint_id).is_none() {
+            return Err("This mic's level can't be changed from here.".into());
+        }
+        *self.mic_gain_db.lock().unwrap() = db.clamp(self.mic_gain_range.0, self.mic_gain_range.1);
+        Ok(())
+    }
+    fn open_target(&self, target: &crate::types::OpenTarget) -> Result<(), String> {
+        self.opened.lock().unwrap().push(target.clone());
         Ok(())
     }
 }
@@ -237,8 +301,12 @@ impl MockPlatform {
             level_changed_by_other_app: false,
         };
         MockPlatform {
-            audio: Arc::new(MockAudio { inputs: vec![mic], recording: Mutex::new(None), played: Mutex::new(0) }),
+            audio: Arc::new(MockAudio { inputs: vec![mic], recording: Mutex::new(None), played: Mutex::new(0), live: Mutex::new(None) }),
             system: Arc::new(MockSystem {
+                mic_gain_db: Arc::new(Mutex::new(0.0)),
+                mic_gain_range: (-10.0, 30.0),
+                mic_gain_adjustable: true,
+                opened: Mutex::new(Vec::new()),
                 windows: Mutex::new(windows),
                 camera: CameraSystemState::default(),
                 processing: KnownProcessingApps::default(),

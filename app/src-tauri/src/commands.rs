@@ -34,7 +34,7 @@ pub async fn apply_actions(app: S<'_>, action_ids: Vec<String>) -> R<ApplyResult
 
 #[tauri::command]
 pub async fn mic_context(app: S<'_>, device_id: String, answers: MicAnswers) -> R<MicContext> {
-    app.mic_context(&device_id, &answers)
+    app.mic_context_async(&device_id, &answers).await
 }
 
 #[tauri::command]
@@ -128,4 +128,25 @@ pub async fn save_setup(app: S<'_>, name: String) -> R<SavedProfile> {
 #[tauri::command]
 pub async fn reapply_saved_setup(app: S<'_>) -> R<ApplyResult> {
     Ok(app.reapply_saved_setup().await)
+}
+
+#[tauri::command]
+pub async fn coach_plan(app: S<'_>, area: CoachArea) -> R<Vec<CoachStep>> {
+    app.coach_plan(area).await
+}
+
+#[tauri::command]
+pub async fn start_coach(app: S<'_>, step: CoachStep) -> R<()> {
+    app.inner().start_coach(step).await
+}
+
+#[tauri::command]
+pub async fn stop_coach(app: S<'_>) -> R<()> {
+    app.stop_coach();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_for_user(app: S<'_>, target: OpenTarget) -> R<()> {
+    app.open_for_user(&target).await
 }

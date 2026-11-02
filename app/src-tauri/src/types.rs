@@ -173,8 +173,72 @@ pub struct HealthSampleView {
     pub active: Vec<coach_core::health::AlertKind>,
 }
 
+/// Which coaching plan to build.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CoachArea {
+    Mic,
+    Camera,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OpenKind {
+    WindowsSettings,
+    VendorApp,
+    Obs,
+}
+
+/// Something the user has to click in another app. We open it next to us,
+/// show `steps` in the always-on-top mini coach, and come back to the front
+/// when the step's check passes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OpenTarget {
+    pub kind: OpenKind,
+    /// `ms-settings:` URI, a URL, or an app executable / protocol.
+    pub uri_or_app: String,
+    pub label: String,
+    pub steps: Vec<String>,
+}
+
+/// One step of a coaching plan (see API.md "Live coaching").
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CoachStep {
+    pub id: String,
+    pub finding_id: Option<String>,
+    pub task: coach_core::coach::CoachTaskKind,
+    pub title: String,
+    /// Plain words + why it matters.
+    pub explain: String,
+    /// UI animation key.
+    pub animation: String,
+    /// The app adjusts it itself (Windows mic level, GoXLR, camera settings).
+    pub auto: bool,
+    pub open_target: Option<OpenTarget>,
+    /// `CheckSetting` predicate id (see `AppCore::check_passes`).
+    pub check: Option<String>,
+}
+
+/// Payload of `coach-camera-overlay`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CameraOverlay {
+    pub frame: String,
+    pub face: Option<coach_core::video::Rect>,
+    pub paper: Option<coach_core::video::Rect>,
+    pub clipped_mask: Option<String>,
+    /// Arrows in normalised 0..1 frame coordinates (origin top-left).
+    pub arrows: Vec<coach_core::coach::Arrow>,
+    /// Face exposure is OK right now (box turns green).
+    pub face_ok: bool,
+    /// Frame size the rectangles refer to.
+    pub width: usize,
+    pub height: usize,
+}
+
 /// Event names (keep in sync with API.md).
 pub mod events {
+    pub const COACH_UPDATE: &str = "coach-update";
+    pub const COACH_CAMERA_OVERLAY: &str = "coach-camera-overlay";
     pub const MIC_LEVEL: &str = "mic-level";
     pub const CAMERA_PREVIEW: &str = "camera-preview";
     pub const HEALTH_ALERT: &str = "health-alert";

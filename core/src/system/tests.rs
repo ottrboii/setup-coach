@@ -899,3 +899,14 @@ fn diff_enhancement_change_maps_to_action() {
     assert_eq!(p.len(), 1);
     assert_eq!(p[0].action, Action::DisableEnhancements { endpoint: MIC_ID.into() });
 }
+
+#[test]
+fn goxlr_official_app_recommends_utility() {
+    let mut s = good();
+    s.processing.goxlr_app_running = true;
+    assert!(has(&s, ids::GOXLR_OFFICIAL_APP));
+    let f = crate::system::audit(&s, &[]).into_iter().find(|f| f.id == ids::GOXLR_OFFICIAL_APP).unwrap();
+    assert!(f.fix.contains("GoXLR Utility"));
+    s.processing.goxlr_utility_running = true;
+    assert!(!has(&s, ids::GOXLR_OFFICIAL_APP));
+}

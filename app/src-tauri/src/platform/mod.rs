@@ -40,6 +40,14 @@ pub trait AudioBackend: Send + Sync {
     fn play(&self, buf: AudioBuffer) -> Result<Box<dyn StreamHandle>, String>;
 }
 
+/// A software-controllable input gain (Windows endpoint level in dB).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GainControl {
+    pub current_db: f64,
+    pub min_db: f64,
+    pub max_db: f64,
+}
+
 pub trait SystemInspector: Send + Sync {
     fn windows_build(&self) -> Option<String>;
     fn windows_audio(&self) -> Option<WindowsAudioState>;
@@ -55,6 +63,15 @@ pub trait SystemInspector: Send + Sync {
     fn obs_config_dir(&self) -> Option<PathBuf>;
     /// Execute a Windows-side action (registry, endpoint, power settings).
     fn apply(&self, action: &Action) -> Result<(), String>;
+    /// The endpoint's input level in dB (IAudioEndpointVolume), if adjustable.
+    fn endpoint_gain_db(&self, _endpoint_id: &str) -> Option<GainControl> {
+        None
+    }
+    fn set_endpoint_gain_db(&self, _endpoint_id: &str, _db: f64) -> Result<(), String> {
+        Err("This mic's level can't be changed from here.".into())
+    }
+    /// Open a Windows Settings page, URL or app for the user.
+    fn open_target(&self, target: &crate::types::OpenTarget) -> Result<(), String>;
 }
 
 #[derive(Debug, Clone, PartialEq)]

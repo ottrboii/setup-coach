@@ -2,7 +2,7 @@
 
 use super::audio::capture_endpoints;
 use super::{com_init, run_hidden, running_processes};
-use crate::platform::{mains_for_country, SystemInspector};
+use crate::platform::{mains_for_country, GainControl, SystemInspector};
 use coach_core::system::{
     Action, AudioEndpoint, CameraSystemState, Connection, DuckingPreference, GpuVendor, HardwareInfo, KnownProcessingApps, NetworkInfo,
     WindowsAudioState,
@@ -187,7 +187,8 @@ impl SystemInspector for WinSystem {
         KnownProcessingApps {
             ghub_blue_voice_active: has("lghub.exe") || has("lghub_agent.exe"),
             wave_link_fx_active: has("wavelink.exe") || has("wave link.exe"),
-            goxlr_app_running: has("goxlr app.exe") || has("goxlr-daemon.exe") || has("goxlrapp.exe"),
+            goxlr_app_running: has("goxlr app.exe") || has("goxlrapp.exe"),
+            goxlr_utility_running: has("goxlr-daemon.exe") || has("goxlr-launcher.exe"),
             nvidia_broadcast_mic_active: has("nvidia broadcast.exe") || has("nvidiabroadcast.exe"),
             krisp_active: has("krisp.exe"),
             sonar_mic_active: has("steelseriessonar.exe") || has("steelseriesgg.exe"),
@@ -342,6 +343,45 @@ impl SystemInspector for WinSystem {
             )),
             other => Err(format!("This fix needs OBS: {other:?}")),
         }
+    }
+
+    fn endpoint_gain_db(&self, endpoint_id: &str) -> Option<GainControl> {
+        com_init();
+        let d = find_device(endpoint_id)?;
+        unsafe {
+            let v: IAudioEndpointVolume = d.Activate(CLSCTX_ALL, None).ok()?;
+            let cur = v.GetMasterVolumeLevel().ok()?;
+            let (mut min, mut max, mut step) = (0f32, 0f32, 0f32);
+            v.GetVolumeRange(&mut min, &mut max, &mut step).ok()?;
+            (max > min).then_some(GainControl { current_db: cur as f64, min_db: min as f64, max_db: max as f64 })
+        }
+    }
+
+    fn set_endpoint_gain_db(&self, endpoint_id: &str, db: f64) -> Result<(), String> {
+        com_init();
+        let d = find_device(endpoint_id).ok_or("That microphone isn't connected any more.")?;
+        unsafe {
+            let v: IAudioEndpointVolume = d.Activate(CLSCTX_ALL, None).map_err(|e| e.to_string())?;
+            let (mut min, mut max, mut step) = (0f32, 0f32, 0f32);
+            v.GetVolumeRange(&mut min, &mut max, &mut step).map_err(|e| e.to_string())?;
+            v.SetMasterVolumeLevel((db as f32).clamp(min, max), std::ptr::null()).map_err(|e| e.to_string())
+        }
+    }
+
+    fn open_target(&self, target: &crate::types::OpenTarget) -> Result<(), String> {
+        // `start` handles ms-settings: URIs, URLs, protocols and installed apps.
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let uri = target.uri_or_app.trim();
+        if uri.is_empty() || uri.contains(['&', '|', '<', '>', '^', '"']) {
+            return Err(format!("Open {} yourself, then come back here.", target.label));
+        }
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", uri])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| format!("Couldn't open {}. Open it yourself, then come back here.", target.label))
     }
 }
 
