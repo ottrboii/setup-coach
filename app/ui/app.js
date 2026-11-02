@@ -10,9 +10,10 @@ import * as micapply from './screens/micapply.js';
 import * as camera from './screens/camera.js';
 import * as health from './screens/health.js';
 import * as dashboard from './screens/dashboard.js';
+import * as coach from './screens/coach.js';
 
 const ROUTES = {
-  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard,
+  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach,
 };
 
 const NAV = [
@@ -40,7 +41,8 @@ function renderNav(active) {
   const nav = document.getElementById('nav');
   nav.innerHTML = '';
   NAV.forEach((n, i) => {
-    const isActive = n.route === active || (n.match || []).includes(active);
+    const coachArea = active === 'coach' ? (state.coach?.area === 'camera' ? 'camera' : 'mic') : null;
+    const isActive = n.route === active || (n.match || []).includes(active) || n.route === coachArea;
     const done = n.done();
     const a = html(`<a href="#/${n.route}" class="${isActive ? 'active' : ''} ${done ? 'done' : ''}" ${isActive ? 'aria-current="page"' : ''}>
       <span class="dot">${done ? '✓' : i + 1}</span><span class="label">${esc(n.label)}</span></a>`);

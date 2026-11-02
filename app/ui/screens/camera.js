@@ -2,6 +2,7 @@
 import { api, on } from '../api.js';
 import { esc, html, icons, scoreRing, scoreWord, findingCard, upgradeCard, toast, errorBanner, advanced, kvTable, fmt } from '../components.js';
 import { state, selectedCamera, CAMERA_CONSTRAINT } from '../state.js';
+import { delta } from './micreport.js';
 
 const STEPS = [
   { step: 'neutral', secs: 4, title: 'Sit like you do on stream', text: 'Look at your main screen and relax.' },
@@ -35,7 +36,8 @@ export async function render(root, { go, refreshNav }) {
     return;
   }
 
-  if (state.cameraReport) drawReport();
+  if (state.autoStart === 'camera' && cam) { state.autoStart = null; state.cameraReport = null; runTest(); }
+  else if (state.cameraReport) drawReport();
   else drawIntro();
 
   function header(title, lead) {
@@ -110,11 +112,18 @@ export async function render(root, { go, refreshNav }) {
     const coachOnly = !r.settings.uvc;
 
     const head = html(`<div class="card hero"><div class="row" style="gap:28px"><div class="ring"></div>
-      <div class="stack" style="gap:8px;flex:1;min-width:260px"><span class="eyebrow">Your camera report</span><h1>${esc(scoreWord(r.score.value).replace('Sounding', 'Looking'))}</h1>
+      <div class="stack" style="gap:8px;flex:1;min-width:260px"><span class="eyebrow">Your camera report</span><div class="row" style="gap:10px"><h1>${esc(scoreWord(r.score.value).replace('Sounding', 'Looking'))}</h1>${delta(state.scoreBefore?.camera, r.score.value)}</div>
       <p class="muted">${open.length ? `${open.length} thing${open.length === 1 ? '' : 's'} to improve. Light matters more than any setting, so start there.` : 'Your picture looks good. We\'ll lock the settings so it stays that way.'}</p></div></div></div>`);
     head.querySelector('.ring').append(scoreRing(r.score.value, { label: 'camera' }));
     page.append(head);
 
+    if (open.some((f) => f.fix_kind !== 'auto')) {
+      const coachCard = html(`<div class="card coach-cta"><div class="stack" style="gap:4px;flex:1;min-width:240px"><h2>Let's fix your light together</h2>
+        <p class="muted">Live preview with arrows: move the lamp, raise the camera, hold up the paper — we'll tell you the moment it looks right.</p></div>
+        <button class="btn primary lg">Coach me through it</button></div>`);
+      coachCard.querySelector('button').addEventListener('click', () => { state.coach = { area: 'camera', steps: null, index: 0, status: {} }; go('coach'); });
+      page.append(coachCard);
+    }
     if (open.length) {
       const list = html('<div class="findings"></div>');
       for (const f of open) {

@@ -1,6 +1,8 @@
 // Built-in mock backend: realistic sample data for every command and event in
 // API.md, so the UI can be designed and tested in a plain browser.
 
+import { mockPlan, createCoachSim, drawCoachOverlay } from './mock-coach.js';
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function finding(id, area, severity, title, why, fix, fix_kind, extra = {}) {
@@ -246,6 +248,8 @@ export function createMock() {
   let lastCameraId = null;
   let constraints = [];
   let saved = null;
+  const coached = { mic: false, camera: false };
+  const coachSim = createCoachSim((ev, payload) => emit(ev, payload), drawCoachOverlay);
 
   function startMicLevels() {
     clearInterval(micTimer);
@@ -323,7 +327,7 @@ export function createMock() {
     },
     async start_mic_test() { micStep = null; startMicLevels(); await wait(150); return null; },
     async mark_step({ kind, edge }) { micStep = edge === 'start' ? kind : null; return null; },
-    async finish_mic_test({ constraints: cs }) { clearInterval(micTimer); constraints = cs || []; await wait(1600); return micReport(constraints); },
+    async finish_mic_test({ constraints: cs }) { clearInterval(micTimer); constraints = cs || []; await wait(1600); return micReport(constraints, coached.mic); },
     async rescan_mic({ constraints: cs }) { constraints = cs || []; await wait(700); return micReport(constraints); },
     async apply_mic_chain() { await wait(1100); return { applied: ['vst3_config', 'obs_filters'], failed: [], restart_obs_needed: false }; },
     async verify_mic() { await wait(1400); return { before: micReport(constraints), after: micReport(constraints, true) }; },
@@ -339,7 +343,12 @@ export function createMock() {
       return null;
     },
     async capture_camera_step({ step, seconds }) { camStep = step; await wait(Math.min(seconds, 4) * 1000); return { frames: Math.round(seconds * 4), faces_found: Math.round(seconds * 4) - 1 }; },
-    async finish_camera_test({ constraints: cs }) { clearInterval(camTimer); await wait(1200); return cameraReport(cs || [], lastCameraId); },
+    async finish_camera_test({ constraints: cs }) {
+      clearInterval(camTimer); await wait(1200);
+      const r = cameraReport(cs || [], lastCameraId);
+      if (coached.camera) { r.findings = r.findings.filter((f) => f.fix_kind === 'auto'); r.score = scoreOf('camera', r.findings); }
+      return r;
+    },
     async apply_camera_settings() { await wait(800); return { applied: ['uvc'], failed: [], restart_obs_needed: false }; },
     async start_health_monitor() {
       healthT = 0;
@@ -362,6 +371,10 @@ export function createMock() {
     },
     async stop_health_monitor() { clearInterval(healthTimer); await wait(500); return healthReport(); },
     async save_setup({ name }) { await wait(300); saved = { name, saved_at: new Date().toISOString(), mic_chain: chain(constraints), camera_settings: null, camera_id: lastCameraId, obs_input: 'Mic/Aux' }; return saved; },
+    async coach_plan({ area }) { await wait(500); coached[area] = true; return mockPlan(area); },
+    async start_coach({ step }) { await wait(120); coachSim.start(step); return null; },
+    async stop_coach() { coachSim.stop(); return null; },
+    async open_for_user() { await wait(300); coachSim.open(); return null; },
     async reapply_saved_setup() { await wait(700); return { applied: ['mic_chain', 'camera'], failed: [], restart_obs_needed: false }; },
   };
 

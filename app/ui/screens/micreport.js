@@ -30,7 +30,7 @@ export async function render(root, { go }) {
           <div class="ring"></div>
           <div class="stack" style="gap:8px;flex:1;min-width:260px">
             <span class="eyebrow">Your mic report</span>
-            <h1>${esc(scoreWord(r.score.value))}</h1>
+            <div class="row" style="gap:10px"><h1>${esc(scoreWord(r.score.value))}</h1>${delta(state.scoreBefore?.mic, r.score.value)}</div>
             <p class="muted">${open.length
               ? `${open.length} thing${open.length === 1 ? '' : 's'} holding you back. ${physical.length ? `Start with the quick tweaks below — they matter more than any setting.` : 'All of them are settings we can apply for you.'}`
               : "Nothing big to fix. We'll still fine-tune your settings."}</p>
@@ -41,6 +41,13 @@ export async function render(root, { go }) {
     page.append(head);
 
     if (open.length) {
+      if (physical.length) {
+        const coachCard = html(`<div class="card coach-cta"><div class="stack" style="gap:4px;flex:1;min-width:240px"><h2>Let's fix these together</h2>
+          <p class="muted">We'll walk you through each one live — you'll see and hear it improve as you go. Takes about ${Math.max(2, physical.length)} minutes.</p></div>
+          <button class="btn primary lg">Coach me through it</button></div>`);
+        coachCard.querySelector('button').addEventListener('click', () => { state.coach = { area: 'mic', steps: null, index: 0, status: {} }; go('coach'); });
+        page.append(coachCard);
+      }
       page.append(html(`<div class="stack" style="gap:4px"><h2>What to do, most important first</h2>
         <p class="muted">Physical fixes first, then we set the settings. Can't change something? That's fine — tell us and we'll tune around it.</p></div>`));
       const list = html('<div class="findings"></div>');
@@ -67,9 +74,11 @@ export async function render(root, { go }) {
       <div class="card hero stack">
         <h2>Ready when you are</h2>
         <p class="muted">Made a physical change? Retest first so we tune for the new setup. Otherwise, apply your settings now.</p>
-        <div class="row"><button class="btn primary lg" id="apply">Set up my mic</button><button class="btn lg" id="retest">Retest my mic</button></div>
+        <div class="row">${physical.length ? '<button class="btn primary lg" id="coach">Coach me through it</button><button class="btn lg" id="apply">Skip to settings</button>' : '<button class="btn primary lg" id="apply">Set up my mic</button>'}<button class="btn lg" id="retest">Retest my mic</button></div>
       </div>`);
     cta.querySelector('#apply').addEventListener('click', () => go('mic-apply'));
+    const coachBtn = cta.querySelector('#coach');
+    if (coachBtn) coachBtn.addEventListener('click', () => { state.coach = { area: 'mic', steps: null, index: 0, status: {} }; go('coach'); });
     cta.querySelector('#retest').addEventListener('click', retest);
     page.append(cta);
 
@@ -114,4 +123,12 @@ export async function render(root, { go }) {
       btn.textContent = "I can't do this";
     }
   }
+}
+
+/** "Up from 62" chip after coaching. */
+export function delta(before, now) {
+  if (before === null || before === undefined || now === undefined) return '';
+  const d = Math.round(now - before);
+  if (d === 0) return '<span class="chip">Same as before</span>';
+  return `<span class="chip ${d > 0 ? 'ok' : 'major'} delta-chip">${d > 0 ? '▲' : '▼'} ${d > 0 ? 'Up' : 'Down'} from ${Math.round(before)}</span>`;
 }

@@ -46,4 +46,9 @@ export const api = {
   stopHealthMonitor: () => call('stop_health_monitor'),
   saveSetup: (name) => call('save_setup', { name }),
   reapplySavedSetup: () => call('reapply_saved_setup'),
+  // Live coaching
+  coachPlan: (area) => call('coach_plan', { area }),
+  startCoach: (step) => call('start_coach', { step }),
+  stopCoach: () => call('stop_coach'),
+  openForUser: (target) => call('open_for_user', { target }),
 };

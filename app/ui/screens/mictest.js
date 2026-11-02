@@ -51,6 +51,7 @@ export async function render(root, { go }) {
     </div>`);
   body.append(intro);
   intro.querySelector('#start').addEventListener('click', start);
+  if (state.autoStart === 'mic' && mic) { state.autoStart = null; start(); }
 
   async function start() {
     body.innerHTML = '';

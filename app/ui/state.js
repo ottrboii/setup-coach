@@ -16,6 +16,9 @@ export const state = {
   cameraApplied: false,
   healthReport: null,
   saved: null,
+  coach: null,           // { area: 'mic'|'camera', steps: CoachStep[]|null, index, status: {stepId: 'done'|'skipped'} }
+  autoStart: null,       // 'mic' | 'camera' → start that test immediately (retest after coaching)
+  scoreBefore: null,     // { mic?: number, camera?: number } score before coaching, for the "up from" chip
 };
 
 export function selectedMic() {
