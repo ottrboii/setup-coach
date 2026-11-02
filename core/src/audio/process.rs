@@ -170,3 +170,20 @@ pub fn calibrate_makeup(test: &MicTest, chain: &mut ProcessingChain) {
         }
     }
 }
+
+/// "How viewers hear you on a phone": small-speaker simulation (no deep bass,
+/// rolled-off top, mono). Used for the before/after preview toggle.
+pub fn phone_speaker(buf: &AudioBuffer) -> AudioBuffer {
+    let sr = buf.sample_rate;
+    let n = buf.len();
+    let mut x: Vec<f32> = (0..n).map(|i| buf.channels.iter().map(|c| c[i]).sum::<f32>() / buf.channels.len().max(1) as f32).collect();
+    for mut f in [
+        Biquad::highpass(sr, 450.0, 0.707),
+        Biquad::highpass(sr, 450.0, 0.707),
+        Biquad::peaking(sr, 2500.0, 1.0, 3.0),
+        Biquad::lowpass(sr, 9000.0, 0.707),
+    ] {
+        f.run(&mut x);
+    }
+    AudioBuffer::mono(sr, x)
+}
