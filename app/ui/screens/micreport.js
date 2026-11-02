@@ -1,0 +1,117 @@
+// 4. Mic report card: score, ranked findings, "Done — retest" / "I can't do this".
+import { api } from '../api.js';
+import { esc, html, scoreRing, scoreWord, findingCard, upgradeCard, toast, advanced, kvTable, fmt } from '../components.js';
+import { state, MIC_CONSTRAINT } from '../state.js';
+
+const STATUS = { met: ['ok', 'On target'], close: ['major', 'Close'], missed: ['critical', 'Off target'], not_measured: ['', 'Not measured'] };
+
+export async function render(root, { go }) {
+  if (!state.micReport) {
+    root.append(html('<div class="banner warn"><span>Run the mic test first.</span></div>'));
+    const b = html('<button class="btn primary" style="margin-top:12px">Start the mic test</button>');
+    b.addEventListener('click', () => go('mic'));
+    root.append(b);
+    return;
+  }
+  const page = html('<section class="stack-lg"></section>');
+  root.append(page);
+  draw();
+
+  function draw() {
+    const r = state.micReport;
+    page.innerHTML = '';
+    const open = r.findings.filter((f) => f.severity !== 'info');
+    const handled = r.findings.filter((f) => f.severity === 'info');
+    const physical = open.filter((f) => f.fix_kind !== 'auto');
+
+    const head = html(`
+      <div class="card hero">
+        <div class="row" style="gap:28px">
+          <div class="ring"></div>
+          <div class="stack" style="gap:8px;flex:1;min-width:260px">
+            <span class="eyebrow">Your mic report</span>
+            <h1>${esc(scoreWord(r.score.value))}</h1>
+            <p class="muted">${open.length
+              ? `${open.length} thing${open.length === 1 ? '' : 's'} holding you back. ${physical.length ? `Start with the quick tweaks below — they matter more than any setting.` : 'All of them are settings we can apply for you.'}`
+              : "Nothing big to fix. We'll still fine-tune your settings."}</p>
+          </div>
+        </div>
+      </div>`);
+    head.querySelector('.ring').append(scoreRing(r.score.value, { label: 'mic' }));
+    page.append(head);
+
+    if (open.length) {
+      page.append(html(`<div class="stack" style="gap:4px"><h2>What to do, most important first</h2>
+        <p class="muted">Physical fixes first, then we set the settings. Can't change something? That's fine — tell us and we'll tune around it.</p></div>`));
+      const list = html('<div class="findings"></div>');
+      const shownUpgrades = new Set();
+      for (const f of open) {
+        list.append(findingCard(f, { onDone: () => retest(), onCant: (fd, btn) => cant(fd, btn) }));
+        if (f.suggest_product && !shownUpgrades.has(f.suggest_product)) {
+          shownUpgrades.add(f.suggest_product);
+          const u = upgradeCard(f.suggest_product);
+          if (u && f.fix_kind !== 'auto') list.append(u);
+        }
+      }
+      page.append(list);
+    }
+
+    if (handled.length) {
+      page.append(html('<h2>Handled for you</h2>'));
+      const list = html('<div class="findings"></div>');
+      handled.forEach((f) => list.append(findingCard(f, { visual: false })));
+      page.append(list);
+    }
+
+    const cta = html(`
+      <div class="card hero stack">
+        <h2>Ready when you are</h2>
+        <p class="muted">Made a physical change? Retest first so we tune for the new setup. Otherwise, apply your settings now.</p>
+        <div class="row"><button class="btn primary lg" id="apply">Set up my mic</button><button class="btn lg" id="retest">Retest my mic</button></div>
+      </div>`);
+    cta.querySelector('#apply').addEventListener('click', () => go('mic-apply'));
+    cta.querySelector('#retest').addEventListener('click', retest);
+    page.append(cta);
+
+    const m = r.metrics;
+    const adv = html('<div class="stack"></div>');
+    adv.append(html(`<table class="kv"><thead><tr><th>Target</th><th>Yours</th><th>Goal</th><th></th></tr></thead><tbody>
+      ${r.targets.map((t) => `<tr><td>${esc(t.label)}</td><td>${fmt(t.value, 1)}</td><td>${esc(t.target)}</td><td><span class="chip ${STATUS[t.status]?.[0] || ''}">${STATUS[t.status]?.[1] || esc(t.status)}</span></td></tr>`).join('')}
+    </tbody></table>`));
+    adv.append(kvTable([
+      ['Speech peaks', fmt(m.speech_peak_dbfs, 1, ' dBFS')],
+      ['Noise floor', fmt(m.noise_floor_dbfs, 1, ' dBFS')],
+      ['Voice above noise', fmt(m.snr_db, 1, ' dB')],
+      ['Loudness', fmt(m.speech_lufs, 1, ' LUFS')],
+      ['Room decay', fmt(m.reverb_decay_s, 2, ' s')],
+      ['Voice pitch', fmt(m.f0_hz, 0, ' Hz')],
+    ]));
+    page.append(advanced('Advanced: the numbers', adv));
+  }
+
+  function retest() {
+    go('mic');
+  }
+
+  async function cant(f, btn) {
+    const c = MIC_CONSTRAINT[f.id];
+    btn.disabled = true;
+    if (!c) {
+      // No settings workaround exists for this one; acknowledge and move on.
+      state.micReport = { ...state.micReport, findings: state.micReport.findings.map((x) => (x.id === f.id ? { ...x, severity: 'info', fix: "No problem — we'll leave this one. Your settings will still help.", can_decline: false } : x)) };
+      draw();
+      return;
+    }
+    if (!state.micConstraints.includes(c)) state.micConstraints.push(c);
+    btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span> Re-tuning…';
+    try {
+      state.micReport = await api.rescanMic(state.micContext, state.micConstraints);
+      toast('Got it', "We've re-tuned your settings around that.", 'good');
+      draw();
+    } catch (e) {
+      toast("Couldn't re-tune", e.message, 'bad');
+      btn.disabled = false;
+      btn.textContent = "I can't do this";
+    }
+  }
+}
