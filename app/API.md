@@ -140,3 +140,86 @@ SavedProfile = { name: string, saved_at: string, mic_chain: ProcessingChain | nu
                  obs_input: string | null }
 ```
 Stored in `%APPDATA%\SetupCoach\setup.json`.
+
+## Live coaching (added 2026-11-02)
+
+Coaching is a live loop: the user changes something physical (or in another
+app) while we measure continuously, show animated guidance, and confirm
+success ourselves. Never "did you do it?" — we detect it. Where software can
+make the change (Windows endpoint gain, GoXLR Utility, UVC camera controls) we
+do it **while the user talks/sits** and show it converge.
+
+### Core engine (`coach_core::coach`)
+
+```rust
+pub enum CoachTaskKind {           // serde snake_case
+    // mic
+    SetGain,          // speech peaks into the green zone (−18…−12 dBFS); auto when gain is software-controllable
+    FindDistance,     // closer/farther vs the profile's ideal, from level + proximity bass + roominess vs baseline
+    AngleOffAxis,     // say "pop pop pop" until plosive bursts stay under threshold
+    QuietRoom,        // live noise floor while silent (fan off, mic null at the noise)
+    KeyboardNull,     // type while silent; rotate mic until typing drops
+    TalkIntoLogo,     // side-address: presence/air rise vs baseline when facing the logo side
+    // camera
+    LightFace,        // face ≥ background + 0.5 stop, no face clipping
+    LightDirection,   // key:fill ≤ 3:1 (cheek ratio), arrow toward the darker side
+    WhiteBalance,     // paper cast within ±4 %
+    CameraHeight,     // eye line / pitch: lens at eye level
+    Framing,          // face size/position/headroom
+    Flicker,          // no banding after anti-flicker/shutter change
+    // anything verified by a settings snapshot (Windows/OBS/vendor app)
+    CheckSetting,
+}
+pub struct CoachTarget { pub min: f64, pub max: f64, pub unit: String }
+pub enum Phase { Waiting, Working, Almost, Hold, Done, Stuck }   // snake_case
+pub enum HintKind { Closer, Farther, TurnUp, TurnDown, Stop, AngleAway, FaceLogo,
+                    MoveLightLeft, MoveLightRight, MoveLightUp, AddLight, DimBackground,
+                    RaiseCamera, LowerCamera, MoveLeft, MoveRight, MoveBack, MoveForward,
+                    KeepTalking, BeQuiet, TypeNow, SayPops, Wait, None }
+pub struct Hint { pub kind: HintKind, pub amount: f64 /* 0..1 how far to go */, pub text: String }
+pub struct CoachUpdate {
+    pub task: CoachTaskKind, pub phase: Phase,
+    pub progress: f64,                 // 0..1 toward done (drives rings/bars)
+    pub value: Option<f64>,            // main reading, in target.unit
+    pub target: Option<CoachTarget>,
+    pub headline: String,              // big friendly line, e.g. "A little closer…"
+    pub detail: String,                // why / how, one sentence
+    pub hint: Hint,
+    pub hold_s: f64, pub hold_needed_s: f64,  // "hold steady" ring
+    pub readings: BTreeMap<String, f64>,      // Advanced drawer
+    pub auto_adjusting: bool,          // the app itself is moving the setting
+    pub stuck_alternative: Option<String>,    // shown when phase == Stuck (after ~45 s w/o progress)
+}
+// Audio: feed 10–50 ms chunks; returns an update at most every ~100 ms.
+pub struct LiveMicCoach;   // new(task, sample_rate, &MicContext, &AudioMetrics baseline?) ; push(&[f32]) -> Option<CoachUpdate>
+                           // set_gain_auto(current_gain_db, min, max) -> Option<f64> (next gain to apply) when auto
+// Video: feed frames (with optional face/paper rects); returns an update per frame.
+pub struct LiveCameraCoach; // new(task, &CameraState, CameraClass, MainsHz) ; push(&TaggedFrame) -> CoachUpdate
+```
+
+### App commands / events
+
+| Command | Args | Returns |
+|---|---|---|
+| `coach_plan` | `{ area: "mic" \| "camera" }` | `CoachStep[]` – ordered steps from the latest report's findings |
+| `start_coach` | `{ step: CoachStep }` | `()` – emits `coach-update` (~8/s) until done/stopped |
+| `stop_coach` | – | `()` |
+| `open_for_user` | `{ target: OpenTarget }` | `()` – opens the vendor app / Windows Settings page next to us; we stay visible (always-on-top mini coach) and come back to front when the step's check passes |
+
+```ts
+CoachStep = { id: string, finding_id: string | null, task: CoachTaskKind,
+              title: string, explain: string,            // plain words + why it matters
+              animation: string,                          // UI animation key, e.g. "knob", "mic_distance", "mic_angle", "logo_side", "noise_null", "light_move", "camera_height", "paper"
+              auto: boolean,                              // app adjusts it itself
+              open_target: OpenTarget | null,             // when the user must click elsewhere
+              check: string | null }                      // CheckSetting predicate id
+OpenTarget = { kind: "windows_settings" | "vendor_app" | "obs", uri_or_app: string, label: string,
+               steps: string[] }                          // click-by-click text shown in the mini coach
+```
+Event `coach-update`: core `CoachUpdate`. Event `coach-camera-overlay`:
+`{ frame: dataUrl, face?: Rect, paper?: Rect, clipped_mask?: dataUrl, arrows: {x,y,dx,dy}[] }` (~4/s).
+
+GoXLR Utility (preferred for all GoXLR owners — recommend installing it and
+removing the unmaintained official app): when its daemon answers on
+`http://localhost:14564`, `SetGain` runs in auto mode via its API and mic type
+/ phantom power can be set; otherwise coach the GoXLR's own gain control.
