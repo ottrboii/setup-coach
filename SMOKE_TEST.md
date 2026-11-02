@@ -6,8 +6,7 @@ backed up. Take a screenshot whenever something looks wrong or confusing.
 
 ## 0. Download (≈ 3.6 MB)
 
-GitHub → channel-hub → **Actions** → *Setup Coach* → latest green run on branch
-`ccr-37ca5b74-vaqfwj` → **Artifacts**:
+GitHub → setup-coach → **Actions** → *CI* → latest green run on `main` → **Artifacts**:
 - `setup-coach-installer` (zip with the `.exe`)
 - `setup-coach-voice-vst3` (zip with `SetupCoachVoice.vst3`)
 

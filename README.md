@@ -4,8 +4,9 @@ Windows app that coaches streamers to a properly set-up mic, camera and stream â
 **no AI processing**: fix the physical setup first, then apply plain static
 settings, then re-measure to verify.
 
-Parked inside `channel-hub` until it gets its own repo. Research and decisions:
-[`../notes/setup-coach-research-brief-2026-11-02.md`](../notes/setup-coach-research-brief-2026-11-02.md).
+Owner: Ottr Gaming Influencer AB (Otto). Project overview: [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md).
+Research and decisions: [`docs/research-brief.md`](docs/research-brief.md).
+Moved out of `channel-hub` on 2026-11-02 with full history.
 
 ## Layout
 
@@ -13,8 +14,8 @@ Parked inside `channel-hub` until it gets its own repo. Research and decisions:
 |---|---|
 | `core/` | `coach_core` Rust crate: all analysis and recommendation logic, platform-independent and fully tested. |
 | `profiles/` | Device database (JSON): mics, interfaces, boosters, webcams, capture-card camera bodies, generic fallbacks. Embedded into the app. |
-| `app/` *(next)* | Windows app (Tauri): WASAPI capture, obs-websocket, UVC control, UI. |
-| `vst3/` *(next)* | Our VST3 effect for OBS: high-pass, parametric EQ, de-esser, mono. |
+| `app/` | Windows app (Tauri 2): `src-tauri/` backend (WASAPI, obs-websocket, UVC, GoXLR Utility, live coaching), `ui/` static UI. Contract: `app/API.md`. |
+| `vst3/` | Our VST3 effect for OBS: mono, high-pass, parametric EQ, de-esser (reads `chain.json`). |
 
 ## Core modules
 
@@ -40,8 +41,8 @@ Parked inside `channel-hub` until it gets its own repo. Research and decisions:
 ## Run
 
 ```sh
+cargo test --workspace --release   # all tests (core + app with mock platform)
 cd core
-cargo test --release            # all tests
 cargo run --release --example calibrate          # every synthetic fault scenario
 cargo run --release --example calibrate -- room  # one scenario
 ```
