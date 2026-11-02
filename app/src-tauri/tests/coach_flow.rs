@@ -169,7 +169,11 @@ async fn settings_check_opens_windows_and_comes_back() {
     assert_eq!(w.mock.system.opened.lock().unwrap().len(), 1);
     assert!(w.window.calls.lock().unwrap().contains(&"mini:true".to_string()));
     w.core.start_coach(step).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(60)).await;
+    // Wait for the first live update (Windows timers are coarse on CI).
+    let t0 = std::time::Instant::now();
+    while !updates(&w).iter().any(|u| u["phase"] == "working") && t0.elapsed() < Duration::from_secs(3) {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     assert!(!updates(&w).iter().any(|u| u["phase"] == "done"));
     assert!(updates(&w).iter().any(|u| u["phase"] == "working"));
     w.mock.system.windows.lock().unwrap().mic_privacy_desktop_allowed = true;
@@ -213,7 +217,10 @@ async fn camera_coaching_streams_overlay_and_finishes() {
     };
     // The mock room is a little dim: live guidance asks for light.
     w.core.start_coach(mk(CoachTaskKind::LightFace, "light_move")).await.unwrap();
-    tokio::time::sleep(Duration::from_millis(150)).await;
+    let t0 = std::time::Instant::now();
+    while !updates(&w).iter().any(|u| u["hint"]["kind"] == "add_light") && t0.elapsed() < Duration::from_secs(3) {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
     w.core.stop_coach();
     assert!(updates(&w).iter().any(|u| u["hint"]["kind"] == "add_light"), "{:?}", updates(&w).last());
     // Framing in the mock is already right: it holds and finishes.
@@ -279,7 +286,8 @@ async fn camera_plan_from_report_and_stop() {
     w.core.start_coach(step).await.unwrap();
     tokio::time::sleep(Duration::from_millis(100)).await;
     w.core.stop_coach();
-    tokio::time::sleep(Duration::from_millis(30)).await;
+    // Let any tick already in flight land (coarse timers on Windows CI).
+    tokio::time::sleep(Duration::from_millis(250)).await;
     let n = updates(&w).len();
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert_eq!(updates(&w).len(), n, "updates after stop");
