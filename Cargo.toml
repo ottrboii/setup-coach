@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core"]
+members = ["core", "app/src-tauri"]
 
 # Analysis runs over ~20 s of 48 kHz audio; keep tests fast.
 [profile.test]

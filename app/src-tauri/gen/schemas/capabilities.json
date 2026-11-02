@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Main window: invoke app commands and listen to app events.","local":true,"windows":["main"],"permissions":["core:default","core:event:allow-listen","core:event:allow-unlisten"]}}

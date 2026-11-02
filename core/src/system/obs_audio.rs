@@ -315,7 +315,8 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
             .with_evidence("quiet_speech_dbfs", quiet.unwrap_or_default() as f64),
         );
     }
-    for g in enabled(mic, "noise_gate_filter") {
+    // Only the first enabled gate matters.
+    if let Some(g) = enabled(mic, "noise_gate_filter").next() {
         let open = num(&g.settings, "open_threshold", -26.0);
         let attack = num(&g.settings, "attack_time", 25.0);
         let hold = num(&g.settings, "hold_time", 200.0);
@@ -349,7 +350,6 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
                 .with_evidence("hold_ms", hold),
             );
         }
-        break;
     }
     if let Some(e) = enabled(mic, "expander_filter").next() {
         let t = num(&e.settings, "threshold", -40.0);

@@ -1,0 +1,64 @@
+//! Setup Coach desktop app (Tauri 2). Logic lives in [`app::AppCore`], which is
+//! Tauri-free and tested with the mock platform; [`run`] wires it to the UI.
+
+pub mod app;
+pub mod camera;
+pub mod commands;
+pub mod obs;
+pub mod paths;
+pub mod platform;
+pub mod types;
+
+use app::{AppCore, Emitter};
+use std::sync::Arc;
+use tauri::{Emitter as _, Manager};
+
+struct TauriEmitter(tauri::AppHandle);
+
+impl Emitter for TauriEmitter {
+    fn emit(&self, event: &str, payload: serde_json::Value) {
+        let _ = self.0.emit(event, payload);
+    }
+}
+
+pub fn run() {
+    tauri::Builder::default()
+        .setup(|app| {
+            let core = Arc::new(AppCore::new(platform::native(), paths::data_dir(), Arc::new(TauriEmitter(app.handle().clone()))));
+            app.manage(core.clone());
+            // Webcams forget their settings on restart: re-apply the saved setup.
+            tauri::async_runtime::spawn(async move {
+                if core.load_setup().is_some() {
+                    let _ = core.reapply_saved_setup().await;
+                }
+            });
+            // TODO: re-apply camera settings on device arrival (CM_Register_Notification).
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_environment,
+            commands::connect_obs,
+            commands::run_quick_checks,
+            commands::apply_actions,
+            commands::mic_context,
+            commands::start_mic_test,
+            commands::mark_step,
+            commands::finish_mic_test,
+            commands::rescan_mic,
+            commands::apply_mic_chain,
+            commands::verify_mic,
+            commands::play_preview,
+            commands::stop_preview,
+            commands::camera_state,
+            commands::start_camera_test,
+            commands::capture_camera_step,
+            commands::finish_camera_test,
+            commands::apply_camera_settings,
+            commands::start_health_monitor,
+            commands::stop_health_monitor,
+            commands::save_setup,
+            commands::reapply_saved_setup,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running Setup Coach");
+}

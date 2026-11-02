@@ -35,9 +35,16 @@ ObsStatus = { running: boolean, connected: boolean, version: string | null,
               websocket_enabled: boolean | null, error: string | null }
 AudioDeviceInfo = { id: string, name: string, is_default: boolean,
                     is_default_comms: boolean, channels: number, sample_rate: number,
-                    profile: MatchResult }
+                    profile: ProfileMatch | null,
+                    obs_input: string | null }   // OBS audio input capturing this device
 CameraDeviceInfo = { id: string, name: string, obs_source: string | null,
-                     profile: MatchResult }
+                     profile: ProfileMatch | null }
+// Owned view of core's MatchResult (which borrows the profile database).
+ProfileMatch = { kind: "mic" | "interface" | "camera", profile_id: string,
+                 display_name: string, confidence: "exact" | "name_match" | "generic",
+                 verified: boolean, questions: Question[],      // core profiles::Question
+                 interface: ProfileMatch | null,                 // mic behind an interface
+                 profile: object }                               // full profile JSON
 ```
 
 `get_environment` auto-connects to OBS when possible: it reads the websocket
@@ -68,7 +75,7 @@ ApplyResult = { applied: string[], failed: { id: string, error: string }[], rest
 | `finish_mic_test` | `{ context: MicContext, constraints: Constraint[] }` | `MicReport` (core) |
 | `rescan_mic` | `{ context: MicContext, constraints: Constraint[] }` | `MicReport` – re-uses the last recording (after "I can't") |
 | `apply_mic_chain` | `{ chain: ProcessingChain, obsInput: string }` | `ApplyResult` |
-| `verify_mic` | – | `{ before: MicReport, after: MicReport }` – re-records? no: renders the last recording through the applied chain and re-analyses |
+| `verify_mic` | – | `{ before: MicReport, after: MicReport }` – renders the last recording through the applied chain and re-analyses |
 | `play_preview` | `{ which: "before" \| "after", phone: boolean }` | `()` |
 | `stop_preview` | – | `()` |
 
@@ -83,7 +90,8 @@ Guided steps & durations (UI drives them, backend records): silence 5 s, read
 ~10 s (on-screen text with p/b/s words), loud 3 s, typing 4 s, desk_tap 3 s,
 cable_wiggle 4 s, moving 5 s.
 
-`apply_mic_chain` writes the chain to `%APPDATA%\SetupCoach\chain.json` (read
+`apply_mic_chain`'s `obsInput` may be empty or unknown: the backend then uses
+the OBS input capturing the mic from the last test (or OBS's main mic). It writes the chain atomically (temp file + rename) to `%APPDATA%\SetupCoach\chain.json` (read
 live by our VST3: mono, HPF, EQ, de-esser), makes sure our VST3 filter exists on
 the OBS mic input, and creates/updates OBS built-in filters for gain, expander,
 compressor and limiter in the right order via obs-websocket. Hardware gain
@@ -94,9 +102,9 @@ changes are coached, never applied.
 | Command | Args | Returns |
 |---|---|---|
 | `camera_state` | `{ cameraId: string }` | `CameraState` (core video) |
-| `start_camera_test` | `{ cameraId: string }` | `()` – emits `camera-preview` (small JPEG data URL, ~4/s) |
+| `start_camera_test` | `{ cameraId: string }` | `()` – emits `camera-preview` `{ image: string /* JPEG data URL, 480 px wide */, paper_guide: [x0, y0, x1, y1] /* fractions */ }` ~4/s until `finish_camera_test` |
 | `capture_camera_step` | `{ step: "neutral" \| "turn_head" \| "hold_paper" \| "lean_in_out", seconds: number }` | `{ frames: number, faces_found: number }` |
-| `finish_camera_test` | `{ constraints: Constraint[] }` | `CameraReport` |
+| `finish_camera_test` | `{ constraints: Constraint[] }` | `CameraReport` – frames are kept, so call again with new constraints to recalibrate (there is no `rescan_camera`) |
 | `apply_camera_settings` | `{ cameraId: string, settings: CameraSettings }` | `ApplyResult` |
 
 ```ts
@@ -104,15 +112,19 @@ CameraReport = { metrics: VideoMetrics, findings: Finding[], settings: CameraSet
                  score: Score, class: CameraClass }
 ```
 Frames come from OBS (`GetSourceScreenshot` on the camera source) when OBS
-holds the camera, else from the camera directly. Face rectangles come from the
+holds the camera, else from the camera directly. Screenshot sampling (~4/s)
+can't measure the camera's real frame rate, so frames are time-stamped at the
+requested fps; delivered-fps problems are caught by the OBS source/stats checks. Face rectangles come from the
 Windows built-in face detector (metering only). The paper rectangle is the
-on-screen guide box the user fills with a white sheet during `hold_paper`.
+on-screen guide box (`paper_guide`, fractions of the frame: x 0.66–0.94,
+y 0.35–0.75, beside the face) the user fills with a white sheet during
+`hold_paper`; the inner 80 % is metered.
 
 ## Stream health
 
 | Command | Args | Returns |
 |---|---|---|
-| `start_health_monitor` | – | `()` – polls OBS every 2 s; emits `health-alert` (core `Alert`) and `health-sample` |
+| `start_health_monitor` | – | `()` – polls OBS every 2 s; emits `health-alert` (core `Alert`, on raise and clear) and `health-sample` `{ sample: StatsSample, window: WindowStats, active: AlertKind[] }` |
 | `stop_health_monitor` | – | `StreamReport` (core) |
 
 ## Persistence
