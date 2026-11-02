@@ -35,7 +35,10 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "nsis": { "installMode": "currentUser" }
+      "nsis": {
+        "installMode": "perMachine",
+        "installerHooks": "installer-hooks.nsh"
+      }
     }
   }
 }

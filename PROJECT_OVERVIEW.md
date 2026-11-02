@@ -16,7 +16,7 @@ Rust workspace (`core/` = `coach_core`, `app/src-tauri/` = `setup-coach-app`), s
 - Test: `cargo test --workspace --release` (≈210 tests; mock platform on non-Windows).
 - Windows check from Linux: `cargo check --target x86_64-pc-windows-msvc -p setup-coach-app`.
 - UI preview without the app: open `app/ui/index.html` in a browser (mock mode).
-- Build installer (Windows): `cd app && npx @tauri-apps/cli@2 build`. VST3: `cmake -S vst3 -B build-vst3 -DSC_BUILD_PLUGIN=ON && cmake --build build-vst3 --config Release`.
+- Build VST3 first (Windows): `cmake -S vst3 -B build-vst3 -DSC_BUILD_PLUGIN=ON && cmake --build build-vst3 --config Release`. Then the installer, which bundles it and installs it to `%CommonProgramFiles%\VST3` (admin/UAC once): `cd app && npx @tauri-apps/cli@2 build --config src-tauri/tauri.vst3.conf.json`. Without `--config` the installer is built without the VST3.
 - CI: `.github/workflows/ci.yml` builds both and uploads them as artifacts.
 - Local checkout on Otto's PC: `C:\setup-coach`.
 

@@ -44,17 +44,30 @@ jobs:
         working-directory: .
         run: cargo test --workspace --release
 
-      - name: Build app installer (unsigned)
-        if: hashFiles('app/src-tauri/Cargo.toml') != ''
-        working-directory: app
-        run: npx --yes @tauri-apps/cli@2 build
-
       - name: Build + test VST3
         if: hashFiles('vst3/CMakeLists.txt') != ''
         run: |
           cmake -S vst3 -B build-vst3 -DSC_BUILD_PLUGIN=ON
           cmake --build build-vst3 --config Release
           ctest --test-dir build-vst3 -C Release --output-on-failure
+
+      # VST3 must exist before this step: the installer packs and installs it
+      # to %CommonProgramFiles%\VST3.
+      - name: Build app installer (unsigned, bundles VST3)
+        if: hashFiles('app/src-tauri/Cargo.toml') != '' && hashFiles('vst3/CMakeLists.txt') != ''
+        working-directory: app
+        run: npx --yes @tauri-apps/cli@2 build --config src-tauri/tauri.vst3.conf.json
+
+      # Prove the installer really contains the VST3 (7-Zip can list NSIS installers).
+      - name: Check installer contains VST3
+        if: hashFiles('app/src-tauri/Cargo.toml') != '' && hashFiles('vst3/CMakeLists.txt') != ''
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $list = & 7z l $exe.FullName
+          $hits = $list | Select-String 'SetupCoachVoice.vst3'
+          $hits
+          if (-not ($hits | Select-String -Pattern 'x86_64-win[\\/]SetupCoachVoice\.vst3')) { throw 'VST3 binary not found in installer' }
 
       - uses: actions/upload-artifact@v4
         with:
