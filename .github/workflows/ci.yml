@@ -69,6 +69,12 @@ jobs:
           $hits
           if (-not ($hits | Select-String -Pattern 'x86_64-win[\\/]SetupCoachVoice\.vst3')) { throw 'VST3 binary not found in installer' }
 
+      # Clean-machine proof: silent install, launch, silent uninstall (runner is admin).
+      - name: Installer end-to-end
+        if: hashFiles('app/src-tauri/Cargo.toml') != '' && hashFiles('vst3/CMakeLists.txt') != ''
+        shell: pwsh
+        run: .github/scripts/installer-e2e.ps1
+
       - uses: actions/upload-artifact@v4
         with:
           name: setup-coach-installer
