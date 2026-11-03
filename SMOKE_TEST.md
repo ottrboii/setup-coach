@@ -48,7 +48,7 @@ in `%APPDATA%\SetupCoach\` and the newest OBS log. It doesn't include passwords.
 **Send that zip.**
 
 Options: `--out <folder>` (save the zip somewhere else), `--skip-obs` (don't
-connect to OBS), `--no-obs-password` (don't read OBS's saved WebSocket password).
+connect to OBS), `--no-obs-password` (don't read OBS's saved WebSocket password). Voice recordings are left out of the zip unless you add `--include-recordings`.
 
 ## 2. Run through (OBS open)
 

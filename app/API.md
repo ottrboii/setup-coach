@@ -353,3 +353,20 @@ down by `|matched_gain_db|` (capped at 30 dB), so the UI can say e.g. "Final
 was 4 dB louder — matched for a fair comparison". `phone` applies the
 phone-speaker simulation after matching.
 
+
+## Updates (added 2026-11-03)
+
+The app updates itself from the newest *published* GitHub release
+(`.../releases/latest/download/latest.json`, signed installer). All of it runs
+in Rust; the UI needs nothing. About 10 s after a normal start (never in
+`--self-test`) it checks in the background, downloads, then asks with a native
+dialog ("A new version of Setup Coach is ready (x.y.z). Install now?"). If OBS
+is running it first asks the user to close OBS so the voice plugin can be
+replaced. "Later" asks again next start. Failures are silent (logged only).
+`%APPDATA%\SetupCoach\` is never touched. A build without an updater public key
+(PR/main CI, local dev) never checks and the commands below report "nothing".
+
+| Command | Args | Returns |
+|---|---|---|
+| `check_for_update` | – | `{ available: boolean, version: string \| null, notes: string \| null }` – errors (string) only when the network/manifest check fails |
+| `install_update` | – | `()` – downloads and installs the update found by the last `check_for_update`, then the app restarts (Windows shows a permission prompt). Errors: `"obs_running: ..."` (ask the user to close OBS), `"no update available: ..."` |

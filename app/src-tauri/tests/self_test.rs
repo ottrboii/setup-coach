@@ -241,3 +241,23 @@ async fn while_live_the_apply_test_leaves_obs_alone() {
     drop(st);
     assert_eq!(obs.filter_names("Mic/Aux"), user_filters_before);
 }
+
+#[tokio::test]
+async fn voice_recordings_stay_out_of_the_zip_unless_asked() {
+    let w = world();
+    let rec = w.dir.path().join("SetupCoach").join("recordings").join("mic");
+    std::fs::create_dir_all(&rec).unwrap();
+    std::fs::write(rec.join("original.wav"), b"RIFF").unwrap();
+    std::fs::write(rec.join("original.json"), b"{}").unwrap();
+    *w.mock.system.obs_running.lock().unwrap() = false;
+    let mut opts = CliOptions { out_dir: Some(w.dir.path().join("out")), skip_obs: true, ..Default::default() };
+    let zip = run_self_test(w.core.clone(), &opts, None, CHECK_TIMEOUT).await.unwrap();
+    let files = read_zip(&zip);
+    assert!(!files.keys().any(|n| n.ends_with(".wav")), "{:?}", files.keys());
+    assert!(files.contains_key("SetupCoach/recordings/mic/original.json"));
+    assert!(String::from_utf8_lossy(&files["self-test.txt"]).contains("--include-recordings"));
+    std::fs::remove_file(&zip).unwrap();
+    opts.include_recordings = true;
+    let zip = run_self_test(w.core.clone(), &opts, None, CHECK_TIMEOUT).await.unwrap();
+    assert!(read_zip(&zip).contains_key("SetupCoach/recordings/mic/original.wav"));
+}
