@@ -105,6 +105,8 @@ pub struct MockSystem {
     pub processing: KnownProcessingApps,
     pub obs_running: Mutex<bool>,
     pub obs_dir: Mutex<Option<PathBuf>>,
+    /// Where `--self-test` puts its zip by default (None: fallback folder).
+    pub desktop_dir: Mutex<Option<PathBuf>>,
     pub applied: Mutex<Vec<Action>>,
 }
 
@@ -182,6 +184,9 @@ impl SystemInspector for MockSystem {
     fn open_target(&self, target: &crate::types::OpenTarget) -> Result<(), String> {
         self.opened.lock().unwrap().push(target.clone());
         Ok(())
+    }
+    fn desktop_dir(&self) -> Option<PathBuf> {
+        self.desktop_dir.lock().unwrap().clone()
     }
 }
 
@@ -312,6 +317,7 @@ impl MockPlatform {
                 processing: KnownProcessingApps::default(),
                 obs_running: Mutex::new(true),
                 obs_dir: Mutex::new(None),
+                desktop_dir: Mutex::new(None),
                 applied: Mutex::new(Vec::new()),
             }),
             camera: Arc::new(MockCamera {

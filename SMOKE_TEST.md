@@ -24,6 +24,32 @@ GitHub → setup-coach → **Actions** → *CI* → latest green run on `main` �
    uninstall). No manual copying. If you installed an earlier per-user build,
    uninstall it first (Settings → Apps).
 
+## Self-test (one command, one zip)
+
+With OBS open, run this in PowerShell (or let Claude Code on your PC run it):
+
+```powershell
+& "C:\Program Files\Setup Coach\setup-coach.exe" --self-test | Out-String
+```
+
+No window opens and nothing asks questions. It checks the app and Windows
+versions, mics (default device, sample rate, Voice Clarity / NVIDIA / Krisp),
+cameras, the installed voice plugin, OBS + its WebSocket, OBS VST3 support
+(atkAudio / native), GoXLR Utility, and your saved setup. Then it does one safe
+OBS test: it makes a hidden scene **"Setup Coach self-test"** with an empty
+source, puts the mic filters on it, reads their order back and deletes both
+again. Your own scenes and sources aren't touched (the test checks that too).
+Each check gives up after 5 seconds.
+
+It prints the path of `SetupCoach-selftest-<date>-<time>.zip` on your
+**Desktop** (the path is also saved in `%APPDATA%\SetupCoach\last-self-test.txt`).
+The zip holds `self-test.txt` (readable summary), `self-test.json`, everything
+in `%APPDATA%\SetupCoach\` and the newest OBS log. It doesn't include passwords.
+**Send that zip.**
+
+Options: `--out <folder>` (save the zip somewhere else), `--skip-obs` (don't
+connect to OBS), `--no-obs-password` (don't read OBS's saved WebSocket password).
+
 ## 2. Run through (OBS open)
 
 | # | Do | Check |
@@ -45,6 +71,6 @@ GitHub → setup-coach → **Actions** → *CI* → latest green run on `main` �
 ## 3. Send back
 
 - Screenshots of anything wrong/confusing.
-- A zip of `%APPDATA%\SetupCoach\` (your saved setup + `chain.json`).
-- If OBS behaved oddly: `%APPDATA%\obs-studio\logs\` latest log.
+- The self-test zip from your Desktop (run the self-test again at the end;
+  it already contains `%APPDATA%\SetupCoach\` and the latest OBS log).
 - One line per mic: did *after* sound better than *before*?

@@ -28,6 +28,7 @@ pub struct FakeObsState {
     pub inputs: Vec<FakeInput>,
     pub filters: HashMap<String, Vec<FakeFilter>>,
     pub filter_kinds: Vec<String>,
+    pub scenes: Vec<String>,
     pub params: HashMap<(String, String), String>,
     pub stats: Value,
     pub stream: Value,
@@ -55,6 +56,7 @@ impl FakeObs {
                 FakeFilter { name: "Noise Gate".into(), kind: "noise_gate_filter".into(), enabled: true, settings: json!({ "open_threshold": -26.0, "close_threshold": -32.0 }) },
             ],
         );
+        st.scenes = vec!["Main".into()];
         st.filter_kinds = ["gain_filter", "noise_gate_filter", "noise_suppress_filter_v2", "compressor_filter", "expander_filter", "limiter_filter", "vst_filter", "basic_eq_filter"]
             .iter()
             .map(|s| s.to_string())
@@ -172,6 +174,45 @@ impl ObsApi for FakeObs {
             }
             "GetStreamServiceSettings" => Ok(json!({ "streamServiceType": "rtmp_common", "streamServiceSettings": { "service": "Twitch", "server": "auto" } })),
             "GetVideoSettings" => Ok(json!({ "fpsNumerator": 60, "fpsDenominator": 1, "baseWidth": 1920, "baseHeight": 1080, "outputWidth": 1920, "outputHeight": 1080 })),
+            "GetSceneList" => Ok(json!({ "currentProgramSceneName": st.scenes.first(), "scenes": st.scenes.iter().map(|s| json!({ "sceneName": s })).collect::<Vec<_>>() })),
+            "CreateScene" => {
+                let s = d["sceneName"].as_str().unwrap_or_default().to_string();
+                if st.scenes.contains(&s) || st.inputs.iter().any(|i| i.name == s) {
+                    return err("a source with that name already exists");
+                }
+                st.scenes.push(s);
+                Ok(json!({ "sceneUuid": "fake" }))
+            }
+            "RemoveScene" => {
+                let s = d["sceneName"].as_str().unwrap_or_default();
+                let pos = st.scenes.iter().position(|x| x == s).ok_or("no scene")?;
+                st.scenes.remove(pos);
+                Ok(Value::Null)
+            }
+            "CreateInput" => {
+                let scene = d["sceneName"].as_str().unwrap_or_default().to_string();
+                if !st.scenes.contains(&scene) {
+                    return err("no scene");
+                }
+                if input_idx.is_some() || st.scenes.contains(&name) {
+                    return err("a source with that name already exists");
+                }
+                st.inputs.push(FakeInput {
+                    name,
+                    kind: d["inputKind"].as_str().unwrap_or_default().into(),
+                    settings: d["inputSettings"].clone(),
+                    monitor: "OBS_MONITORING_TYPE_NONE".into(),
+                    muted: false,
+                    volume_db: 0.0,
+                });
+                Ok(json!({ "inputUuid": "fake", "sceneItemId": 1 }))
+            }
+            "RemoveInput" => {
+                let i = input_idx.ok_or("no input")?;
+                st.inputs.remove(i);
+                st.filters.remove(&name);
+                Ok(Value::Null)
+            }
             "GetStats" => Ok(st.stats.clone()),
             "GetStreamStatus" => Ok(st.stream.clone()),
             "GetSourceScreenshot" => {
