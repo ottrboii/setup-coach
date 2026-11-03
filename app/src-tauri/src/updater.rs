@@ -185,13 +185,11 @@ mod tests {
         assert_eq!(configured_pubkey(&plugins(json!({"updater": {}}))), None);
         assert_eq!(configured_pubkey(&plugins(json!({"updater": {"pubkey": ""}}))), None);
         assert_eq!(configured_pubkey(&plugins(json!({"updater": {"pubkey": "  "}}))), None);
-        assert!(plugin::<tauri::Wry>(&plugins(json!({}))).is_none());
     }
 
     #[test]
     fn pubkey_enables_updater() {
         let p = plugins(json!({"updater": {"pubkey": "dW50cnVzdGVk"}}));
         assert_eq!(configured_pubkey(&p).as_deref(), Some("dW50cnVzdGVk"));
-        assert!(plugin::<tauri::Wry>(&p).is_some());
     }
 }

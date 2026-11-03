@@ -42,13 +42,6 @@ jobs:
         with:
           node-version: 22
 
-      - name: TEMP diag imports
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          cargo test -p setup-coach-app --release --lib --no-run
-          python .github/scripts/diag_imports.py
-
       - name: Test core + app (real Windows platform code)
         working-directory: .
         run: cargo test --workspace --release
