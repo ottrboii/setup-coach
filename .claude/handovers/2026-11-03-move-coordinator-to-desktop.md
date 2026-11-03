@@ -8,11 +8,14 @@ Otto wants the coordinator to run in **Claude desktop (Code tab) on his Windows 
 - #3 `setup-coach.exe --self-test` → zip on Desktop (`app/src-tauri/src/selftest.rs`), skips the OBS apply test while streaming/recording.
 - Otto installed the new installer on his PC.
 
-## In flight (cloud subagents; their branches/PRs land on GitHub)
-- `feat/auto-updater` (release-ci): tauri-plugin-updater from GitHub Releases `latest.json`, native dialog, asks to close OBS first, `check_for_update`/`install_update` commands, `.github/workflows/release.yml` creating **draft** releases, `RELEASING.md`. Pubkey via repo variable `TAURI_UPDATER_PUBKEY`, private key via secrets — Otto must generate keys (see RELEASING.md); never commit keys.
-- `feat/settings-vault-ab` (app-backend): `%APPDATA%\SetupCoach\backups\` snapshot-before-every-write with a never-overwritten `original`, `list_backups` / `restore_backup`; real A/B: `original.wav` on first mic test per device, `record_final`, loudness-matched `get_ab`, `play_preview` "original"/"final", `export_ab` to Desktop.
-- Next after that: app-ui for the update button, "Put everything back how it was", and the A/B player (contract in app/API.md from the vault PR).
-Check open PRs on GitHub; if a branch exists without a PR, or CI is red, pick it up.
+## Also merged 2026-11-03
+- #5 auto-updater (`app/src-tauri/src/updater.rs`, `.github/workflows/release.yml` → **draft** releases, `RELEASING.md`). Not active until Otto does the one-time key setup in RELEASING.md (secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, variable `TAURI_UPDATER_PUBKEY`). Untested with real keys: `.sig` creation, release.yml, signature check, install/restart, Yes/No dialogs.
+- #6 settings vault + real A/B (`app/src-tauri/src/vault.rs`, `wav.rs`; API.md "Settings vault & A/B"): backup before every write with a never-overwritten `original`, `list_backups` / `restore_backup`, `record_final`, loudness-matched `get_ab`, `play_preview` "original"/"final", `export_ab`. Self-test zips leave `recordings/*.wav` out unless `--include-recordings`. Needs a real-PC check: Windows settings read/restore, OBS restore round-trip, a real final take.
+
+## Next
+1. Fix the self-test timeouts below (app-backend), re-run the self-test on this PC.
+2. app-ui: update button (`check_for_update`/`install_update`), "Put everything back how it was" (`list_backups`/`restore_backup`, show `skipped` as notes), A/B player + export after the final read.
+3. Otto's one-time updater key setup (RELEASING.md), then first release v0.2.0 (draft → Otto publishes) and install it by hand once.
 
 ## First real-hardware finding: self-test (2026-11-03 10:34 UTC, Otto's PC)
 Windows build 26200.9711 (25H2). Result: 4 pass, 5 fail, 3 skip.
