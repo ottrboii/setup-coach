@@ -26,6 +26,8 @@ jobs:
         with:
           workspaces: .
       - run: cargo test -p coach_core --release
+      - name: Release script tests (latest.json generator)
+        run: python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
   windows:
     name: Windows app + VST3
