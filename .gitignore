@@ -2,3 +2,4 @@ target/
 build/
 build-*/
 .claude/worktrees/
+__pycache__/

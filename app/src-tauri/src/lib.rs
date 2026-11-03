@@ -10,6 +10,7 @@ pub mod paths;
 pub mod platform;
 pub mod selftest;
 pub mod types;
+pub mod updater;
 
 use app::{AppCore, Emitter, WindowControl};
 use std::sync::Arc;
@@ -43,8 +44,18 @@ impl WindowControl for TauriWindow {
 }
 
 pub fn run() {
-    tauri::Builder::default()
-        .setup(|app| {
+    let context = tauri::generate_context!();
+    // Self-update is only active when the release build injected a public key.
+    let updater_plugin = updater::plugin(&context.config().plugins.0);
+    let updater_enabled = updater_plugin.is_some();
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    if let Some(p) = updater_plugin {
+        builder = builder.plugin(p);
+    }
+    builder
+        .setup(move |app| {
+            app.manage(updater::UpdaterState::new(updater_enabled));
+            tauri::async_runtime::spawn(updater::auto_update(app.handle().clone()));
             let core = Arc::new(AppCore::new(platform::native(), paths::data_dir(), Arc::new(TauriEmitter(app.handle().clone()))));
             core.set_window_control(Arc::new(TauriWindow(app.handle().clone())));
             app.manage(core.clone());
@@ -84,7 +95,9 @@ pub fn run() {
             commands::start_coach,
             commands::stop_coach,
             commands::open_for_user,
+            updater::check_for_update,
+            updater::install_update,
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("error while running Setup Coach");
 }
