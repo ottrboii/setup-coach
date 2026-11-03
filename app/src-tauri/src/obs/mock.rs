@@ -33,6 +33,8 @@ pub struct FakeObsState {
     pub stats: Value,
     pub stream: Value,
     pub log: Vec<String>,
+    /// Output (scaled) resolution, `SetVideoSettings`.
+    pub output_size: (u32, u32),
 }
 
 pub struct FakeObs {
@@ -57,6 +59,7 @@ impl FakeObs {
             ],
         );
         st.scenes = vec!["Main".into()];
+        st.output_size = (1920, 1080);
         st.filter_kinds = ["gain_filter", "noise_gate_filter", "noise_suppress_filter_v2", "compressor_filter", "expander_filter", "limiter_filter", "vst_filter", "basic_eq_filter"]
             .iter()
             .map(|s| s.to_string())
@@ -114,7 +117,9 @@ impl ObsApi for FakeObs {
             "GetInputSettings" => input_idx.map(|i| json!({ "inputSettings": st.inputs[i].settings, "inputKind": st.inputs[i].kind })).ok_or("no input".into()),
             "SetInputSettings" => {
                 let i = input_idx.ok_or("no input")?;
-                if let (Some(o), Some(n)) = (st.inputs[i].settings.as_object_mut(), d["inputSettings"].as_object()) {
+                if d["overlay"] == json!(false) {
+                    st.inputs[i].settings = d["inputSettings"].clone();
+                } else if let (Some(o), Some(n)) = (st.inputs[i].settings.as_object_mut(), d["inputSettings"].as_object()) {
                     for (k, v) in n {
                         o.insert(k.clone(), v.clone());
                     }
@@ -169,11 +174,20 @@ impl ObsApi for FakeObs {
             }
             "SetProfileParameter" => {
                 let k = (d["parameterCategory"].as_str().unwrap_or_default().to_string(), d["parameterName"].as_str().unwrap_or_default().to_string());
-                st.params.insert(k, d["parameterValue"].as_str().unwrap_or_default().into());
+                match d["parameterValue"].as_str() {
+                    Some(v) => st.params.insert(k, v.into()),
+                    None => st.params.remove(&k),
+                };
                 Ok(Value::Null)
             }
             "GetStreamServiceSettings" => Ok(json!({ "streamServiceType": "rtmp_common", "streamServiceSettings": { "service": "Twitch", "server": "auto" } })),
-            "GetVideoSettings" => Ok(json!({ "fpsNumerator": 60, "fpsDenominator": 1, "baseWidth": 1920, "baseHeight": 1080, "outputWidth": 1920, "outputHeight": 1080 })),
+            "GetVideoSettings" => Ok(json!({ "fpsNumerator": 60, "fpsDenominator": 1, "baseWidth": 1920, "baseHeight": 1080, "outputWidth": st.output_size.0, "outputHeight": st.output_size.1 })),
+            "SetVideoSettings" => {
+                let w = d["outputWidth"].as_u64().unwrap_or(st.output_size.0 as u64) as u32;
+                let h = d["outputHeight"].as_u64().unwrap_or(st.output_size.1 as u64) as u32;
+                st.output_size = (w, h);
+                Ok(Value::Null)
+            }
             "GetSceneList" => Ok(json!({ "currentProgramSceneName": st.scenes.first(), "scenes": st.scenes.iter().map(|s| json!({ "sceneName": s })).collect::<Vec<_>>() })),
             "CreateScene" => {
                 let s = d["sceneName"].as_str().unwrap_or_default().to_string();
