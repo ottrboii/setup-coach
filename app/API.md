@@ -62,7 +62,8 @@ port/password from `%APPDATA%\obs-studio\plugin_config\obs-websocket\config.json
 QuickChecks = { findings: Finding[], actions: PlannedActionView[], score: Score[] }
 PlannedActionView = { id: string, label: string, resolves: string[], needs_admin: boolean,
                       needs_obs_closed: boolean, action: Action }   // Action = coach_core::system Action
-ApplyResult = { applied: string[], failed: { id: string, error: string }[], restart_obs_needed: boolean }
+ApplyResult = { applied: string[], failed: { id: string, error: string }[], restart_obs_needed: boolean,
+                skipped: { id: string, error: string }[] }   // plain notes; only restore_backup fills it (added 2026-11-03)
 ```
 
 ## Mic test
@@ -76,7 +77,7 @@ ApplyResult = { applied: string[], failed: { id: string, error: string }[], rest
 | `rescan_mic` | `{ context: MicContext, constraints: Constraint[] }` | `MicReport` – re-uses the last recording (after "I can't") |
 | `apply_mic_chain` | `{ chain: ProcessingChain, obsInput: string }` | `ApplyResult` |
 | `verify_mic` | – | `{ before: MicReport, after: MicReport }` – renders the last recording through the applied chain and re-analyses |
-| `play_preview` | `{ which: "before" \| "after", phone: boolean }` | `()` |
+| `play_preview` | `{ which: "before" \| "after" \| "original" \| "final", phone: boolean }` | `()` – `original`/`final` play the saved A/B takes, loudness-matched (see "Settings vault & A/B") |
 | `stop_preview` | – | `()` |
 
 ```ts
@@ -256,3 +257,99 @@ GoXLR Utility (preferred for all GoXLR owners — recommend installing it and
 removing the unmaintained official app): when its daemon answers on
 `http://localhost:14564`, `SetGain` runs in auto mode via its API and mic type
 / phantom power can be set; otherwise coach the GoXLR's own gain control.
+
+## Settings vault & A/B (added 2026-11-03)
+
+### Settings vault — `%APPDATA%\SetupCoach\backups\`
+
+Before **every** write the app makes, exactly what is about to change is saved
+first; if that backup can't be written, nothing is changed (the command
+returns a failure saying so). Covered writes:
+
+| Write | What's saved first (vault item `kind`) |
+|---|---|
+| `apply_actions` (OBS via websocket) | `obs_filters` (all filters of that source: name, kind, enabled, full settings, order), `obs_input_settings`, `obs_input_mute`, `obs_monitoring`, `obs_profile_param`, `obs_video_settings` |
+| `apply_actions` (OBS files, OBS closed) | `obs_file` (copy of the scene collection / `basic.ini`), `obs_websocket_enabled` (only the on/off flag — the file also holds the WebSocket password, which is never stored) |
+| `apply_actions` (Windows) | `windows` (ducking, endpoint level, enhancements, Voice Clarity, Listen, exclusive mode, USB power saving — raw values) |
+| `apply_mic_chain` | previous `chain_json` (or "none"), `obs_filters` of the mic input, the scene file when OBS's mono switch is used |
+| `apply_camera_settings`, camera auto-coach | `camera` (all camera control values), `obs_input_settings` of the OBS webcam source |
+| auto gain (`start_coach` SetGain), GoXLR phantom | `endpoint_gain` (Windows level, dB) or `goxlr` (mic type + gain); once per coach step |
+| `reapply_saved_setup`, `restore_backup` | the same items, so a restore can itself be undone |
+
+Layout: `backups/original/` and `backups/<id>/` (`id` = UTC timestamp, e.g.
+`20261103T101530Z-000`), each `snapshot.json` + `files/` (copied OBS files).
+Written atomically (temp + rename). **`original`** gets each item the first
+time Setup Coach ever touches it and never overwrites it — it is "how it was
+before Setup Coach" across sessions and app updates. Per-change snapshots:
+newest 30 kept (an identical repeat of the newest one isn't stored again).
+The folder is outside the installer's "delete app data" folders
+(`%APPDATA%\app.setupcoach.desktop`, `%LOCALAPPDATA%\app.setupcoach.desktop`),
+so it survives updates and uninstall.
+
+| Command | Args | Returns |
+|---|---|---|
+| `list_backups` | – | `BackupInfo[]` – `original` first (if any), then newest first |
+| `restore_backup` | `{ id: string }` – `"original"` = put everything back how it was before Setup Coach | `ApplyResult` |
+
+```ts
+BackupInfo = { id: string, created_at: string /* ISO UTC */,
+               label: string,      // plain language: "How it was before Setup Coach",
+                                   // "Before setting up your Yeti Stereo Microphone", "Before quick fixes",
+                                   // "Before: Turn off Windows audio enhancements", "Before changing your HD Pro Webcam C920 settings",
+                                   // "Before auto-adjusting your mic level", "Before going back to …"
+               items: string[] }   // plain item names, e.g. "OBS: filters on \"Mic/Aux\"", "Windows: Voice Clarity"
+```
+`restore_backup` result ids are vault keys (`obs_filters:Mic/Aux`,
+`windows:voice_clarity:<endpoint>`, `camera:<id>`, `chain_json`,
+`obs_file:<path>`, `goxlr:<serial>` …). Restore goes newest item first (so
+the earliest saved value wins), and:
+- an unplugged mic/camera, a missing OBS source, GoXLR Utility not running, or
+  OBS closed (for live OBS items) → `skipped` with a plain note, never a failure;
+- OBS files need OBS closed: with OBS open they come back in `failed` with
+  "Close OBS, then press Restore again…" (same handling as `needs_obs_closed`).
+  Suggested UI flow: restore with OBS open (live items), then if any `failed`
+  id starts with `obs_file:`/`obs_websocket`, ask the user to close OBS and
+  press Restore again (restoring twice is harmless). `restart_obs_needed` is
+  true when OBS files were put back.
+- Restoring `chain.json` also clears the session's applied chain.
+
+### Real A/B recordings — `%APPDATA%\SetupCoach\recordings\<device-slug>\`
+
+`device-slug` = the device name in lower-case words joined by `-`
+(`Microphone (Yeti Stereo Microphone)` → `microphone-yeti-stereo-microphone`).
+- `original.wav` + `original.json`: the **first `finish_mic_test` for a device
+  in an app session, before anything was applied for it** (chain, Windows
+  actions for that endpoint, auto gain). Whole take, mono (channels averaged),
+  32-bit float WAV at the capture rate (48 kHz on most PCs). An existing
+  original is kept as `original-<date>.wav/.json`, never deleted.
+- `final-raw.wav` (as captured), `final.wav` (through the applied chain with
+  core's offline renderer — static processing only, mirroring the OBS filters
+  + our VST3; no AI), `final.json`.
+- `*.json` = `{ device_id, device_name, recorded_at, sample_rate, segments, speech_lufs, noise_floor_dbfs, peak_dbfs, score, backup_id, chain }`.
+
+| Command | Args | Returns |
+|---|---|---|
+| `record_final` | `{ deviceId: string, context: MicContext, constraints: Constraint[] }` | `AbInfo` |
+| `get_ab` | `{ deviceId: string }` | `AbInfo` – error (plain) if there's no original yet |
+| `export_ab` | `{ deviceId: string }` | `string` – folder path: `Desktop\Setup Coach A-B - <device name>\A original.wav`, `B final.wav` (the matched reading clips) |
+
+```ts
+AbInfo = { original: AbTake, final: AbTake | null,
+           matched_gain_db: number }   // final LUFS − original LUFS (0 when no final); >0 = final was louder
+AbTake = { path: string, lufs: number /* reading part, LUFS */, score: number /* mic score 0–100 */ }
+```
+Final-take flow (UI): after fixes are applied and verified, call
+`start_mic_test { deviceId }`, run the **same guided "read" step with the same
+on-screen passage** as the first test (~10 s; `mark_step` read start/end —
+other steps are optional), then `record_final` instead of `finish_mic_test`.
+Errors: no recording running, recording from a different mic, too short / no
+read step, no applied chain yet ("Apply your new settings first…"), no
+original for this mic.
+
+The A/B compares the **reading part** of both takes. Playback
+(`play_preview { which: "original" | "final", phone }`, for the mic of the last
+test) and `export_ab` are **loudness-matched**: the louder take is turned
+down by `|matched_gain_db|` (capped at 30 dB), so the UI can say e.g. "Final
+was 4 dB louder — matched for a fair comparison". `phone` applies the
+phone-speaker simulation after matching.
+

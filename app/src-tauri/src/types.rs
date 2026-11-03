@@ -103,6 +103,10 @@ pub struct ApplyResult {
     pub applied: Vec<String>,
     pub failed: Vec<ApplyFailure>,
     pub restart_obs_needed: bool,
+    /// Left alone on purpose, with a plain note (e.g. a device that's
+    /// unplugged during `restore_backup`). Empty for other commands.
+    #[serde(default)]
+    pub skipped: Vec<ApplyFailure>,
 }
 
 impl ApplyResult {
@@ -111,6 +115,9 @@ impl ApplyResult {
     }
     pub fn fail(&mut self, id: impl Into<String>, error: impl Into<String>) {
         self.failed.push(ApplyFailure { id: id.into(), error: error.into() });
+    }
+    pub fn skip(&mut self, id: impl Into<String>, note: impl Into<String>) {
+        self.skipped.push(ApplyFailure { id: id.into(), error: note.into() });
     }
 }
 
@@ -142,6 +149,31 @@ pub enum Edge {
 pub enum PreviewWhich {
     Before,
     After,
+    /// The saved first recording (loudness-matched to the final take).
+    Original,
+    /// The final take through the applied settings (loudness-matched).
+    Final,
+}
+
+/// One side of the A/B (`get_ab`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AbTake {
+    /// The WAV on disk (raw take for `original`, processed take for `final`).
+    pub path: String,
+    /// Integrated loudness of the reading part, LUFS.
+    pub lufs: f64,
+    /// Mic score 0-100 of that take.
+    pub score: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AbInfo {
+    pub original: AbTake,
+    #[serde(rename = "final")]
+    pub final_take: Option<AbTake>,
+    /// Final LUFS minus original LUFS (0 without a final take). Playback turns
+    /// the louder one down by this much so the comparison is fair.
+    pub matched_gain_db: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

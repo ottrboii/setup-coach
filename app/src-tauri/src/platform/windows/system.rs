@@ -2,7 +2,7 @@
 
 use super::audio::capture_endpoints;
 use super::{com_init, run_hidden, running_processes};
-use crate::platform::{mains_for_country, GainControl, SystemInspector};
+use crate::platform::{mains_for_country, GainControl, SystemInspector, WinKey, WinValue};
 use coach_core::system::{
     Action, AudioEndpoint, CameraSystemState, Connection, DuckingPreference, GpuVendor, HardwareInfo, KnownProcessingApps, NetworkInfo,
     WindowsAudioState,
@@ -117,6 +117,20 @@ fn consent_allowed(cap: &str) -> bool {
     let base = format!(r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\{cap}");
     let deny = |root, p: &str| reg_str(root, p, "Value").is_some_and(|v| v.eq_ignore_ascii_case("Deny"));
     !(deny(HKEY_LOCAL_MACHINE, &base) || deny(HKEY_CURRENT_USER, &base) || deny(HKEY_CURRENT_USER, &format!(r"{base}\NonPackaged")))
+}
+
+const DUCKING_KEY: &str = r"Software\Microsoft\Multimedia\Audio";
+
+/// Current AC and DC indexes of the USB selective suspend power setting.
+fn usb_suspend_indexes() -> Option<[u32; 2]> {
+    let t = run_hidden("powercfg", &["/query", "SCHEME_CURRENT", USB_SUBGROUP, USB_SUSPEND])?;
+    let idx = |tag: &str| {
+        t.lines()
+            .find(|l| l.contains(tag))
+            .and_then(|l| l.rsplit("0x").next())
+            .and_then(|h| u32::from_str_radix(h.trim(), 16).ok())
+    };
+    Some([idx("AC Power Setting Index")?, idx("DC Power Setting Index").unwrap_or(1)])
 }
 
 fn usb_suspend_enabled() -> bool {
@@ -346,6 +360,73 @@ impl SystemInspector for WinSystem {
                 "Set Microphone Boost to {db:.0} dB: Control Panel → Sound → Recording → your mic → Properties → Levels."
             )),
             other => Err(format!("This fix needs OBS: {other:?}")),
+        }
+    }
+
+    fn read_setting(&self, key: &WinKey) -> Option<WinValue> {
+        use serde_json::json;
+        com_init();
+        let value = match key {
+            WinKey::Ducking => json!(reg_u32(HKEY_CURRENT_USER, DUCKING_KEY, "UserDuckingPreference")),
+            WinKey::UsbSelectiveSuspend => json!(usb_suspend_indexes()?),
+            WinKey::EndpointVolume { endpoint } => json!(endpoint_volume(&find_device(endpoint)?)?),
+            WinKey::Enhancements { endpoint } => json!(u32::from(sysfx_disabled(&find_device(endpoint)?).unwrap_or(false))),
+            WinKey::VoiceClarity { endpoint } => json!(u32::from(voice_clarity(&find_device(endpoint)?)?)),
+            WinKey::Listen { endpoint } => json!(u32::from(reg_bool(endpoint, PROP_LISTEN)?)),
+            WinKey::ExclusiveMode { endpoint } => json!(u32::from(reg_bool(endpoint, PROP_EXCLUSIVE)?)),
+            // We never write Microphone Boost (it's coached), so nothing to save.
+            WinKey::MicBoost { .. } => return None,
+        };
+        Some(WinValue { key: key.clone(), value })
+    }
+
+    fn restore_setting(&self, v: &WinValue) -> Result<(), String> {
+        com_init();
+        let gone = || "That microphone isn't connected any more.".to_string();
+        let flag = v.value.as_u64().unwrap_or(0) != 0;
+        match &v.key {
+            WinKey::Ducking => {
+                let (k, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(DUCKING_KEY).map_err(|e| e.to_string())?;
+                match v.value.as_u64() {
+                    Some(x) => k.set_value("UserDuckingPreference", &(x as u32)).map_err(|e| e.to_string()),
+                    None => match k.delete_value("UserDuckingPreference") {
+                        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+                        _ => Ok(()),
+                    },
+                }
+            }
+            WinKey::UsbSelectiveSuspend => {
+                let ac = v.value[0].as_u64().unwrap_or(1).to_string();
+                let dc = v.value[1].as_u64().unwrap_or(1).to_string();
+                for (sub, val) in [("/setacvalueindex", &ac), ("/setdcvalueindex", &dc)] {
+                    run_hidden("powercfg", &[sub, "SCHEME_CURRENT", USB_SUBGROUP, USB_SUSPEND, val]).ok_or("Couldn't change the power plan.")?;
+                }
+                run_hidden("powercfg", &["/setactive", "SCHEME_CURRENT"]).ok_or("Couldn't change the power plan.")?;
+                Ok(())
+            }
+            WinKey::EndpointVolume { endpoint } => unsafe {
+                let d = find_device(endpoint).ok_or_else(gone)?;
+                let ev: IAudioEndpointVolume = d.Activate(CLSCTX_ALL, None).map_err(|e| e.to_string())?;
+                ev.SetMasterVolumeLevelScalar((v.value.as_f64().unwrap_or(1.0) as f32).clamp(0.0, 1.0), std::ptr::null()).map_err(|e| e.to_string())
+            },
+            WinKey::Enhancements { endpoint } => unsafe {
+                let d = find_device(endpoint).ok_or_else(gone)?;
+                let store = d.OpenPropertyStore(STGM_READWRITE).map_err(|_| admin_msg())?;
+                let mut pv = PROPVARIANT::default();
+                (*pv.Anonymous.Anonymous).vt = VT_UI4;
+                (*pv.Anonymous.Anonymous).Anonymous.ulVal = u32::from(flag);
+                store.SetValue(&PKEY_DISABLE_SYSFX, &pv).map_err(|_| admin_msg())?;
+                store.Commit().map_err(|_| admin_msg())
+            },
+            WinKey::VoiceClarity { endpoint } => unsafe {
+                let d = find_device(endpoint).ok_or_else(gone)?;
+                let m: IAudioEffectsManager = d.Activate(CLSCTX_ALL, None).map_err(|_| "Voice Clarity can't be changed on this PC.".to_string())?;
+                m.SetAudioEffectState(AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION, if flag { AUDIO_EFFECT_STATE_ON } else { AUDIO_EFFECT_STATE_OFF })
+                    .map_err(|_| "Windows didn't let us change Voice Clarity back. Change it in Settings → System → Sound → your mic.".to_string())
+            },
+            WinKey::Listen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, flag),
+            WinKey::ExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, flag),
+            WinKey::MicBoost { .. } => Ok(()),
         }
     }
 

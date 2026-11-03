@@ -10,6 +10,8 @@ pub mod paths;
 pub mod platform;
 pub mod selftest;
 pub mod types;
+pub mod vault;
+pub mod wav;
 
 use app::{AppCore, Emitter, WindowControl};
 use std::sync::Arc;
@@ -84,6 +86,11 @@ pub fn run() {
             commands::start_coach,
             commands::stop_coach,
             commands::open_for_user,
+            commands::list_backups,
+            commands::restore_backup,
+            commands::record_final,
+            commands::get_ab,
+            commands::export_ab,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Setup Coach");

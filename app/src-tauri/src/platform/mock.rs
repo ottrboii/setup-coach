@@ -160,6 +160,21 @@ impl SystemInspector for MockSystem {
                     e.mic_boost_db = Some(*db);
                 }
             }
+            Action::DisableVoiceClarity { endpoint } => {
+                if let Some(e) = w.endpoints.iter_mut().find(|e| &e.id == endpoint) {
+                    e.voice_clarity_enabled = false;
+                }
+            }
+            Action::DisableListen { endpoint } => {
+                if let Some(e) = w.endpoints.iter_mut().find(|e| &e.id == endpoint) {
+                    e.listen_to_device = false;
+                }
+            }
+            Action::DisableExclusiveMode { endpoint } => {
+                if let Some(e) = w.endpoints.iter_mut().find(|e| &e.id == endpoint) {
+                    e.exclusive_mode_allowed = false;
+                }
+            }
             Action::DisableUsbSelectiveSuspend => w.usb_selective_suspend_enabled = false,
             other => return Err(format!("mock can't apply {other:?}")),
         }
@@ -187,6 +202,71 @@ impl SystemInspector for MockSystem {
     }
     fn desktop_dir(&self) -> Option<PathBuf> {
         self.desktop_dir.lock().unwrap().clone()
+    }
+    fn read_setting(&self, key: &WinKey) -> Option<WinValue> {
+        use serde_json::json;
+        let w = self.windows.lock().unwrap();
+        let ep = |id: &str| w.endpoints.iter().find(|e| e.id == id);
+        let value = match key {
+            WinKey::Ducking => json!(ducking_raw(w.ducking)),
+            WinKey::UsbSelectiveSuspend => {
+                let v = u32::from(w.usb_selective_suspend_enabled);
+                json!([v, v])
+            }
+            WinKey::EndpointVolume { endpoint } => json!(ep(endpoint)?.endpoint_volume),
+            WinKey::Enhancements { endpoint } => json!(u32::from(!ep(endpoint)?.enhancements_enabled)),
+            WinKey::VoiceClarity { endpoint } => json!(u32::from(ep(endpoint)?.voice_clarity_enabled)),
+            WinKey::Listen { endpoint } => json!(u32::from(ep(endpoint)?.listen_to_device)),
+            WinKey::ExclusiveMode { endpoint } => json!(u32::from(ep(endpoint)?.exclusive_mode_allowed)),
+            WinKey::MicBoost { endpoint } => json!(ep(endpoint)?.mic_boost_db),
+        };
+        Some(WinValue { key: key.clone(), value })
+    }
+    fn restore_setting(&self, v: &WinValue) -> Result<(), String> {
+        let mut w = self.windows.lock().unwrap();
+        let flag = v.value.as_u64().unwrap_or(0) != 0;
+        let gone = || "That microphone isn't connected any more.".to_string();
+        match &v.key {
+            WinKey::Ducking => w.ducking = ducking_from_raw(v.value.as_u64().map(|x| x as u32)),
+            WinKey::UsbSelectiveSuspend => w.usb_selective_suspend_enabled = v.value[0].as_u64().unwrap_or(1) != 0,
+            WinKey::EndpointVolume { endpoint }
+            | WinKey::Enhancements { endpoint }
+            | WinKey::VoiceClarity { endpoint }
+            | WinKey::Listen { endpoint }
+            | WinKey::ExclusiveMode { endpoint }
+            | WinKey::MicBoost { endpoint } => {
+                let e = w.endpoints.iter_mut().find(|e| &e.id == endpoint).ok_or_else(gone)?;
+                match &v.key {
+                    WinKey::EndpointVolume { .. } => e.endpoint_volume = v.value.as_f64().unwrap_or(1.0) as f32,
+                    WinKey::Enhancements { .. } => e.enhancements_enabled = !flag,
+                    WinKey::VoiceClarity { .. } => e.voice_clarity_enabled = flag,
+                    WinKey::Listen { .. } => e.listen_to_device = flag,
+                    WinKey::ExclusiveMode { .. } => e.exclusive_mode_allowed = flag,
+                    _ => e.mic_boost_db = v.value.as_f64().map(|x| x as f32),
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// `UserDuckingPreference` registry value for a preference.
+pub fn ducking_raw(p: DuckingPreference) -> u32 {
+    match p {
+        DuckingPreference::MuteOthers => 0,
+        DuckingPreference::Reduce80 => 1,
+        DuckingPreference::Reduce50 => 2,
+        DuckingPreference::DoNothing => 3,
+    }
+}
+
+/// Registry value → preference (absent = Windows' default, reduce by 80 %).
+pub fn ducking_from_raw(v: Option<u32>) -> DuckingPreference {
+    match v {
+        Some(0) => DuckingPreference::MuteOthers,
+        Some(2) => DuckingPreference::Reduce50,
+        Some(3) => DuckingPreference::DoNothing,
+        _ => DuckingPreference::Reduce80,
     }
 }
 

@@ -150,3 +150,32 @@ pub async fn stop_coach(app: S<'_>) -> R<()> {
 pub async fn open_for_user(app: S<'_>, target: OpenTarget) -> R<()> {
     app.open_for_user(&target).await
 }
+
+#[tauri::command]
+pub async fn list_backups(app: S<'_>) -> R<Vec<crate::vault::BackupInfo>> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.list_backups()).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_backup(app: S<'_>, id: String) -> R<ApplyResult> {
+    Ok(app.restore_backup(&id).await)
+}
+
+#[tauri::command]
+pub async fn record_final(app: S<'_>, device_id: String, context: MicContext, constraints: Vec<Constraint>) -> R<AbInfo> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.record_final(&device_id, context, constraints)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn get_ab(app: S<'_>, device_id: String) -> R<AbInfo> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.get_ab(&device_id)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn export_ab(app: S<'_>, device_id: String) -> R<String> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.export_ab(&device_id)).await.map_err(|e| e.to_string())?
+}
