@@ -163,8 +163,12 @@ async fn obs_file_edits_are_copied_and_restored_with_obs_closed() {
     let res = w.core.apply_mic_chain(rep.chain, "Mic/Aux").await;
     assert!(res.applied.contains(&"mono".to_string()), "{res:?}");
     assert_ne!(std::fs::read_to_string(&scenes).unwrap(), orig);
-    let key = format!("obs_file:{}", scenes.display());
-    assert!(original_items(&w.core).iter().any(|i| i.key() == key));
+    // The saved path is whatever OBS's config resolves to (separators differ per OS).
+    let key = original_items(&w.core)
+        .iter()
+        .find(|i| matches!(i, VaultItem::ObsFile { path, .. } if path.ends_with("Stream.json")))
+        .map(|i| i.key())
+        .expect("scene collection backed up");
 
     // With OBS open, files are refused with the close-OBS message.
     *w.mock.system.obs_running.lock().unwrap() = true;
