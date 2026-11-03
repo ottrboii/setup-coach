@@ -123,6 +123,9 @@ pub struct CliOptions {
     pub skip_obs: bool,
     /// Don't read the OBS WebSocket password from OBS's config file.
     pub no_obs_password: bool,
+    /// Also pack the user's voice recordings (`recordings/*.wav`). Off by
+    /// default: they're private and large.
+    pub include_recordings: bool,
 }
 
 /// `Some` when the arguments ask for the self-test.
@@ -137,6 +140,7 @@ pub fn parse_args(args: &[String]) -> Option<CliOptions> {
             "--out" => o.out_dir = it.next().map(PathBuf::from),
             "--skip-obs" => o.skip_obs = true,
             "--no-obs-password" => o.no_obs_password = true,
+            "--include-recordings" => o.include_recordings = true,
             s if s.starts_with("--out=") => o.out_dir = Some(PathBuf::from(&s[6..])),
             _ => {}
         }
@@ -756,10 +760,17 @@ pub fn render_text(r: &Report) -> String {
 // ---------------------------------------------------------------- bundle / zip
 
 /// Files to pack besides the reports: (path in zip, file on disk).
-pub fn collect_files(data_dir: &Path, obs_dir: Option<&Path>, notes: &mut Vec<String>) -> Vec<(String, PathBuf)> {
+pub fn collect_files(data_dir: &Path, obs_dir: Option<&Path>, include_recordings: bool, notes: &mut Vec<String>) -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
     if data_dir.is_dir() {
         walk(data_dir, data_dir, "SetupCoach", &mut out, notes);
+        if !include_recordings {
+            let before = out.len();
+            out.retain(|(name, _)| !is_recording(name));
+            if out.len() < before {
+                notes.push(format!("{} voice recording(s) left out (run with --include-recordings to send them)", before - out.len()));
+            }
+        }
     } else {
         notes.push(format!("{} doesn't exist yet", data_dir.display()));
     }
@@ -774,6 +785,11 @@ pub fn collect_files(data_dir: &Path, obs_dir: Option<&Path>, notes: &mut Vec<St
         None => notes.push("OBS settings folder unknown".into()),
     }
     out
+}
+
+/// A voice recording in the data folder (`SetupCoach/recordings/**.wav`).
+fn is_recording(zip_name: &str) -> bool {
+    zip_name.starts_with("SetupCoach/recordings/") && zip_name.to_ascii_lowercase().ends_with(".wav")
 }
 
 fn walk(root: &Path, dir: &Path, prefix: &str, out: &mut Vec<(String, PathBuf)>, notes: &mut Vec<String>) {
@@ -823,9 +839,9 @@ pub fn zip_name(iso: &str) -> String {
 
 /// Write the zip; files that can't be read are noted in `self-test.txt`/json
 /// rather than failing the whole run. Returns the zip path.
-pub fn write_bundle(report: &mut Report, data_dir: &Path, obs_dir: Option<&Path>, out_dir: &Path) -> Result<PathBuf, String> {
+pub fn write_bundle(report: &mut Report, data_dir: &Path, obs_dir: Option<&Path>, out_dir: &Path, include_recordings: bool) -> Result<PathBuf, String> {
     let mut notes = Vec::new();
-    let files = collect_files(data_dir, obs_dir, &mut notes);
+    let files = collect_files(data_dir, obs_dir, include_recordings, &mut notes);
     // Read first so unreadable files (e.g. a locked log) are known up front.
     let mut blobs = Vec::new();
     for (name, path) in files {
@@ -884,7 +900,8 @@ pub async fn run_self_test(core: Arc<AppCore>, opts: &CliOptions, vst3_path: Opt
     let out_dir = opts.out_dir.clone().unwrap_or_else(|| default_out_dir(&core));
     let obs_dir = core.platform.system.obs_config_dir();
     let data_dir = core.data_dir.clone();
-    let zip = tokio::task::spawn_blocking(move || write_bundle(&mut report, &data_dir, obs_dir.as_deref(), &out_dir).map(|p| (p, report)))
+    let include_recordings = opts.include_recordings;
+    let zip = tokio::task::spawn_blocking(move || write_bundle(&mut report, &data_dir, obs_dir.as_deref(), &out_dir, include_recordings).map(|p| (p, report)))
         .await
         .map_err(|e| format!("Writing the zip crashed ({e})"))??
         .0;

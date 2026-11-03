@@ -76,6 +76,83 @@ pub trait SystemInspector: Send + Sync {
     fn desktop_dir(&self) -> Option<PathBuf> {
         None
     }
+    /// Read a Windows setting before we change it (for the settings vault).
+    /// None = not readable / not present on this PC.
+    fn read_setting(&self, _key: &WinKey) -> Option<WinValue> {
+        None
+    }
+    /// Put a setting back to a value read earlier with `read_setting`.
+    fn restore_setting(&self, _value: &WinValue) -> Result<(), String> {
+        Err("This Windows setting can't be put back from here.".into())
+    }
+}
+
+/// A Windows setting the app may change (one per `Action` kind).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WinKey {
+    Ducking,
+    EndpointVolume { endpoint: String },
+    Enhancements { endpoint: String },
+    VoiceClarity { endpoint: String },
+    Listen { endpoint: String },
+    ExclusiveMode { endpoint: String },
+    MicBoost { endpoint: String },
+    UsbSelectiveSuspend,
+}
+
+impl WinKey {
+    /// The setting a Windows-side `Action` changes (None for OBS actions).
+    pub fn for_action(a: &Action) -> Option<WinKey> {
+        Some(match a {
+            Action::SetWindowsDucking { .. } => WinKey::Ducking,
+            Action::SetEndpointVolume { endpoint, .. } => WinKey::EndpointVolume { endpoint: endpoint.clone() },
+            Action::DisableEnhancements { endpoint } => WinKey::Enhancements { endpoint: endpoint.clone() },
+            Action::DisableVoiceClarity { endpoint } => WinKey::VoiceClarity { endpoint: endpoint.clone() },
+            Action::DisableListen { endpoint } => WinKey::Listen { endpoint: endpoint.clone() },
+            Action::DisableExclusiveMode { endpoint } => WinKey::ExclusiveMode { endpoint: endpoint.clone() },
+            Action::SetMicBoost { endpoint, .. } => WinKey::MicBoost { endpoint: endpoint.clone() },
+            Action::DisableUsbSelectiveSuspend => WinKey::UsbSelectiveSuspend,
+            _ => return None,
+        })
+    }
+
+    /// Stable id used by the vault ("windows:enhancements:{id}").
+    pub fn id(&self) -> String {
+        match self {
+            WinKey::Ducking => "windows:ducking".into(),
+            WinKey::UsbSelectiveSuspend => "windows:usb_selective_suspend".into(),
+            WinKey::EndpointVolume { endpoint } => format!("windows:endpoint_volume:{endpoint}"),
+            WinKey::Enhancements { endpoint } => format!("windows:enhancements:{endpoint}"),
+            WinKey::VoiceClarity { endpoint } => format!("windows:voice_clarity:{endpoint}"),
+            WinKey::Listen { endpoint } => format!("windows:listen:{endpoint}"),
+            WinKey::ExclusiveMode { endpoint } => format!("windows:exclusive_mode:{endpoint}"),
+            WinKey::MicBoost { endpoint } => format!("windows:mic_boost:{endpoint}"),
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            WinKey::Ducking => "Windows: lower other sounds during calls",
+            WinKey::EndpointVolume { .. } => "Windows: mic level",
+            WinKey::Enhancements { .. } => "Windows: audio enhancements",
+            WinKey::VoiceClarity { .. } => "Windows: Voice Clarity",
+            WinKey::Listen { .. } => "Windows: Listen to this device",
+            WinKey::ExclusiveMode { .. } => "Windows: let apps take over the mic",
+            WinKey::MicBoost { .. } => "Windows: Microphone Boost",
+            WinKey::UsbSelectiveSuspend => "Windows: USB power saving",
+        }
+    }
+}
+
+/// A saved Windows value. Raw values where Windows stores them raw, so
+/// restoring writes back exactly what was there.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct WinValue {
+    pub key: WinKey,
+    /// `UserDuckingPreference` (None = value absent), 0/1 flags, the
+    /// endpoint volume scalar 0..1, boost dB, or powercfg indexes `[ac, dc]`.
+    pub value: serde_json::Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]

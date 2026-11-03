@@ -21,8 +21,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+mod ab;
 mod coaching;
+mod vault_ops;
+pub use ab::{match_gains, read_clip, slug, TakeMeta};
 pub use coaching::{NoWindow, RecordingWindow, WindowControl};
+pub use vault_ops::Target;
 
 /// Sends events to the UI (Tauri in the app, a collector in tests).
 pub trait Emitter: Send + Sync {
@@ -97,6 +101,14 @@ struct Inner {
     applied_camera: Option<(String, CameraSettings)>,
     health: Option<HealthSession>,
     coach: Option<coaching::CoachSession>,
+    /// Devices we changed something for in this session (their next test
+    /// isn't "original" any more).
+    applied_devices: std::collections::HashSet<String>,
+    /// Devices whose original recording was saved in this session.
+    originals_saved: std::collections::HashSet<String>,
+    /// Vault keys already backed up during the running coach step (auto gain
+    /// writes many times; one backup per step).
+    coach_backed_up: Vec<String>,
 }
 
 pub struct AppCore {
@@ -369,6 +381,21 @@ impl AppCore {
     pub async fn apply_actions(&self, ids: &[String]) -> ApplyResult {
         let plan = self.inner.lock().unwrap().plan.clone();
         let mut res = ApplyResult::default();
+        let mut targets = Vec::new();
+        for p in plan.iter().filter(|p| ids.contains(&p.id)) {
+            targets.extend(self.targets_for_action(&p.action).await);
+        }
+        let label = if ids.len() == 1 {
+            plan.iter().find(|p| p.id == ids[0]).map(|p| format!("Before: {}", p.label)).unwrap_or_else(|| "Before quick fixes".into())
+        } else {
+            "Before quick fixes".into()
+        };
+        if let Err(e) = self.backup_before(&label, &targets).await {
+            for id in ids {
+                res.fail(id, e.clone());
+            }
+            return res;
+        }
         for id in ids {
             let Some(p) = plan.iter().find(|p| &p.id == id) else {
                 res.fail(id, "That fix is out of date. Run the checks again.");
@@ -378,6 +405,9 @@ impl AppCore {
                 Ok(restart) => {
                     res.restart_obs_needed |= restart;
                     res.ok(id);
+                    if let Some(ep) = action_endpoint(&p.action) {
+                        self.inner.lock().unwrap().applied_devices.insert(ep);
+                    }
                 }
                 Err(e) => res.fail(id, e),
             }
@@ -670,6 +700,11 @@ impl AppCore {
         let test = MicTest { audio: AudioBuffer { sample_rate: r.sample_rate, channels: r.channels.clone() }, segments };
         drop(r);
         let report = audio::scan(&test, &ctx, &constraints);
+        let device = self.inner.lock().unwrap().last_device.clone();
+        if let Some(d) = device {
+            // Best effort: a full disk mustn't stop the test itself.
+            let _ = self.maybe_save_original(&d, &test, &report);
+        }
         let mut inner = self.inner.lock().unwrap();
         inner.last_test = Some(test);
         inner.last_report = Some(report.clone());
@@ -701,6 +736,19 @@ impl AppCore {
         let mut res = ApplyResult::default();
         let obs_input = self.resolve_obs_input(obs_input).await;
         let obs_input = obs_input.as_str();
+        let mut targets = vec![Target::ChainJson, Target::ObsFilters(obs_input.to_string())];
+        if chain.mono_downmix {
+            targets.extend(self.targets_for_action(&Action::SetObsInputMono { input: obs_input.to_string() }).await);
+        }
+        let device = self.inner.lock().unwrap().last_device.clone();
+        let mic = device.as_deref().and_then(|d| self.device_name(d)).map(|n| plain_device_name(&n)).unwrap_or_else(|| "mic".into());
+        if let Err(e) = self.backup_before(&format!("Before setting up your {mic}"), &targets).await {
+            res.fail("backup", e);
+            return res;
+        }
+        if let Some(d) = device {
+            self.inner.lock().unwrap().applied_devices.insert(d);
+        }
         match self.write_chain_json(&chain) {
             Ok(_) => res.ok("chain_json"),
             Err(e) => res.fail("chain_json", e),
@@ -764,6 +812,10 @@ impl AppCore {
 
     /// The read + loud steps of the last recording, as heard before/after.
     pub fn preview_buffer(&self, which: PreviewWhich, phone: bool) -> R<AudioBuffer> {
+        if matches!(which, PreviewWhich::Original | PreviewWhich::Final) {
+            let buf = self.ab_preview(which == PreviewWhich::Final)?;
+            return Ok(if phone { process::phone_speaker(&buf) } else { buf });
+        }
         let inner = self.inner.lock().unwrap();
         let test = inner.last_test.as_ref().ok_or("Run the mic test first.")?;
         let chain = inner.applied_chain.clone().or_else(|| inner.last_report.as_ref().map(|r| r.chain.clone())).ok_or("Run the mic test first.")?;
@@ -779,7 +831,7 @@ impl AppCore {
                 // Play the raw take in both ears so a left-only input is audible as-is.
                 buf
             }
-            PreviewWhich::After => process::render(&buf, &chain),
+            PreviewWhich::After | PreviewWhich::Original | PreviewWhich::Final => process::render(&buf, &chain),
         };
         if phone {
             out = process::phone_speaker(&out);
@@ -945,6 +997,23 @@ impl AppCore {
 
     pub async fn apply_camera_settings(&self, camera_id: &str, settings: CameraSettings) -> ApplyResult {
         let mut res = ApplyResult::default();
+        let cam_name = self.platform.camera.list().into_iter().find(|c| c.id == camera_id).map(|c| c.name);
+        let obs_src = match (self.obs().await, &cam_name) {
+            (Some(o), Some(n)) => obs::read_state(o.as_ref(), self.obs_dir().as_deref()).await.ok().and_then(|s| obs_source_for_camera(&s, n)),
+            _ => None,
+        };
+        let mut targets = Vec::new();
+        if settings.uvc.is_some() {
+            targets.push(Target::Camera(camera_id.to_string()));
+        }
+        if let Some(src) = &obs_src {
+            targets.push(Target::ObsInputSettings(src.clone()));
+        }
+        let label = format!("Before changing your {} settings", cam_name.as_deref().map(plain_device_name).unwrap_or_else(|| "camera".into()));
+        if let Err(e) = self.backup_before(&label, &targets).await {
+            res.fail("backup", e);
+            return res;
+        }
         if let Some(uvc) = &settings.uvc {
             let cam = self.platform.camera.clone();
             let (id, u) = (camera_id.to_string(), uvc.clone());
@@ -1088,7 +1157,7 @@ impl AppCore {
                     res.failed.extend(r.failed);
                     res.restart_obs_needed |= r.restart_obs_needed;
                 }
-                _ => match self.write_chain_json(chain) {
+                _ => match self.backup_before("Before re-applying your saved setup", &[Target::ChainJson]).await.and_then(|_| self.write_chain_json(chain)) {
                     Ok(_) => res.ok("chain_json"),
                     Err(e) => res.fail("chain_json", e),
                 },
@@ -1147,6 +1216,28 @@ pub fn obs_source_for_camera(s: &ObsState, camera_name: &str) -> Option<String> 
             !n.is_empty() && (n == want || n.contains(&want) || want.contains(&n))
         })
         .map(|v| v.name.clone())
+}
+
+/// `Microphone (Yeti Stereo Microphone)` → `Yeti Stereo Microphone` for labels.
+pub fn plain_device_name(name: &str) -> String {
+    match (name.find('('), name.rfind(')')) {
+        (Some(a), Some(b)) if b > a + 1 => name[a + 1..b].trim().to_string(),
+        _ => name.trim().to_string(),
+    }
+}
+
+/// The Windows endpoint an action changes, if any.
+fn action_endpoint(a: &Action) -> Option<String> {
+    match a {
+        Action::DisableEnhancements { endpoint }
+        | Action::DisableVoiceClarity { endpoint }
+        | Action::SetMicBoost { endpoint, .. }
+        | Action::SetEndpointVolume { endpoint, .. }
+        | Action::DisableExclusiveMode { endpoint }
+        | Action::DisableListen { endpoint } => Some(endpoint.clone()),
+        Action::PinObsMicDevice { device_id, .. } => Some(device_id.clone()),
+        _ => None,
+    }
 }
 
 pub fn needs_admin(a: &Action) -> bool {

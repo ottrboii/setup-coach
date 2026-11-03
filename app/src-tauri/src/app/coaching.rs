@@ -107,13 +107,13 @@ impl AppCore {
         g.clone()
     }
 
-    async fn goxlr_device(&self) -> Option<(Arc<dyn GoXlrApi>, GoXlrDevice)> {
+    pub(super) async fn goxlr_device(&self) -> Option<(Arc<dyn GoXlrApi>, GoXlrDevice)> {
         let api = self.goxlr().await?;
         let dev = api.devices().await.ok()?.into_iter().next()?;
         Some((api, dev))
     }
 
-    fn device_name(&self, id: &str) -> Option<String> {
+    pub(super) fn device_name(&self, id: &str) -> Option<String> {
         self.platform.audio.list_inputs().into_iter().find(|d| d.id == id).map(|d| d.name)
     }
 
@@ -165,6 +165,19 @@ impl AppCore {
     }
 
     async fn gain_set(&self, src: &GainSource, db: f64) -> R<()> {
+        let (target, key) = match src {
+            GainSource::Windows { endpoint } => (Target::EndpointGain(endpoint.clone()), format!("gain:{endpoint}")),
+            GainSource::GoXlr { serial, .. } => (Target::GoXlr, format!("goxlr:{serial}")),
+        };
+        let done = self.inner.lock().unwrap().coach_backed_up.contains(&key);
+        if !done {
+            self.backup_before("Before auto-adjusting your mic level", &[target]).await?;
+            let mut inner = self.inner.lock().unwrap();
+            inner.coach_backed_up.push(key);
+            if let Some(d) = inner.last_device.clone() {
+                inner.applied_devices.insert(d);
+            }
+        }
         match src {
             GainSource::Windows { endpoint } => self.platform.system.set_endpoint_gain_db(endpoint, db),
             GainSource::GoXlr { api, serial, mic_type } => api.command(serial, goxlr::cmd_set_mic_gain(*mic_type, db)).await,
@@ -402,6 +415,7 @@ impl AppCore {
     pub async fn start_coach(self: &Arc<Self>, step: CoachStep) -> R<()> {
         self.stop_coach();
         self.stop_capture();
+        self.inner.lock().unwrap().coach_backed_up.clear();
         let running = Arc::new(AtomicBool::new(true));
         let capture = Arc::new(Mutex::new(None));
         self.inner.lock().unwrap().coach = Some(CoachSession { running: running.clone(), capture: capture.clone() });
@@ -435,7 +449,9 @@ impl AppCore {
             let mut auto_error: Option<String> = None;
             if step.auto && check == "goxlr_condenser" {
                 if let Some((api, d)) = me.goxlr_device().await {
-                    if let Err(e) = api.command(&d.serial, goxlr::cmd_set_mic_type(MicType::Condenser)).await {
+                    if let Err(e) = me.backup_before("Before turning on GoXLR phantom power", &[super::Target::GoXlr]).await {
+                        auto_error = Some(e);
+                    } else if let Err(e) = api.command(&d.serial, goxlr::cmd_set_mic_type(MicType::Condenser)).await {
                         auto_error = Some(e);
                     }
                 }
@@ -637,6 +653,11 @@ impl AppCore {
 
     /// Write UVC settings built from the current state with one change.
     async fn apply_uvc(&self, camera_id: &str, state: &CameraState, change: impl FnOnce(&mut UvcSettings)) -> R<()> {
+        let key = format!("camera:{camera_id}");
+        if !self.inner.lock().unwrap().coach_backed_up.contains(&key) {
+            self.backup_before("Before auto-adjusting your camera", &[Target::Camera(camera_id.to_string())]).await?;
+            self.inner.lock().unwrap().coach_backed_up.push(key);
+        }
         let mut u = UvcSettings {
             auto_exposure: state.auto_exposure,
             ae_priority: state.ae_priority,

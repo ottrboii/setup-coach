@@ -10,6 +10,8 @@ pub mod paths;
 pub mod platform;
 pub mod selftest;
 pub mod types;
+pub mod vault;
+pub mod wav;
 pub mod updater;
 
 use app::{AppCore, Emitter, WindowControl};
@@ -95,6 +97,11 @@ pub fn run() {
             commands::start_coach,
             commands::stop_coach,
             commands::open_for_user,
+            commands::list_backups,
+            commands::restore_backup,
+            commands::record_final,
+            commands::get_ab,
+            commands::export_ab,
             updater::check_for_update,
             updater::install_update,
         ])
