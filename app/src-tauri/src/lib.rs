@@ -48,7 +48,7 @@ pub fn run() {
     // Self-update is only active when the release build injected a public key.
     let updater_plugin = updater::plugin(&context.config().plugins.0);
     let updater_enabled = updater_plugin.is_some();
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let mut builder = tauri::Builder::default();
     if let Some(p) = updater_plugin {
         builder = builder.plugin(p);
     }

@@ -15,7 +15,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Runtime};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 /// Where `latest.json` lives (the newest *published* GitHub release).
@@ -71,17 +70,26 @@ async fn find_update<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Update>, S
     updater.check().await.map_err(|e| e.to_string())
 }
 
-async fn ask<R: Runtime>(app: &AppHandle<R>, title: &str, text: &str, yes: &str, no: &str) -> bool {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    app.dialog()
-        .message(text)
-        .title(title)
-        .kind(MessageDialogKind::Info)
-        .buttons(MessageDialogButtons::OkCancelCustom(yes.to_string(), no.to_string()))
-        .show(move |ok| {
-            let _ = tx.send(ok);
-        });
-    rx.await.unwrap_or(false)
+/// Native Yes/No box. `true` = Yes. (Plain `MessageBoxW`, not a dialog crate:
+/// those need the comctl32 v6 manifest, which unit-test executables lack.)
+async fn ask<R: Runtime>(_app: &AppHandle<R>, title: &str, text: &str) -> bool {
+    let (title, text) = (title.to_string(), text.to_string());
+    tokio::task::spawn_blocking(move || message_box_yes_no(&title, &text)).await.unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn message_box_yes_no(title: &str, text: &str) -> bool {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDYES, MB_ICONINFORMATION, MB_SETFOREGROUND, MB_TOPMOST, MB_YESNO};
+    let (t, c) = (HSTRING::from(text), HSTRING::from(title));
+    // SAFETY: both strings outlive the call; no owner window.
+    unsafe { MessageBoxW(None, &t, &c, MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST) == IDYES }
+}
+
+#[cfg(not(windows))]
+fn message_box_yes_no(title: &str, text: &str) -> bool {
+    eprintln!("updater: (no native dialog on this OS) {title}: {text}");
+    false
 }
 
 /// Background flow on start: check, download, ask, install. Silent on failure.
@@ -110,16 +118,21 @@ pub async fn auto_update<R: Runtime>(app: AppHandle<R>) {
     };
     // The voice plugin can't be replaced while OBS has it loaded.
     while obs_running(&app) {
-        let closed = ask(&app, "Setup Coach update", "Close OBS before updating so the voice plugin can be replaced.", "OBS is closed", "Later").await;
+        let closed = ask(
+            &app,
+            "Setup Coach update",
+            "Close OBS before updating so the voice plugin can be replaced.\n\nClick Yes when OBS is closed, or No to update later.",
+        )
+        .await;
         if !closed {
             return;
         }
     }
     let text = format!(
-        "A new version of Setup Coach is ready ({}). Install now? It takes a minute and Windows will ask for permission.",
+        "A new version of Setup Coach is ready ({}). Install now? It takes a minute and Windows will ask for permission.\n\nYes = install now, No = ask me next time.",
         update.version
     );
-    if !ask(&app, "Setup Coach update", &text, "Install now", "Later").await {
+    if !ask(&app, "Setup Coach update", &text).await {
         return;
     }
     if let Err(e) = update.install(bytes) {
