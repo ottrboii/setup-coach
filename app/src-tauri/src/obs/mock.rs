@@ -33,6 +33,8 @@ pub struct FakeObsState {
     pub stats: Value,
     pub stream: Value,
     pub log: Vec<String>,
+    /// Request types that fail with an error (to test half-finished changes).
+    pub fail: Vec<String>,
     /// Output (scaled) resolution, `SetVideoSettings`.
     pub output_size: (u32, u32),
 }
@@ -109,6 +111,9 @@ impl ObsApi for FakeObs {
     async fn request(&self, t: &str, d: Value) -> Result<Value, String> {
         let mut st = self.state.lock().unwrap();
         st.log.push(t.to_string());
+        if st.fail.iter().any(|f| f == t) {
+            return Err(format!("{t} failed (test)"));
+        }
         let name = d["inputName"].as_str().or(d["sourceName"].as_str()).unwrap_or_default().to_string();
         let input_idx = st.inputs.iter().position(|i| i.name == name);
         match t {

@@ -29,7 +29,7 @@ pub enum Target {
     GoXlr,
 }
 
-pub(crate) const CLOSE_OBS: &str = "Close OBS, then press Restore again — OBS only allows this change while it's closed.";
+pub(crate) const CLOSE_OBS: &str = "Close OBS, then press Restore again â€” OBS only allows this change while it's closed.";
 
 impl AppCore {
     pub fn vault(&self) -> Vault {
@@ -69,7 +69,27 @@ impl AppCore {
 
     /// Read the current value of a target (None = nothing to save, e.g. the
     /// source doesn't exist or the value can't be read).
-    pub async fn capture(&self, t: &Target) -> Option<Capture> {
+    ///
+    /// `Err` = the source exists but could not be read: the caller must not
+    /// go ahead with the change, because it could not be saved.
+    pub async fn capture(&self, t: &Target) -> R<Option<Capture>> {
+        match t {
+            Target::ObsFile(p) => Capture::file(p).map(Some),
+            Target::ObsWebsocket => {
+                if let Some(p) = self.websocket_config_path() {
+                    read_text(&p)?;
+                }
+                Ok(self.capture_value(t).await)
+            }
+            Target::ChainJson => {
+                read_text(&self.data_dir.join("chain.json"))?;
+                Ok(self.capture_value(t).await)
+            }
+            _ => Ok(self.capture_value(t).await),
+        }
+    }
+
+    async fn capture_value(&self, t: &Target) -> Option<Capture> {
         let obs = || async { self.obs().await };
         let item = match t {
             Target::ObsFilters(input) => {
@@ -100,7 +120,7 @@ impl AppCore {
                 let r = obs().await?.request("GetVideoSettings", Value::Null).await.ok()?;
                 VaultItem::ObsVideoSettings { output_width: r["outputWidth"].as_u64()?, output_height: r["outputHeight"].as_u64()? }
             }
-            Target::ObsFile(p) => return Some(Capture::file(p)),
+            Target::ObsFile(_) => return None,
             Target::ObsWebsocket => {
                 let p = self.websocket_config_path()?;
                 let enabled = std::fs::read_to_string(&p).ok().and_then(|t| serde_json::from_str::<Value>(t.trim_start_matches('\u{feff}')).ok()).and_then(|v| v["server_enabled"].as_bool());
@@ -126,7 +146,7 @@ impl AppCore {
     pub async fn backup_before(&self, label: &str, targets: &[Target]) -> R<Option<String>> {
         let mut caps = Vec::new();
         for t in targets {
-            if let Some(c) = self.capture(t).await {
+            if let Some(c) = self.capture(t).await.map_err(|e| format!("We couldn't save a backup of your current settings, so nothing was changed. {e}"))? {
                 if !caps.iter().any(|x: &Capture| x.item.key() == c.item.key()) {
                     caps.push(c);
                 }
@@ -195,20 +215,22 @@ impl AppCore {
                 if !has_input(input.clone()).await {
                     return Ok(gone_input(input));
                 }
-                let now = obs::filters_of(o.as_ref(), input).await?;
-                for f in now.iter().filter(|f| !filters.iter().any(|s| s.name == f.name)) {
-                    o.request("RemoveSourceFilter", json!({ "sourceName": input, "filterName": f.name })).await?;
-                }
+                let now = obs::filters_of(o.as_ref(), input).await.map_err(undo_hint)?;
+                // Create/update first, remove extras last, so a failure half-way
+                // never leaves the user with fewer filters than before.
                 for f in filters {
                     if now.iter().any(|n| n.name == f.name) {
-                        o.request("SetSourceFilterSettings", json!({ "sourceName": input, "filterName": f.name, "filterSettings": f.settings, "overlay": false })).await?;
+                        o.request("SetSourceFilterSettings", json!({ "sourceName": input, "filterName": f.name, "filterSettings": f.settings, "overlay": false })).await.map_err(undo_hint)?;
                     } else {
-                        o.request("CreateSourceFilter", json!({ "sourceName": input, "filterName": f.name, "filterKind": f.kind, "filterSettings": f.settings })).await?;
+                        o.request("CreateSourceFilter", json!({ "sourceName": input, "filterName": f.name, "filterKind": f.kind, "filterSettings": f.settings })).await.map_err(undo_hint)?;
                     }
-                    o.request("SetSourceFilterEnabled", json!({ "sourceName": input, "filterName": f.name, "filterEnabled": f.enabled })).await?;
+                    o.request("SetSourceFilterEnabled", json!({ "sourceName": input, "filterName": f.name, "filterEnabled": f.enabled })).await.map_err(undo_hint)?;
                 }
                 for (i, f) in filters.iter().enumerate() {
-                    o.request("SetSourceFilterIndex", json!({ "sourceName": input, "filterName": f.name, "filterIndex": i })).await?;
+                    o.request("SetSourceFilterIndex", json!({ "sourceName": input, "filterName": f.name, "filterIndex": i })).await.map_err(undo_hint)?;
+                }
+                for f in now.iter().filter(|f| !filters.iter().any(|s| s.name == f.name)) {
+                    o.request("RemoveSourceFilter", json!({ "sourceName": input, "filterName": f.name })).await.map_err(undo_hint)?;
                 }
                 Ok(Done)
             }
@@ -339,6 +361,20 @@ impl AppCore {
             }
         }
     }
+}
+
+/// Ok(None) = not there; any other read error is an Err.
+fn read_text(p: &std::path::Path) -> R<Option<String>> {
+    match std::fs::read_to_string(p) {
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("We couldn't read {} ({e}).", p.display())),
+    }
+}
+
+/// A half-finished filter restore: point at the snapshot taken just before it.
+fn undo_hint(e: impl std::fmt::Display) -> String {
+    format!("{e} Your OBS filters may be only partly restored. The backup called \"Before going back to...\" was saved just before this and can undo it.")
 }
 
 enum Restored {
