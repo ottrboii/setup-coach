@@ -25,11 +25,25 @@ pub(crate) fn run_hidden(cmd: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).to_string())
 }
 
-/// Lower-cased names of running processes (`tasklist`).
+/// Lower-cased names of running processes. A native snapshot (milliseconds);
+/// `tasklist` took 1.5 s+ per call on a real PC and the self-test checks
+/// call this several times.
 pub(crate) fn running_processes() -> Vec<String> {
-    run_hidden("tasklist", &["/FO", "CSV", "/NH"])
-        .map(|t| t.lines().filter_map(|l| l.split(',').next()).map(|n| n.trim_matches('"').to_ascii_lowercase()).collect())
-        .unwrap_or_default()
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS};
+    let mut names = Vec::new();
+    unsafe {
+        let Ok(snap) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else { return names };
+        let mut e = PROCESSENTRY32W { dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+        let mut ok = Process32FirstW(snap, &mut e).is_ok();
+        while ok {
+            let len = e.szExeFile.iter().position(|&c| c == 0).unwrap_or(e.szExeFile.len());
+            names.push(String::from_utf16_lossy(&e.szExeFile[..len]).to_ascii_lowercase());
+            ok = Process32NextW(snap, &mut e).is_ok();
+        }
+        let _ = CloseHandle(snap);
+    }
+    names
 }
 
 /// See [`crate::platform::attach_parent_console`].

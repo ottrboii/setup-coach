@@ -147,7 +147,12 @@ impl GoXlrApi for GoXlrHttp {
     async fn request(&self, req: Value) -> Result<Value, String> {
         let body = serde_json::to_vec(&req).map_err(|e| e.to_string())?;
         let fut = async {
-            let mut s = TcpStream::connect(("127.0.0.1", self.port)).await.map_err(|_| "GoXLR Utility isn't running.".to_string())?;
+            // A listening daemon on loopback accepts at once; a closed port can take ~2 s to be
+            // refused on Windows, so don't wait for that.
+            let mut s = tokio::time::timeout(Duration::from_millis(750), TcpStream::connect(("127.0.0.1", self.port)))
+                .await
+                .map_err(|_| "GoXLR Utility isn't running.".to_string())?
+                .map_err(|_| "GoXLR Utility isn't running.".to_string())?;
             let head = format!(
                 "POST /api/command HTTP/1.1\r\nHost: localhost:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                 self.port,
