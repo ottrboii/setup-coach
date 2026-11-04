@@ -354,6 +354,27 @@ pub struct MockPlatform {
     pub audio: Arc<MockAudio>,
     pub system: Arc<MockSystem>,
     pub camera: Arc<MockCamera>,
+    pub dialogs: Arc<MockDialogs>,
+}
+
+/// Scripted answers for yes/no questions; records what was asked. With no
+/// answers left it says No (like a user who closes the box).
+#[derive(Default)]
+pub struct MockDialogs {
+    pub answers: Mutex<std::collections::VecDeque<bool>>,
+    pub asked: Mutex<Vec<String>>,
+    /// Runs when a question is asked (e.g. to "close OBS" while the box is open).
+    pub on_ask: Mutex<Option<Box<dyn Fn(&str) + Send>>>,
+}
+
+impl super::Dialogs for MockDialogs {
+    fn ask_yes_no(&self, _title: &str, text: &str) -> bool {
+        self.asked.lock().unwrap().push(text.to_string());
+        if let Some(f) = self.on_ask.lock().unwrap().as_ref() {
+            f(text);
+        }
+        self.answers.lock().unwrap().pop_front().unwrap_or(false)
+    }
 }
 
 impl MockPlatform {
@@ -407,10 +428,11 @@ impl MockPlatform {
                 light: 0.9,
                 frame_counter: Mutex::new(0),
             }),
+            dialogs: Arc::new(MockDialogs::default()),
         }
     }
 
     pub fn platform(&self) -> Platform {
-        Platform { audio: self.audio.clone(), system: self.system.clone(), camera: self.camera.clone() }
+        Platform { audio: self.audio.clone(), system: self.system.clone(), camera: self.camera.clone(), dialogs: self.dialogs.clone() }
     }
 }

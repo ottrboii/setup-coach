@@ -335,9 +335,14 @@ the earliest saved value wins), and:
 
 ```ts
 AbInfo = { original: AbTake, final: AbTake | null,
-           matched_gain_db: number }   // final LUFS − original LUFS (0 when no final); >0 = final was louder
+           matched_gain_db: number,
+           note: string | null }       // plain-language caveat, e.g. when the takes differ by >30 dB and could only be matched part way; show it when set   // final LUFS − original LUFS (0 when no final); >0 = final was louder
 AbTake = { path: string, lufs: number /* reading part, LUFS */, score: number /* mic score 0–100 */ }
 ```
+The "final take" is **not a live recording through OBS**: it is the new read
+run through the applied chain with core's offline renderer. Word it as "your new
+sound" / "how it should sound with your new settings", not as a live take.
+
 Final-take flow (UI): after fixes are applied and verified, call
 `start_mic_test { deviceId }`, run the **same guided "read" step with the same
 on-screen passage** as the first test (~10 s; `mark_step` read start/end —
@@ -354,19 +359,19 @@ was 4 dB louder — matched for a fair comparison". `phone` applies the
 phone-speaker simulation after matching.
 
 
-## Updates (added 2026-11-03)
+## Updates (added 2026-11-03, revised 2026-11-04)
 
 The app updates itself from the newest *published* GitHub release
 (`.../releases/latest/download/latest.json`, signed installer). All of it runs
-in Rust; the UI needs nothing. About 10 s after a normal start (never in
-`--self-test`) it checks in the background, downloads, then asks with a native
-dialog ("A new version of Setup Coach is ready (x.y.z). Install now?"). If OBS
-is running it first asks the user to close OBS so the voice plugin can be
-replaced. "Later" asks again next start. Failures are silent (logged only).
-`%APPDATA%\SetupCoach\` is never touched. A build without an updater public key
-(PR/main CI, local dev) never checks and the commands below report "nothing".
-
-| Command | Args | Returns |
-|---|---|---|
-| `check_for_update` | – | `{ available: boolean, version: string \| null, notes: string \| null }` – errors (string) only when the network/manifest check fails |
-| `install_update` | – | `()` – downloads and installs the update found by the last `check_for_update`, then the app restarts (Windows shows a permission prompt). Errors: `"obs_running: ..."` (ask the user to close OBS), `"no update available: ..."` |
+in Rust; **the UI has no update commands and needs nothing**. About 10 s after a
+normal start (never in `--self-test`) it checks in the background and
+**downloads the update silently**; nothing is installed until the user
+confirms. Then a native dialog asks "A new version of Setup Coach is ready
+(x.y.z). Install now?": Yes installs (Windows shows a permission prompt) and
+restarts the app, No installs nothing and asks again next start. If OBS is
+running it first asks the user to close OBS so the voice plugin can be replaced
+(at most 3 times, then it gives up until the next start). Failures are silent
+(logged only). `%APPDATA%\SetupCoach\` is never touched. A build without an
+updater public key (PR/main CI, local dev) never checks.
+(`check_for_update` / `install_update` were removed: no UI called them and
+`install_update` skipped the confirmation.)

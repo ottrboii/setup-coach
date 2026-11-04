@@ -182,6 +182,32 @@ async fn obs_file_edits_are_copied_and_restored_with_obs_closed() {
 }
 
 #[tokio::test]
+async fn unreadable_obs_file_blocks_the_backup_instead_of_looking_missing() {
+    let dir = tempfile::tempdir().unwrap();
+    let w = world_in(&dir.path().join("data"), |_| {}).await;
+    // A directory where the file should be: reading fails with something other than NotFound.
+    let e = w.core.backup_before("x", &[Target::ObsFile(dir.path().to_path_buf())]).await.unwrap_err();
+    assert!(e.contains("nothing was changed"), "{e}");
+    // A file that simply isn't there is fine: nothing to save.
+    assert!(w.core.backup_before("x", &[Target::ObsFile(dir.path().join("absent.ini"))]).await.is_ok());
+}
+
+#[tokio::test]
+async fn failed_filter_restore_never_removes_before_creating_and_points_at_the_undo() {
+    let dir = tempfile::tempdir().unwrap();
+    let w = world_in(&dir.path().join("data"), |_| {}).await;
+    let before = filters(&w.obs, "Mic/Aux");
+    assert!(before.len() >= 2);
+    let snap = w.core.vault().save("keep", &[w.core.capture(&Target::ObsFilters("Mic/Aux".into())).await.unwrap().unwrap()]).unwrap().unwrap();
+    // Drop one filter, then make the re-create step fail.
+    w.obs.state.lock().unwrap().filters.get_mut("Mic/Aux").unwrap().remove(0);
+    w.obs.state.lock().unwrap().fail = vec!["CreateSourceFilter".into()];
+    let r = w.core.restore_backup(&snap).await;
+    assert!(r.failed.iter().any(|f| f.error.contains("Before going back")), "{r:?}");
+    assert_eq!(filters(&w.obs, "Mic/Aux").len(), before.len() - 1, "nothing else was deleted");
+}
+
+#[tokio::test]
 async fn camera_values_are_saved_and_missing_devices_are_skipped() {
     let dir = tempfile::tempdir().unwrap();
     let data = dir.path().join("data");

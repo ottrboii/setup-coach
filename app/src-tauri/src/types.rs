@@ -174,6 +174,10 @@ pub struct AbInfo {
     /// Final LUFS minus original LUFS (0 without a final take). Playback turns
     /// the louder one down by this much so the comparison is fair.
     pub matched_gain_db: f64,
+    /// Plain-language note for the result card; set when the two takes differ
+    /// by more than the 30 dB the matching can correct.
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

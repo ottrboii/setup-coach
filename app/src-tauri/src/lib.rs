@@ -102,8 +102,6 @@ pub fn run() {
             commands::record_final,
             commands::get_ab,
             commands::export_ab,
-            updater::check_for_update,
-            updater::install_update,
         ])
         .run(context)
         .expect("error while running Setup Coach");

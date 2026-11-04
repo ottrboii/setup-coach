@@ -128,13 +128,19 @@ impl Capture {
         Capture { item, content: None }
     }
 
-    /// Copy of a file about to be edited (missing file = "didn't exist").
-    pub fn file(path: &Path) -> Self {
-        let content = std::fs::read(path).ok();
+    /// Copy of a file about to be edited. Only "not found" means "didn't exist";
+    /// any other read error (locked, permission denied, not a file) is an error,
+    /// so a later restore never deletes a real file we merely failed to read.
+    pub fn file(path: &Path) -> Result<Self, String> {
+        let content = match std::fs::read(path) {
+            Ok(c) => Some(c),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(format!("We couldn't read {} ({e}).", path.display())),
+        };
         let sha = content.as_ref().map(|c| hex(&Sha256::digest(c)));
         let base = path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_else(|| "file".into());
         let file = sha.as_ref().map(|s| format!("{}-{}", &s[..12], base));
-        Capture { item: VaultItem::ObsFile { path: path.display().to_string(), file, sha256: sha }, content }
+        Ok(Capture { item: VaultItem::ObsFile { path: path.display().to_string(), file, sha256: sha }, content })
     }
 }
 
@@ -335,13 +341,22 @@ mod tests {
         let f = d.path().join("basic.ini");
         std::fs::write(&f, "[Audio]\nSampleRate=44100\n").unwrap();
         let v = Vault::new(&d.path().join("data"));
-        let a = v.save("x", &[Capture::file(&f)]).unwrap().unwrap();
-        let b = v.save("x", &[Capture::file(&f)]).unwrap().unwrap();
+        let a = v.save("x", &[Capture::file(&f).unwrap()]).unwrap().unwrap();
+        let b = v.save("x", &[Capture::file(&f).unwrap()]).unwrap().unwrap();
         assert_eq!(a, b);
         let (s, dir) = v.load(&a).unwrap();
         let VaultItem::ObsFile { file: Some(name), .. } = &s.items[0] else { panic!() };
         assert_eq!(std::fs::read_to_string(dir.join("files").join(name)).unwrap(), "[Audio]\nSampleRate=44100\n");
         assert!(v.dir.join(ORIGINAL).join("files").join(name).exists());
         assert!(v.load("../x").is_err());
+    }
+
+    #[test]
+    fn unreadable_file_is_an_error_not_missing() {
+        let d = tempfile::tempdir().unwrap();
+        // A directory can't be read as a file: stands in for a locked file.
+        assert!(Capture::file(d.path()).is_err());
+        let missing = Capture::file(&d.path().join("nope.ini")).unwrap();
+        assert!(missing.content.is_none());
     }
 }
