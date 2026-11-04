@@ -46,6 +46,12 @@ export const api = {
   stopHealthMonitor: () => call('stop_health_monitor'),
   saveSetup: (name) => call('save_setup', { name }),
   reapplySavedSetup: () => call('reapply_saved_setup'),
+  // Settings vault and A/B recordings
+  listBackups: () => call('list_backups'),
+  restoreBackup: (id) => call('restore_backup', { id }),
+  recordFinal: (deviceId, context, constraints) => call('record_final', { deviceId, context, constraints }),
+  getAb: (deviceId) => call('get_ab', { deviceId }),
+  exportAb: (deviceId) => call('export_ab', { deviceId }),
   // Live coaching
   coachPlan: (area) => call('coach_plan', { area }),
   startCoach: (step) => call('start_coach', { step }),

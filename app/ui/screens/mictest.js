@@ -3,7 +3,7 @@ import { api, on } from '../api.js';
 import { esc, html, icons, errorBanner } from '../components.js';
 import { state, selectedMic } from '../state.js';
 
-const SCRIPT = `Hey chat! <mark>P</mark>eter <mark>p</mark>icked a <mark>b</mark>ig <mark>b</mark>ag of <mark>p</mark>opcorn for the <mark>s</mark>tream.
+export const SCRIPT = `Hey chat! <mark>P</mark>eter <mark>p</mark>icked a <mark>b</mark>ig <mark>b</mark>ag of <mark>p</mark>opcorn for the <mark>s</mark>tream.
 <mark>S</mark>he <mark>s</mark>ays <mark>s</mark>ix <mark>s</mark>illy <mark>s</mark>nakes <mark>s</mark>neaked past the <mark>b</mark>oss.
 Don't forget to hit follow — let's go!`;
 
