@@ -173,11 +173,18 @@ pub trait CameraControl: Send + Sync {
     fn detect_face(&self, frame: &Frame) -> Option<Rect>;
 }
 
+/// Native yes/no questions to the user (the auto-updater asks before installing).
+pub trait Dialogs: Send + Sync {
+    /// Blocks until the user answers. `true` = Yes.
+    fn ask_yes_no(&self, title: &str, text: &str) -> bool;
+}
+
 #[derive(Clone)]
 pub struct Platform {
     pub audio: Arc<dyn AudioBackend>,
     pub system: Arc<dyn SystemInspector>,
     pub camera: Arc<dyn CameraControl>,
+    pub dialogs: Arc<dyn Dialogs>,
 }
 
 /// The real platform for this OS.

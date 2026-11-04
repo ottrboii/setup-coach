@@ -4,6 +4,7 @@
 
 mod audio;
 mod camera;
+mod dialogs;
 mod system;
 
 use super::Platform;
@@ -71,5 +72,5 @@ pub(crate) fn desktop_dir() -> Option<std::path::PathBuf> {
 }
 
 pub fn platform() -> Platform {
-    Platform { audio: Arc::new(audio::WinAudio), system: Arc::new(system::WinSystem), camera: Arc::new(camera::WinCamera::new()) }
+    Platform { audio: Arc::new(audio::WinAudio), system: Arc::new(system::WinSystem), camera: Arc::new(camera::WinCamera::new()), dialogs: Arc::new(dialogs::WinDialogs) }
 }

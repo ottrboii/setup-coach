@@ -88,6 +88,15 @@ pub fn match_gains(lufs_a: f64, lufs_b: f64) -> (f64, f64, f64) {
     if diff > 0.0 { (0.0, -diff, diff) } else { (diff, 0.0, diff) }
 }
 
+/// Shown with the result when the loudness difference is too big to match fully.
+pub fn match_limit_note(lufs_a: f64, lufs_b: f64) -> Option<String> {
+    if (lufs_b - lufs_a).abs() > MAX_MATCH_DB {
+        Some(format!("These two takes differ by more than {MAX_MATCH_DB:.0} dB, so they could only be matched part of the way. Check that you recorded the same passage on the same mic."))
+    } else {
+        None
+    }
+}
+
 fn gain(x: &[f32], db: f64) -> Vec<f32> {
     let g = dsp::from_db(db) as f32;
     x.iter().map(|v| v * g).collect()
@@ -255,8 +264,9 @@ impl AppCore {
 
     pub fn get_ab(&self, device_id: &str) -> R<AbInfo> {
         let (o, f, (_, _, diff)) = self.ab_takes(device_id)?;
+        let note = f.as_ref().and_then(|f| match_limit_note(o.lufs, f.lufs));
         let take = |t: &Take| AbTake { path: t.path.display().to_string(), lufs: (t.lufs * 10.0).round() / 10.0, score: t.meta.score };
-        Ok(AbInfo { original: take(&o), final_take: f.as_ref().map(take), matched_gain_db: (diff * 10.0).round() / 10.0 })
+        Ok(AbInfo { original: take(&o), final_take: f.as_ref().map(take), matched_gain_db: (diff * 10.0).round() / 10.0, note })
     }
 
     /// The loudness-matched reading clips (original, final).
@@ -301,6 +311,12 @@ mod tests {
         assert_eq!(slug("Microphone (Yeti Stereo Microphone)"), "microphone-yeti-stereo-microphone");
         assert_eq!(slug("  "), "mic");
         assert_eq!(file_safe("Mic: \"RE20\" / XLR"), "Mic RE20 XLR");
+    }
+
+    #[test]
+    fn huge_loudness_gap_gets_a_note() {
+        assert!(match_limit_note(-20.0, -60.0).is_some());
+        assert!(match_limit_note(-20.0, -49.0).is_none());
     }
 
     #[test]

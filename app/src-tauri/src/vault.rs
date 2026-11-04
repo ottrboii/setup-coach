@@ -1,10 +1,10 @@
 //! The settings vault: before the app changes anything, what is about to
 //! change is saved to `<data>\backups\`, so the user can always go back.
 //!
-//! * `backups/original/` â€” the first value of every item Setup Coach ever
+//! * `backups/original/` — the first value of every item Setup Coach ever
 //!   touched. An item is added the first time it is touched and never
 //!   overwritten, so "how it was before Setup Coach" survives many sessions.
-//! * `backups/<id>/` â€” one snapshot per change (newest 30 kept).
+//! * `backups/<id>/` — one snapshot per change (newest 30 kept).
 //!
 //! Each holds `snapshot.json` plus `files/` (copies of OBS files). Writes are
 //! atomic: files are content-addressed, json goes through temp + rename, and a

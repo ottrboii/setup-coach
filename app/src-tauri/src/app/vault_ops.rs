@@ -29,7 +29,7 @@ pub enum Target {
     GoXlr,
 }
 
-pub(crate) const CLOSE_OBS: &str = "Close OBS, then press Restore again â€” OBS only allows this change while it's closed.";
+pub(crate) const CLOSE_OBS: &str = "Close OBS, then press Restore again — OBS only allows this change while it's closed.";
 
 impl AppCore {
     pub fn vault(&self) -> Vault {

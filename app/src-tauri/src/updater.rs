@@ -1,6 +1,10 @@
 //! Self-update: checks GitHub Releases for a newer signed installer, downloads
-//! it, asks the user (plain language, native dialog) and runs it.
+//! it in the background (nothing is installed yet), then asks the user (plain
+//! language, native dialog) and only installs on an explicit Yes.
 //!
+//! * The update endpoint lives in one place: `plugins.updater.endpoints` in
+//!   `tauri.release.conf.json` (the release build injects it with the key).
+
 //! * The public key comes from `plugins.updater.pubkey` in the Tauri config,
 //!   which only the release build injects (see `RELEASING.md`). Without it the
 //!   updater plugin is not registered and nothing is checked (one log line).
@@ -9,37 +13,29 @@
 //!   files under the install directory.
 
 use crate::app::AppCore;
-use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, Runtime};
+use crate::platform::Platform;
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-/// Where `latest.json` lives (the newest *published* GitHub release).
-pub const ENDPOINT: &str = "https://github.com/ottrboii/setup-coach/releases/latest/download/latest.json";
 /// Delay before the background check after start.
 pub const STARTUP_DELAY: Duration = Duration::from_secs(10);
+/// How many times we ask "is OBS closed yet?" before giving up until next start.
+pub const MAX_OBS_PROMPTS: usize = 3;
+/// Pause after a "Yes, OBS is closed" that turned out untrue, before asking again.
+pub const OBS_RECHECK_PAUSE: Duration = Duration::from_secs(5);
 
-/// `check_for_update` result (API.md "Updates").
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct UpdateInfo {
-    pub available: bool,
-    pub version: Option<String>,
-    pub notes: Option<String>,
-}
-
-/// Managed state: whether the updater plugin is active, and the update found
-/// by the last `check_for_update` (for `install_update`).
+/// Managed state: whether the updater plugin is active (a public key is configured).
 pub struct UpdaterState {
     pub enabled: bool,
-    pending: tokio::sync::Mutex<Option<Update>>,
 }
 
 impl UpdaterState {
     pub fn new(enabled: bool) -> Self {
-        Self { enabled, pending: tokio::sync::Mutex::new(None) }
+        Self { enabled }
     }
 }
 
@@ -60,39 +56,64 @@ pub fn plugin<R: Runtime>(plugins: &HashMap<String, Value>) -> Option<tauri::plu
     configured_pubkey(plugins).map(|_| tauri_plugin_updater::Builder::new().build())
 }
 
-fn obs_running<R: Runtime>(app: &AppHandle<R>) -> bool {
-    app.try_state::<Arc<AppCore>>().map(|c| c.platform.system.obs_running()).unwrap_or(false)
-}
-
 async fn find_update<R: Runtime>(app: &AppHandle<R>) -> Result<Option<Update>, String> {
-    let url = ENDPOINT.parse().map_err(|e| format!("{e}"))?;
-    let updater = app.updater_builder().endpoints(vec![url]).map_err(|e| e.to_string())?.build().map_err(|e| e.to_string())?;
+    // Endpoints come from the plugin config (see the module doc).
+    let updater = app.updater().map_err(|e| e.to_string())?;
     updater.check().await.map_err(|e| e.to_string())
 }
 
-/// Native Yes/No box. `true` = Yes. (Plain `MessageBoxW`, not a dialog crate:
-/// those need the comctl32 v6 manifest, which unit-test executables lack.)
-async fn ask<R: Runtime>(_app: &AppHandle<R>, title: &str, text: &str) -> bool {
-    let (title, text) = (title.to_string(), text.to_string());
-    tokio::task::spawn_blocking(move || message_box_yes_no(&title, &text)).await.unwrap_or(false)
+/// What the confirmation flow ended with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    Installed,
+    /// The user said No: nothing was installed.
+    Declined,
+    /// OBS stayed open after `MAX_OBS_PROMPTS` questions, or the user said No to closing it.
+    ObsStillRunning,
+    InstallFailed(String),
 }
 
-#[cfg(windows)]
-fn message_box_yes_no(title: &str, text: &str) -> bool {
-    use windows::core::HSTRING;
-    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, IDYES, MB_ICONINFORMATION, MB_SETFOREGROUND, MB_TOPMOST, MB_YESNO};
-    let (t, c) = (HSTRING::from(text), HSTRING::from(title));
-    // SAFETY: both strings outlive the call; no owner window.
-    unsafe { MessageBoxW(None, &t, &c, MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST) == IDYES }
+async fn ask(platform: &Platform, title: &str, text: &str) -> bool {
+    let (d, title, text) = (platform.dialogs.clone(), title.to_string(), text.to_string());
+    tokio::task::spawn_blocking(move || d.ask_yes_no(&title, &text)).await.unwrap_or(false)
 }
 
-#[cfg(not(windows))]
-fn message_box_yes_no(title: &str, text: &str) -> bool {
-    eprintln!("updater: (no native dialog on this OS) {title}: {text}");
-    false
+/// The decision flow for an already downloaded update: wait for OBS to be
+/// closed (the voice plugin can't be replaced while it is loaded), ask, and
+/// run `install` only on an explicit Yes. No means do not install.
+pub async fn confirm_and_install(platform: &Platform, version: &str, obs_pause: Duration, install: impl FnOnce() -> Result<(), String>) -> Outcome {
+    let mut prompts = 0;
+    while platform.system.obs_running() {
+        if prompts >= MAX_OBS_PROMPTS {
+            return Outcome::ObsStillRunning;
+        }
+        prompts += 1;
+        let closed = ask(
+            platform,
+            "Setup Coach update",
+            "Close OBS before updating so the voice plugin can be replaced.\n\nClick Yes when OBS is closed, or No to update later.",
+        )
+        .await;
+        if !closed {
+            return Outcome::ObsStillRunning;
+        }
+        if platform.system.obs_running() {
+            tokio::time::sleep(obs_pause).await;
+        }
+    }
+    let text = format!(
+        "A new version of Setup Coach is ready ({version}). Install now? It takes a minute and Windows will ask for permission.\n\nYes = install now, No = ask me next time."
+    );
+    if !ask(platform, "Setup Coach update", &text).await {
+        return Outcome::Declined;
+    }
+    match install() {
+        Ok(()) => Outcome::Installed,
+        Err(e) => Outcome::InstallFailed(e),
+    }
 }
 
-/// Background flow on start: check, download, ask, install. Silent on failure.
+/// Background flow on start: check, download quietly, ask, install. Silent on failure.
 pub async fn auto_update<R: Runtime>(app: AppHandle<R>) {
     let enabled = app.try_state::<UpdaterState>().map(|s| s.enabled).unwrap_or(false);
     if !enabled {
@@ -100,6 +121,10 @@ pub async fn auto_update<R: Runtime>(app: AppHandle<R>) {
         return;
     }
     tokio::time::sleep(STARTUP_DELAY).await;
+    let Some(platform) = app.try_state::<Arc<AppCore>>().map(|c| c.platform.clone()) else {
+        eprintln!("updater: app core not ready, update check skipped");
+        return;
+    };
     let update = match find_update(&app).await {
         Ok(Some(u)) => u,
         Ok(None) => return,
@@ -116,64 +141,20 @@ pub async fn auto_update<R: Runtime>(app: AppHandle<R>) {
             return;
         }
     };
-    // The voice plugin can't be replaced while OBS has it loaded.
-    while obs_running(&app) {
-        let closed = ask(
-            &app,
-            "Setup Coach update",
-            "Close OBS before updating so the voice plugin can be replaced.\n\nClick Yes when OBS is closed, or No to update later.",
-        )
-        .await;
-        if !closed {
-            return;
-        }
+    match confirm_and_install(&platform, &update.version, OBS_RECHECK_PAUSE, || update.install(bytes).map_err(|e| e.to_string())).await {
+        // On Windows the installer restarts the app; elsewhere restart ourselves.
+        Outcome::Installed => app.restart(),
+        Outcome::InstallFailed(e) => eprintln!("updater: install failed: {e}"),
+        other => eprintln!("updater: not installed now ({other:?})"),
     }
-    let text = format!(
-        "A new version of Setup Coach is ready ({}). Install now? It takes a minute and Windows will ask for permission.\n\nYes = install now, No = ask me next time.",
-        update.version
-    );
-    if !ask(&app, "Setup Coach update", &text).await {
-        return;
-    }
-    if let Err(e) = update.install(bytes) {
-        eprintln!("updater: install failed: {e}");
-        return;
-    }
-    // On Windows the installer restarts the app; elsewhere restart ourselves.
-    app.restart();
-}
-
-/// UI: is there a newer version? Reports "none" when this build has no update key.
-#[tauri::command]
-pub async fn check_for_update<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, UpdaterState>) -> Result<UpdateInfo, String> {
-    if !state.enabled {
-        return Ok(UpdateInfo::default());
-    }
-    let found = find_update(&app).await?;
-    let info = match &found {
-        Some(u) => UpdateInfo { available: true, version: Some(u.version.clone()), notes: u.body.clone() },
-        None => UpdateInfo::default(),
-    };
-    *state.pending.lock().await = found;
-    Ok(info)
-}
-
-/// UI: download and install the update found by `check_for_update`, then restart.
-#[tauri::command]
-pub async fn install_update<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, UpdaterState>) -> Result<(), String> {
-    if obs_running(&app) {
-        return Err("obs_running: close OBS first so the voice plugin can be replaced".into());
-    }
-    let update = state.pending.lock().await.take().ok_or("no update available: run check_for_update first")?;
-    let bytes = update.download(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
-    update.install(bytes).map_err(|e| e.to_string())?;
-    app.restart();
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::platform::mock::MockPlatform;
     use serde_json::json;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     fn plugins(v: Value) -> HashMap<String, Value> {
         serde_json::from_value(v).unwrap()
@@ -191,5 +172,80 @@ mod tests {
     fn pubkey_enables_updater() {
         let p = plugins(json!({"updater": {"pubkey": "dW50cnVzdGVk"}}));
         assert_eq!(configured_pubkey(&p).as_deref(), Some("dW50cnVzdGVk"));
+    }
+
+    fn world(obs_running: bool, answers: &[bool]) -> (MockPlatform, Platform) {
+        let m = MockPlatform::demo();
+        *m.system.obs_running.lock().unwrap() = obs_running;
+        m.dialogs.answers.lock().unwrap().extend(answers.iter().copied());
+        let p = m.platform();
+        (m, p)
+    }
+
+    #[tokio::test]
+    async fn no_means_no_install() {
+        let (m, p) = world(false, &[false]);
+        let ran = AtomicBool::new(false);
+        let o = confirm_and_install(&p, "1.2.3", Duration::ZERO, || {
+            ran.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .await;
+        assert_eq!(o, Outcome::Declined);
+        assert!(!ran.load(Ordering::SeqCst));
+        assert_eq!(m.dialogs.asked.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn yes_installs_once() {
+        let (m, p) = world(false, &[true]);
+        let ran = AtomicBool::new(false);
+        let o = confirm_and_install(&p, "1.2.3", Duration::ZERO, || {
+            ran.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .await;
+        assert_eq!(o, Outcome::Installed);
+        assert!(ran.load(Ordering::SeqCst));
+        assert!(m.dialogs.asked.lock().unwrap()[0].contains("1.2.3"));
+    }
+
+    #[tokio::test]
+    async fn failed_install_is_reported() {
+        let (_m, p) = world(false, &[true]);
+        let o = confirm_and_install(&p, "1.2.3", Duration::ZERO, || Err("disk full".into())).await;
+        assert_eq!(o, Outcome::InstallFailed("disk full".into()));
+    }
+
+    #[tokio::test]
+    async fn waits_for_obs_to_close_then_asks_to_install() {
+        let (m, p) = world(true, &[true, true]);
+        let sys = m.system.clone();
+        // The user closes OBS while the first box is open.
+        *m.dialogs.on_ask.lock().unwrap() = Some(Box::new(move |_| *sys.obs_running.lock().unwrap() = false));
+        let ran = AtomicBool::new(false);
+        let o = confirm_and_install(&p, "2.0.0", Duration::ZERO, || {
+            ran.store(true, Ordering::SeqCst);
+            Ok(())
+        })
+        .await;
+        assert_eq!(o, Outcome::Installed);
+        let asked = m.dialogs.asked.lock().unwrap();
+        assert_eq!(asked.len(), 2);
+        assert!(asked[0].contains("Close OBS") && asked[1].contains("Install now"));
+    }
+
+    #[tokio::test]
+    async fn obs_prompt_is_capped_and_no_stops_it() {
+        // Says Yes every time but never closes OBS: gives up after the cap.
+        let (m, p) = world(true, &[true; 10]);
+        let o = confirm_and_install(&p, "2.0.0", Duration::ZERO, || panic!("must not install")).await;
+        assert_eq!(o, Outcome::ObsStillRunning);
+        assert_eq!(m.dialogs.asked.lock().unwrap().len(), MAX_OBS_PROMPTS);
+        // No to "close OBS" stops straight away.
+        let (m, p) = world(true, &[false]);
+        let o = confirm_and_install(&p, "2.0.0", Duration::ZERO, || panic!("must not install")).await;
+        assert_eq!(o, Outcome::ObsStillRunning);
+        assert_eq!(m.dialogs.asked.lock().unwrap().len(), 1);
     }
 }
