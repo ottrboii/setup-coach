@@ -247,6 +247,21 @@ export function createMock() {
   let healthBytes = 0;
   let lastCameraId = null;
   let constraints = [];
+  let obsClosedOnce = false;
+  let abFinal = null;
+  const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  const backups = [
+    { id: 'original', created_at: ago(72), label: 'How it was before Setup Coach', items: ['OBS: filters on "Mic/Aux"', 'Windows: Voice Clarity', 'Windows: audio enhancements', 'OBS: scene file'] },
+    { id: '20261104T081500Z-000', created_at: ago(2), label: 'Before setting up your Yeti Stereo Microphone', items: ['OBS: filters on "Mic/Aux"', 'Voice chain for OBS'] },
+    { id: '20261104T080200Z-000', created_at: ago(2.3), label: 'Before: Turn off Windows audio enhancements', items: ['Windows: audio enhancements', 'Windows: Voice Clarity'] },
+    { id: '20261103T190000Z-000', created_at: ago(20), label: 'Before changing your HD Pro Webcam C920 settings', items: ['Camera: brightness, contrast and white balance'] },
+  ];
+  const abInfo = () => ({
+    original: { path: 'original.wav', lufs: -36.9, score: 38 },
+    final: abFinal,
+    matched_gain_db: abFinal ? 20.5 : 0,
+    note: null,
+  });
   let saved = null;
   const coached = { mic: false, camera: false };
   const coachSim = createCoachSim((ev, payload) => emit(ev, payload), drawCoachOverlay);
@@ -375,6 +390,26 @@ export function createMock() {
     async start_coach({ step }) { await wait(120); coachSim.start(step); return null; },
     async stop_coach() { coachSim.stop(); return null; },
     async open_for_user() { await wait(300); coachSim.open(); return null; },
+    // Settings vault and real A/B recordings (API.md "Settings vault & A/B")
+    async list_backups() { await wait(250); return backups.map((b) => ({ ...b })); },
+    async restore_backup({ id }) {
+      await wait(1100);
+      const b = backups.find((x) => x.id === id);
+      if (!b) throw new Error("We couldn't find that backup any more.");
+      const needsFiles = b.items.some((i) => i.startsWith('OBS: scene file'));
+      if (needsFiles && !obsClosedOnce) {
+        obsClosedOnce = true;
+        return { applied: ['windows:voice_clarity:mic'], failed: [{ id: 'obs_file:basic.ini', error: 'Close OBS, then press Restore again so we can put back its files.' }], restart_obs_needed: false, skipped: [{ id: 'goxlr:S123', error: 'GoXLR Utility is not running, so the GoXLR was left as it is.' }] };
+      }
+      return { applied: b.items.map((_, i) => 'item' + i), failed: [], restart_obs_needed: needsFiles, skipped: id === 'original' ? [{ id: 'camera:cam1', error: 'Your webcam is not plugged in, so it was left as it is.' }] : [] };
+    },
+    async record_final() {
+      await wait(1500);
+      abFinal = { path: 'final.wav', lufs: -16.4, score: 91 };
+      return abInfo();
+    },
+    async get_ab() { await wait(250); return abInfo(); },
+    async export_ab() { await wait(300); return 'C:\\Users\\you\\Desktop\\Setup Coach A-B - Yeti Stereo Microphone'; },
     async reapply_saved_setup() { await wait(700); return { applied: ['mic_chain', 'camera'], failed: [], restart_obs_needed: false }; },
   };
 

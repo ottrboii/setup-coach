@@ -23,7 +23,7 @@ export async function render(root, { go, refreshNav }) {
           <div class="row"><input id="name" class="btn" style="flex:1;min-width:160px;text-align:left;cursor:text" value="${esc(state.saved?.name || 'My stream setup')}" aria-label="Setup name"/><button class="btn primary" id="save">Save</button></div>
           <span class="subtle" id="saved">${state.saved || state.env?.saved_profile ? `Last saved: ${esc(new Date((state.saved || state.env.saved_profile).saved_at).toLocaleString())}` : 'Not saved yet.'}</span></div>
         <div class="card stack"><h3>Something sounds off again?</h3><p class="muted">Windows updates and other apps sometimes undo settings. Put your saved setup back in one click.</p>
-          <div class="row"><button class="btn" id="reapply">Re-apply my saved setup</button></div></div>
+          <div class="row"><button class="btn" id="reapply">Re-apply my saved setup</button><button class="btn ghost" id="backups">Undo changes</button></div></div>
       </div>
     </section>`);
   root.append(page);
@@ -74,6 +74,7 @@ export async function render(root, { go, refreshNav }) {
     }
   });
 
+  page.querySelector('#backups').addEventListener('click', () => go('backups'));
   page.querySelector('#reapply').addEventListener('click', async (ev) => {
     const b = ev.currentTarget;
     b.disabled = true;

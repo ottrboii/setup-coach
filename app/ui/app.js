@@ -11,9 +11,12 @@ import * as camera from './screens/camera.js';
 import * as health from './screens/health.js';
 import * as dashboard from './screens/dashboard.js';
 import * as coach from './screens/coach.js';
+import * as backups from './screens/backups.js';
+import * as ab from './screens/ab.js';
+import * as abrecord from './screens/abrecord.js';
 
 const ROUTES = {
-  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach,
+  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach, backups, ab, 'ab-record': abrecord,
 };
 
 const NAV = [
@@ -22,6 +25,7 @@ const NAV = [
   { route: 'mic', label: 'Microphone', match: ['mic', 'mic-report', 'mic-apply'], done: () => !!state.micVerify },
   { route: 'camera', label: 'Camera', done: () => state.cameraApplied },
   { route: 'health', label: 'Stream health', done: () => !!state.healthReport },
+  { route: 'backups', label: 'Backups & undo', match: ['backups', 'ab', 'ab-record'], done: () => false },
   { route: 'home', label: 'Home', done: () => false },
 ];
 

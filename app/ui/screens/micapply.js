@@ -122,8 +122,9 @@ export async function render(root, { go }) {
     </div>`);
     page.append(res2);
 
-    const next = html(`<div class="row"><button class="btn primary lg" id="cam">Next: your camera</button><button class="btn lg" id="again">Retest my mic</button></div>`);
+    const next = html(`<div class="row"><button class="btn primary lg" id="cam">Next: your camera</button><button class="btn lg" id="ab">Hear my new sound</button><button class="btn lg" id="again">Retest my mic</button></div>`);
     next.querySelector('#cam').addEventListener('click', () => go('camera'));
+    next.querySelector('#ab').addEventListener('click', () => go('ab-record'));
     next.querySelector('#again').addEventListener('click', () => go('mic'));
     page.append(next);
   }
