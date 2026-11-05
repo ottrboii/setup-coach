@@ -163,7 +163,10 @@ impl SystemInspector for MockSystem {
     }
     fn apply(&self, action: &Action) -> Result<(), String> {
         let mut w = self.windows.lock().unwrap();
-        if matches!(action, Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. }) {
+        if matches!(
+            action,
+            Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. } | Action::DisableListen { .. } | Action::DisableExclusiveMode { .. }
+        ) {
             match *self.fx_mode.lock().unwrap() {
                 FxMode::Works => {}
                 FxMode::Denied => return Err("Windows' permission prompt was closed, so nothing was changed.".into()),

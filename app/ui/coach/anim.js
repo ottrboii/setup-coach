@@ -486,6 +486,9 @@ KINDS.settings = (svg) => {
  * Mount an illustration into `host`. Returns { update(u, domain), destroy() }.
  * Unknown kinds fall back to the gauge-only view.
  */
+// The backend names the Windows-settings step `settings_toggle`.
+KINDS.settings_toggle = KINDS.settings;
+
 export function mountIllustration(kind, host) {
   host.innerHTML = '';
   const svg = el('svg', { viewBox: '0 0 320 200', class: `ill ill-${kind}`, role: 'img', 'aria-hidden': 'true' });

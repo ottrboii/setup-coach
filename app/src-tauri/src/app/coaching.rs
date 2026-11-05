@@ -82,33 +82,47 @@ fn settings_target(uri: &str, label: &str, steps: &[&str]) -> OpenTarget {
     OpenTarget { kind: OpenKind::WindowsSettings, uri_or_app: uri.into(), label: label.into(), steps: steps.iter().map(|s| s.to_string()).collect() }
 }
 
+const FX_EXPLAIN: &str = "Windows is processing your mic on top of everything else, which can make you sound muffled or warbly. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.";
+
 /// The "you do it, we watch" step for Windows audio enhancements / Voice
 /// Clarity: opens the Sound settings page of exactly this mic and polls the
 /// real state (`check_passes`) until it is off. `check` is `enhancements_off`
 /// or `voice_clarity_off`.
 pub fn fx_guided_step(check: &str, endpoint: &str) -> CoachStep {
-    let (finding, title, steps): (&str, &str, [&str; 2]) = if check == "voice_clarity_off" {
-        (
+    let done = "That's all — we'll notice the moment it changes.";
+    // (finding, title, explanation, page to open, steps)
+    let (finding, title, explain, uri, steps): (&str, &str, &str, String, Vec<&str>) = match check {
+        "voice_clarity_off" => (
             ids::VOICE_CLARITY,
             "Turn off Windows Voice Clarity",
-            ["Find \"Audio enhancements\" and set it to Off (or untick Windows Voice Clarity).", "That's all — we'll notice the moment it changes."],
-        )
-    } else {
-        (
+            FX_EXPLAIN,
+            crate::platform::sound_properties_uri(endpoint),
+            vec!["Find \"Audio enhancements\" and set it to Off (or untick Windows Voice Clarity).", done],
+        ),
+        "listen_off" => (
+            ids::LISTEN_TO_DEVICE,
+            "Turn off \"Listen to this device\"",
+            "Windows is playing your mic back through your speakers, which causes echo for you and sometimes for your viewers. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.",
+            "mmsys.cpl".into(),
+            vec!["Open the \"Recording\" tab, double-click your microphone, then the \"Listen\" tab.", "Untick \"Listen to this device\" and press OK.", done],
+        ),
+        "exclusive_off" => (
+            ids::EXCLUSIVE_MODE,
+            "Stop apps taking over your mic",
+            "Other apps can grab your mic exclusively and cut it off for OBS. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.",
+            "mmsys.cpl".into(),
+            vec!["Open the \"Recording\" tab, double-click your microphone, then the \"Advanced\" tab.", "Untick \"Allow applications to take exclusive control of this device\" and press OK.", done],
+        ),
+        _ => (
             ids::ENHANCEMENTS,
             "Turn off Windows audio enhancements",
-            ["Find \"Audio enhancements\" and set it to Off.", "That's all — we'll notice the moment it changes."],
-        )
+            FX_EXPLAIN,
+            crate::platform::sound_properties_uri(endpoint),
+            vec!["Find \"Audio enhancements\" and set it to Off.", done],
+        ),
     };
-    let mut s = step(
-        &format!("check-{check}"),
-        Some(finding),
-        T::CheckSetting,
-        title,
-        "Windows is processing your mic on top of everything else, which can make you sound muffled or warbly. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.",
-        "settings_toggle",
-    );
-    s.open_target = Some(settings_target(&crate::platform::sound_properties_uri(endpoint), "your microphone's settings in Windows", &steps));
+    let mut s = step(&format!("check-{check}"), Some(finding), T::CheckSetting, title, explain, "settings_toggle");
+    s.open_target = Some(settings_target(&uri, "your microphone's settings in Windows", &steps));
     s.check = Some(check.into());
     s
 }
@@ -270,7 +284,12 @@ impl AppCore {
             push(s, &mut out);
         }
         let mic_ep = snap.as_ref().and_then(|s| s.mic_endpoint()).map(|e| e.id.clone()).unwrap_or_default();
-        for (id, check) in [(ids::VOICE_CLARITY, "voice_clarity_off"), (ids::ENHANCEMENTS, "enhancements_off")] {
+        for (id, check) in [
+            (ids::VOICE_CLARITY, "voice_clarity_off"),
+            (ids::ENHANCEMENTS, "enhancements_off"),
+            (ids::LISTEN_TO_DEVICE, "listen_off"),
+            (ids::EXCLUSIVE_MODE, "exclusive_off"),
+        ] {
             if has_sys(id) {
                 push(fx_guided_step(check, &mic_ep), &mut out);
             }
@@ -411,6 +430,8 @@ impl AppCore {
                     "mic_privacy_allowed" => w.mic_privacy_desktop_allowed,
                     "enhancements_off" => ep.is_some_and(|e| !e.enhancements_enabled),
                     "voice_clarity_off" => ep.is_some_and(|e| !e.voice_clarity_enabled),
+                    "listen_off" => ep.is_some_and(|e| !e.listen_to_device),
+                    "exclusive_off" => ep.is_some_and(|e| !e.exclusive_mode_allowed),
                     _ => false,
                 }
             }

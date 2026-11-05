@@ -484,6 +484,8 @@ impl AppCore {
             let Some(e) = w.as_ref().and_then(|w| w.endpoints.iter().find(|e| e.id == ep)) else { return false };
             match action {
                 Action::DisableEnhancements { .. } => !e.enhancements_enabled,
+                Action::DisableListen { .. } => !e.listen_to_device,
+                Action::DisableExclusiveMode { .. } => !e.exclusive_mode_allowed,
                 _ => !e.voice_clarity_enabled,
             }
         };
@@ -1332,6 +1334,8 @@ fn fx_check_id(a: &Action) -> Option<&'static str> {
     match a {
         Action::DisableEnhancements { .. } => Some("enhancements_off"),
         Action::DisableVoiceClarity { .. } => Some("voice_clarity_off"),
+        Action::DisableListen { .. } => Some("listen_off"),
+        Action::DisableExclusiveMode { .. } => Some("exclusive_off"),
         _ => None,
     }
 }

@@ -110,6 +110,18 @@ function withChoice(dev) {
   return out;
 }
 
+// Findings the mock user has fixed by hand in the (mock) Windows page.
+const mockFixed = new Set();
+
+const GUIDED_VOICE_CLARITY = {
+  id: 'check-voice_clarity_off', finding_id: 'system.voice_clarity_on', task: 'check_setting',
+  title: 'Turn off Windows Voice Clarity',
+  explain: "Windows is processing your mic on top of everything else, which can make you sound muffled or warbly. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.",
+  animation: 'settings_toggle', auto: false, check: 'voice_clarity_off',
+  open_target: { kind: 'windows_settings', uri_or_app: 'ms-settings:sound-properties?endpointId={0.0.1.00000000}.{mock}', label: 'your microphone\'s settings in Windows',
+    steps: ['Find "Audio enhancements" and set it to Off (or untick Windows Voice Clarity).', "That's all — we'll notice the moment it changes."] },
+};
+
 const QUICK = {
   findings: [
     finding('mic.left_channel_only', 'mic', 'critical', 'Viewers only hear you in their left ear',
@@ -346,7 +358,12 @@ export function createMock() {
   const abErr = (code, message) => Object.assign(new Error(message), { code });
   let saved = null;
   const coached = { mic: false, camera: false };
-  const coachSim = createCoachSim((ev, payload) => emit(ev, payload), drawCoachOverlay);
+  // A guided fix the user finished in the (mock) Windows page really changes the mock state.
+  let coachingFinding = null;
+  const coachSim = createCoachSim((ev, payload) => {
+    if (ev === 'coach-update' && payload.phase === 'done' && payload.task === 'check_setting' && coachingFinding) mockFixed.add(coachingFinding);
+    emit(ev, payload);
+  }, drawCoachOverlay);
 
   function startMicLevels() {
     clearInterval(micTimer);
@@ -434,7 +451,8 @@ export function createMock() {
       await wait(900);
       // ?fail=scan simulates a backend error so the error banner + retry can be checked in a browser.
       if (/[?&]fail=scan\b/.test(location.search) && !window.__scanRetried) { window.__scanRetried = true; throw 'The scan hit an unexpected problem. Please try again.'; }
-      return QUICK;
+      if (!mockFixed.size) return QUICK;
+      return { ...QUICK, findings: QUICK.findings.filter((f) => !mockFixed.has(f.id)), actions: QUICK.actions.filter((a) => !a.resolves.every((r) => mockFixed.has(r))) };
     },
     // Testers' notes (kept in browser storage in mock mode; the real app writes feedback.jsonl).
     async save_feedback({ input }) {
@@ -461,6 +479,14 @@ export function createMock() {
         return { applied: [], failed: actionIds.map((id) => ({ id, error: "Windows didn't allow that change." })), restart_obs_needed: false, skipped: [] };
       }
       const failed = actionIds.includes('a4') ? [{ id: 'a4', error: 'Windows needs you to confirm this one. We opened the Sound settings page for you.' }] : [];
+      // Windows said no to Voice Clarity: the failure carries a guided step (?guided=off for the plain failure).
+      if (actionIds.includes('a2') && !/[?&]guided=off\b/.test(location.search)) {
+        failed.push({
+          id: 'a2',
+          error: "Windows' permission prompt was closed, so nothing was changed. You can switch it off yourself in a few clicks: we'll open the right page and watch for the change.",
+          guided: GUIDED_VOICE_CLARITY,
+        });
+      }
       return { applied: actionIds.filter((a) => !failed.find((f) => f.id === a)), failed, restart_obs_needed: actionIds.includes('a1') };
     },
     async mic_context({ deviceId, answers }) {
@@ -531,7 +557,7 @@ export function createMock() {
     async stop_health_monitor() { clearInterval(healthTimer); await wait(500); return healthReport(); },
     async save_setup({ name }) { await wait(300); saved = { name, saved_at: new Date().toISOString(), mic_chain: chain(constraints), camera_settings: null, camera_id: lastCameraId, obs_input: 'Mic/Aux' }; return saved; },
     async coach_plan({ area }) { await wait(500); coached[area] = true; return mockPlan(area); },
-    async start_coach({ step }) { await wait(120); coachSim.start(step); return null; },
+    async start_coach({ step }) { await wait(120); coachingFinding = step.finding_id || null; coachSim.start(step); return null; },
     async stop_coach() { coachSim.stop(); return null; },
     async open_for_user() { await wait(300); coachSim.open(); return null; },
     // Settings vault and real A/B recordings (API.md "Settings vault & A/B")

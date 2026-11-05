@@ -143,7 +143,7 @@ export async function render(root, { go, refreshNav }) {
     card.querySelector('[data-act=back]').addEventListener('click', () => { if (c.index > 0) { c.index--; showStep(); } });
     card.querySelector('[data-act=skip]').addEventListener('click', () => { c.status[step.id] = 'skipped'; next(); });
     card.querySelector('[data-act=cant]').addEventListener('click', (e) => cant(step, e.currentTarget));
-    list.querySelector('[data-act=exit]').addEventListener('click', async () => { await stopLive(); go(c.area === 'camera' ? 'camera' : 'mic-report'); });
+    list.querySelector('[data-act=exit]').addEventListener('click', async () => { await stopLive(); if (c.returnTo) { const back = c.returnTo; state.coach = null; go(back); } else go(c.area === 'camera' ? 'camera' : 'mic-report'); });
 
     // Visual: animated illustration; camera tasks also get the live preview.
     const visual = card.querySelector('.coach-visual');
@@ -279,6 +279,17 @@ export async function render(root, { go, refreshNav }) {
       if (my !== session) return;
       $('.coach-headline').textContent = "We couldn't start this step";
       $('.coach-detail').textContent = e.message;
+      return;
+    }
+    // Came from a "Show me how" button: the user already asked, so open the page now.
+    if (c.autoOpen && outOfApp && !opened && my === session) {
+      try {
+        await api.openForUser(step.open_target);
+        opened = true;
+        if (my === session) drawOutOfApp(true);
+      } catch (e) {
+        if (my === session) toast("Couldn't open it", e.message, 'bad');
+      }
     }
   }
 
@@ -291,6 +302,15 @@ export async function render(root, { go, refreshNav }) {
     const constraint = step.finding_id ? map[step.finding_id] : null;
     btn.disabled = true;
     c.status[step.id] = 'skipped';
+    if (c.returnTo) {
+      // A Windows setting we couldn't change: recalibrate (fresh checks, and the mic advice if there is one) and go back.
+      await stopLive();
+      try {
+        if (state.micReport) state.micReport = await api.rescanMic(state.micContext, state.micConstraints);
+      } catch (_) { /* the advice just stays as it was */ }
+      toast('No problem', "We'll leave that one and tune around it.", 'good');
+      return leaveToStart(false);
+    }
     if (constraint) {
       try {
         if (c.area === 'camera') {
@@ -310,10 +330,33 @@ export async function render(root, { go, refreshNav }) {
     next();
   }
 
+  // Back to the screen whose "Show me how" button started this: re-run the
+  // check so a fixed setting drops off the list on its own.
+  async function leaveToStart(fixed) {
+    const back = c.returnTo;
+    state.coach = null;
+    if (fixed) {
+      page.innerHTML = '';
+      page.append(html(`<div class="card hero coach-finish"><div class="tick big">${icons.check}</div><h1>That's fixed</h1><p class="lead">We saw the change in Windows. Re-checking your settings…</p></div>`));
+    }
+    try {
+      state.quick = await api.runQuickChecks();
+      state.applied = null;
+      refreshNav();
+    } catch (e) {
+      toast("Couldn't re-check", e.message, 'bad');
+    }
+    go(back);
+  }
+
   // ------------------------------------------------------------ all done
   async function finish() {
     await stopLive();
     if (destroyed) return;
+    if (c.returnTo) {
+      const fixedIt = c.steps.every((s) => c.status[s.id] === 'done');
+      return fixedIt ? leaveToStart(true) : leaveToStart(false);
+    }
     const done = c.steps.filter((s) => c.status[s.id] === 'done').length;
     const area = c.area;
     page.innerHTML = '';
