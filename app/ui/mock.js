@@ -91,7 +91,20 @@ function withChoice(dev) {
     const p = MIC_OPTIONS.find((o) => o.id === c.profile_id);
     out.profile = {
       profile: { id: p.id, brand: p.brand, model: p.model, family: p.family, aliases: p.aliases }, confidence: 'exact', chosen: true,
-      needs_questions: p.id === 'ev_re20' ? [{ id: 'switch_positions', prompt: 'How are the switches on your mic set?', photo_hint: null, options: ['Bass tilt (low-cut) switch', 'Flat'] }] : [],
+      // Same shape the real matcher sends (one exclusive question per switch + help block).
+      needs_questions: p.id === 'ev_re20' ? [{
+        id: 'switch_positions', key: 'bass_tilt', prompt: 'Is the little "bass tilt" switch on your mic switched on? (When it is on, your voice sounds thinner.)', photo_hint: null,
+        options: ['No, it is off (normal sound)', 'Yes, it is on (thinner sound)', "I'm not sure"],
+        help: {
+          what: 'This switch can thin out the deep bass on purpose, which helps if your voice sounds boomy or muddy.',
+          where: 'A small switch on the body of the mic, marked On and Off. Check it by eye or by feel before you start.',
+          positions: [
+            { label: 'No, it is off (normal sound)', meaning: 'Your natural, full sound. This is the normal setting.' },
+            { label: 'Yes, it is on (thinner sound)', meaning: 'Takes some deep bass out, so a boomy voice sounds clearer but thinner.' },
+          ],
+          manual_url: 'https://products.electrovoice.com/na/en/re20',
+        },
+      }] : [],
     };
   }
   return out;

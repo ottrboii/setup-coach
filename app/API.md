@@ -522,3 +522,6 @@ running it first asks the user to close OBS so the voice plugin can be replaced
 updater public key (PR/main CI, local dev) never checks.
 (`check_for_update` / `install_update` were removed: no UI called them and
 `install_update` skipped the confirmation.)
+
+### Profile questions (`Question`)
+Every closed question ends with `I'm not sure` (core adds it) and the UI adds it if missing. A switch is one question per control: `{ id: 'switch_positions', key: 'bass_tilt', prompt, options[], help? }`. `help` = `{ what, where?, positions: [{label, meaning}], image?, manual_url? }` (plain words, no numbers; `image` is a path under app/ui/, `manual_url` must be https). The UI stores the answer under `switch_positions:<key>` and a second tap clears it. Profile JSON: `controls: [{ key, prompt, options, help, source }]` replaces the old `switches` string list. Switch answers are UI-only for now: `MicAnswers` has no switch field (follow-up).

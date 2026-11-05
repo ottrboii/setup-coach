@@ -95,11 +95,27 @@ pub struct Question {
     /// Answer choices; empty = picker over the profile list.
     #[serde(default)]
     pub options: Vec<String>,
+    /// Which control this answers when a profile has several (e.g. `bass_tilt`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// "What does this mean / where is it?" (optional).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help: Option<Help>,
 }
+
+/// Always-available escape hatch on every closed-choice question.
+pub const NOT_SURE: &str = "I'm not sure";
 
 impl Question {
     fn new(id: QuestionId, prompt: &str) -> Self {
-        Question { id, prompt: prompt.to_string(), photo_hint: None, options: Vec::new() }
+        Question { id, prompt: prompt.to_string(), photo_hint: None, options: Vec::new(), key: None, help: None }
+    }
+    /// Closed-choice questions always end with "I'm not sure".
+    fn with_not_sure(mut self) -> Self {
+        if !self.options.is_empty() && !self.options.iter().any(|o| o.eq_ignore_ascii_case(NOT_SURE)) {
+            self.options.push(NOT_SURE.to_string());
+        }
+        self
     }
     fn photo(mut self, key: &str) -> Self {
         self.photo_hint = Some(key.to_string());
@@ -394,20 +410,25 @@ fn mic_questions(p: &MicProfile) -> Vec<Question> {
                 .options(vec!["The side with the logo".into(), "The top".into()]),
         );
     }
-    if !p.switches.is_empty() {
-        q.push(
-            Question::new(QuestionId::SwitchPositions, "How are the switches on your mic set?")
-                .photo(&format!("{}_switches", p.family))
-                .options(p.switches.clone()),
-        );
+    // One exclusive-choice question per switch (never one lumped button).
+    for c in &p.controls {
+        let mut question = Question::new(QuestionId::SwitchPositions, &c.prompt).options(c.options.clone());
+        question.key = Some(c.key.clone());
+        question.help = c.help.clone();
+        q.push(question);
     }
     if p.onboard_dsp.iter().any(|d| d.kind != DspKind::Limiter) {
+        let names: Vec<&str> =
+            p.onboard_dsp.iter().filter(|d| d.kind != DspKind::Limiter).map(|d| d.name.as_str()).collect();
         q.push(
-            Question::new(QuestionId::OnboardProcessing, "Is your mic's own processing turned on?")
-                .options(p.onboard_dsp.iter().map(|d| d.name.clone()).collect()),
+            Question::new(
+                QuestionId::OnboardProcessing,
+                &format!("Is your mic's own sound processing switched on? ({})", names.join(", ")),
+            )
+            .options(vec!["Yes".into(), "No".into()]),
         );
     }
-    q
+    q.into_iter().map(Question::with_not_sure).collect()
 }
 
 /// Questions a camera profile needs answered (coach-only classes).
