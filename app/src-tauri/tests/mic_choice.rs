@@ -84,7 +84,7 @@ async fn goxlr_input_asks_once_and_the_choice_changes_everything() {
     let p = r.profile.as_ref().unwrap();
     assert!(p.chosen && p.profile_id == "ev_re20");
     assert_eq!(p.display_name, "Electro-Voice RE20");
-    assert!(p.questions.iter().any(|q| q.options.iter().any(|o| o.to_lowercase().contains("bass"))), "RE20's own switch question: {:?}", p.questions);
+    assert!(p.questions.iter().any(|q| q.key.as_deref() == Some("bass_tilt") && q.options.len() == 3 && q.help.is_some()), "RE20's own switch question: {:?}", p.questions);
     assert!(p.interface.as_ref().is_some_and(|i| i.display_name.contains("GoXLR")), "still knows it sits on the GoXLR");
 
     // get_environment shows it; no "saved setup" appears just because of an answer.
