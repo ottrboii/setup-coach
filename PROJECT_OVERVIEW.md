@@ -6,6 +6,7 @@ A Windows app that coaches non-technical streamers (the "bought an SM7B and left
 
 ## Status
 First full build done and green on Windows CI (installer + VST3 artifacts). Not yet run on real hardware — **next milestone: Otto's smoke test** (`SMOKE_TEST.md`) with his gear: RE20 on GoXLR (GoXLR Utility), NT1-A, DJI Mic 3, headsets, C920, a6000 via Cam Link 4K, phone.
+- Merged since 2026-11-02: auto-updater (#5), settings vault + A/B (#6), self-test mode (#3, #7), installer e2e (#2), review fixes (#8), vault/A-B UI in mock mode (#9). The new UI has not been run against the real backend.
 - Core engine: mic/camera analysis, findings, processing chain + verification, system/OBS audit, stream health, device profiles, live coaching engine.
 - App: Tauri 2 backend with Windows platform code (type-checked, CI-built, never run on a real PC yet) + static UI with live animated coaching and a full mock mode.
 - VST3: mono / high-pass / EQ / de-esser, SDK validator passes.
