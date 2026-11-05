@@ -213,6 +213,23 @@ y 0.35–0.75, beside the face) the user fills with a white sheet during
 | `start_health_monitor` | – | `()` – polls OBS every 2 s; emits `health-alert` (core `Alert`, on raise and clear) and `health-sample` `{ sample: StatsSample, window: WindowStats, active: AlertKind[] }` |
 | `stop_health_monitor` | – | `StreamReport` (core) |
 
+## Testers' notes: "Tell us what's wrong" (added 2026-11-05, approved)
+
+Always-available panel in the UI (sidebar button, Ctrl+Shift+F). It lives outside the screen area, so it never interrupts a running test, preview, apply or recording. The draft text is kept by the UI (localStorage) until saved. Notes stay on the PC: no network, never auto-uploaded.
+
+| Command | Args | Returns |
+|---|---|---|
+| `save_feedback` | `{ input: FeedbackInput }` | `{ count: number }` – appends one line to `%APPDATA%\SetupCoach\feedback.jsonl`. Rejects with a plain message when `text` is blank. |
+| `get_feedback` | – | `{ count: number, text: string }` – all notes as readable text, for "Copy my notes". |
+| `save_feedback_to_desktop` | – | `string` – writes `SetupCoach-notes.txt` to the Desktop and returns its path; rejects when there are no notes. |
+
+```ts
+FeedbackInput = { text: string, route: string,                 // route = current UI route, e.g. "mic"
+                  tag: "confusing"|"broken"|"looks_wrong"|"idea"|null,
+                  mic_name: string|null, camera_name: string|null }
+// one jsonl line: { at, route, tag, text, app_version, mic_name, camera_name }
+```
+`feedback.jsonl` sits in the data folder, so `--self-test` packs it into the zip (`SetupCoach/feedback.jsonl`) with no extra step.
 ## Persistence
 
 | Command | Args | Returns |

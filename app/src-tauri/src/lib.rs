@@ -4,6 +4,7 @@
 pub mod app;
 pub mod camera;
 pub mod commands;
+pub mod feedback;
 pub mod goxlr;
 pub mod obs;
 pub mod paths;
@@ -75,6 +76,9 @@ pub fn run() {
             commands::connect_obs,
             commands::run_quick_checks,
             commands::log_ui,
+            commands::save_feedback,
+            commands::get_feedback,
+            commands::save_feedback_to_desktop,
             commands::apply_actions,
             commands::mic_context,
             commands::start_mic_test,

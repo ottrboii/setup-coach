@@ -423,6 +423,23 @@ export function createMock() {
       if (/[?&]fail=scan\b/.test(location.search) && !window.__scanRetried) { window.__scanRetried = true; throw 'The scan hit an unexpected problem. Please try again.'; }
       return QUICK;
     },
+    // Testers' notes (kept in browser storage in mock mode; the real app writes feedback.jsonl).
+    async save_feedback({ input }) {
+      if (!input || !String(input.text || '').trim()) throw 'Write a few words first, then press Save.';
+      const all = JSON.parse(localStorage.getItem('mock.feedback') || '[]');
+      all.push({ at: new Date().toISOString(), app_version: 'mock', ...input, text: String(input.text).trim() });
+      localStorage.setItem('mock.feedback', JSON.stringify(all));
+      return { count: all.length };
+    },
+    async get_feedback() {
+      const all = JSON.parse(localStorage.getItem('mock.feedback') || '[]');
+      const label = { confusing: 'Confusing', broken: 'Broken', looks_wrong: 'Looks wrong', idea: 'Idea' };
+      return { count: all.length, text: all.map((n, i) => `${i + 1}. [${label[n.tag] || 'Note'}] ${n.at} - screen: ${n.route}\n${n.text}\n`).join('\n') };
+    },
+    async save_feedback_to_desktop() {
+      if (!JSON.parse(localStorage.getItem('mock.feedback') || '[]').length) throw 'There are no saved notes yet.';
+      return 'C:\\Users\\you\\Desktop\\SetupCoach-notes.txt';
+    },
     async log_ui(entry) { (window.__uiLog ||= []).push(entry); return null; },
     async apply_actions({ actionIds }) {
       await wait(900);

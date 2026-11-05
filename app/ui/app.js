@@ -14,6 +14,7 @@ import * as coach from './screens/coach.js';
 import * as backups from './screens/backups.js';
 import * as ab from './screens/ab.js';
 import * as abrecord from './screens/abrecord.js';
+import { initFeedback } from './feedback.js';
 
 const ROUTES = {
   welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach, backups, ab, 'ab-record': abrecord,
@@ -100,5 +101,6 @@ window.addEventListener('unhandledrejection', (ev) => {
 });
 
 window.addEventListener('hashchange', render);
+initFeedback();
 if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', render);
 else render();
