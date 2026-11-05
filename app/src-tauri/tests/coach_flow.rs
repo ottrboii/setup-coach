@@ -42,6 +42,8 @@ async fn world_with(mic_name: &str, tweak: impl FnOnce(&mut MockPlatform)) -> Wo
     tweak(&mut mock);
     let events = Arc::new(CollectingEmitter::default());
     let mut core = AppCore::new(mock.platform(), dir.path().join("data"), events.clone());
+    // Hermetic: never talk to a real GoXLR Utility running on the dev PC.
+    core.goxlr_autodetect.store(false, std::sync::atomic::Ordering::SeqCst);
     core.coach_tick = Duration::from_millis(5);
     core.frame_interval = Duration::from_millis(1);
     let core = Arc::new(core);

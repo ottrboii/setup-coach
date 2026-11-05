@@ -63,6 +63,12 @@ pub trait SystemInspector: Send + Sync {
     fn obs_config_dir(&self) -> Option<PathBuf>;
     /// Execute a Windows-side action (registry, endpoint, power settings).
     fn apply(&self, action: &Action) -> Result<(), String>;
+    /// Whether `apply` can possibly succeed right now (e.g. the app has the
+    /// administrator rights the setting needs). Checked up front so the UI
+    /// never offers a one-click fix that is certain to fail.
+    fn can_apply(&self, _action: &Action) -> bool {
+        true
+    }
     /// The endpoint's input level in dB (IAudioEndpointVolume), if adjustable.
     fn endpoint_gain_db(&self, _endpoint_id: &str) -> Option<GainControl> {
         None

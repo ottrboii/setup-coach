@@ -23,6 +23,7 @@ async fn world_in(data: &Path, tweak: impl FnOnce(&mut MockPlatform)) -> World {
     let mut mock = MockPlatform::demo();
     tweak(&mut mock);
     let core = Arc::new(AppCore::new(mock.platform(), data.to_path_buf(), Arc::new(CollectingEmitter::default())));
+    core.goxlr_autodetect.store(false, std::sync::atomic::Ordering::SeqCst);
     let obs = Arc::new(FakeObs::typical());
     core.set_obs(obs.clone()).await;
     World { core, mock, obs }
