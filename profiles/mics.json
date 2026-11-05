@@ -2194,9 +2194,35 @@
       ],
       "sensitivity_dbv_pa": -59.0,
       "gain_needed_db": 60.0,
-      "switches": [
-        "Bass roll-off: flat / on",
-        "Presence boost: flat / on"
+      "controls": [
+        {
+          "key": "bass_rolloff",
+          "prompt": "Is the bass roll-off switch on? (When it is on, deep boomy sounds are cut and your voice sounds lighter.)",
+          "options": ["No, it is off (normal sound)", "Yes, it is on (lighter sound)"],
+          "help": {
+            "what": "Cuts some deep bass, which helps with rumble and a boomy, close-up sound.",
+            "where": "Two small switches sit under a plate on the back of the mic (UNVERIFIED against the manual).",
+            "positions": [
+              { "label": "No, it is off (normal sound)", "meaning": "Your natural, full sound." },
+              { "label": "Yes, it is on (lighter sound)", "meaning": "Takes deep bass out, so your voice sounds lighter and cleaner." }
+            ]
+          },
+          "source": "UNVERIFIED: general Shure SM7B knowledge, not confirmed from the manual"
+        },
+        {
+          "key": "presence_boost",
+          "prompt": "Is the presence boost switch on? (When it is on, your voice sounds brighter and sharper.)",
+          "options": ["No, it is off (normal sound)", "Yes, it is on (brighter sound)"],
+          "help": {
+            "what": "Adds a little brightness so speech sounds clearer and closer.",
+            "where": "The other small switch under the same plate on the back of the mic (UNVERIFIED).",
+            "positions": [
+              { "label": "No, it is off (normal sound)", "meaning": "Your natural sound." },
+              { "label": "Yes, it is on (brighter sound)", "meaning": "Brighter, clearer speech; can make hissy sounds sharper." }
+            ]
+          },
+          "source": "UNVERIFIED: general Shure SM7B knowledge, not confirmed from the manual"
+        }
       ],
       "distance_cm": {
         "min": 2,
@@ -2251,10 +2277,47 @@
       ],
       "needs_phantom": true,
       "sensitivity_dbv_pa": -59.0,
-      "switches": [
-        "Preamp: bypass / +18 dB / +28 dB",
-        "Bass roll-off",
-        "Presence boost"
+      "controls": [
+        {
+          "key": "built_in_boost",
+          "prompt": "Does your mic have its built-in volume boost switched on? (It makes a quiet voice louder before it reaches your computer.)",
+          "options": ["Off", "Some boost", "More boost"],
+          "help": {
+            "what": "This mic has its own built-in volume boost, so it can be quiet or loud depending on this switch.",
+            "positions": [
+              { "label": "Off", "meaning": "No extra volume from the mic itself." },
+              { "label": "Some boost", "meaning": "A little extra volume." },
+              { "label": "More boost", "meaning": "The most extra volume; best for quiet voices." }
+            ]
+          },
+          "source": "UNVERIFIED: positions and location not confirmed from the SM7dB manual"
+        },
+        {
+          "key": "bass_rolloff",
+          "prompt": "Is the bass roll-off switch on? (When it is on, deep boomy sounds are cut and your voice sounds lighter.)",
+          "options": ["No, it is off (normal sound)", "Yes, it is on (lighter sound)"],
+          "help": {
+            "what": "Cuts some deep bass, which helps with rumble and a boomy, close-up sound.",
+            "positions": [
+              { "label": "No, it is off (normal sound)", "meaning": "Your natural, full sound." },
+              { "label": "Yes, it is on (lighter sound)", "meaning": "Takes deep bass out, so your voice sounds lighter and cleaner." }
+            ]
+          },
+          "source": "UNVERIFIED"
+        },
+        {
+          "key": "presence_boost",
+          "prompt": "Is the presence boost switch on? (When it is on, your voice sounds brighter and sharper.)",
+          "options": ["No, it is off (normal sound)", "Yes, it is on (brighter sound)"],
+          "help": {
+            "what": "Adds a little brightness so speech sounds clearer and closer.",
+            "positions": [
+              { "label": "No, it is off (normal sound)", "meaning": "Your natural sound." },
+              { "label": "Yes, it is on (brighter sound)", "meaning": "Brighter, clearer speech; can make hissy sounds sharper." }
+            ]
+          },
+          "source": "UNVERIFIED"
+        }
       ],
       "distance_cm": {
         "min": 2,
@@ -2398,8 +2461,22 @@
         "cardioid"
       ],
       "sensitivity_dbv_pa": -56.5,
-      "switches": [
-        "Bass tilt (low-cut) switch"
+      "controls": [
+        {
+          "key": "bass_tilt",
+          "prompt": "Is the little \"bass tilt\" switch on your mic switched on? (When it is on, your voice sounds thinner.)",
+          "options": ["No, it is off (normal sound)", "Yes, it is on (thinner sound)"],
+          "help": {
+            "what": "This switch can thin out the deep bass on purpose, which helps if your voice sounds boomy or muddy.",
+            "where": "A small switch on the body of the mic, marked On and Off. Check it by eye or by feel before you start.",
+            "positions": [
+              { "label": "No, it is off (normal sound)", "meaning": "Your natural, full sound. This is the normal setting." },
+              { "label": "Yes, it is on (thinner sound)", "meaning": "Takes some deep bass out, so a boomy voice sounds clearer but thinner." }
+            ],
+            "manual_url": "https://products.electrovoice.com/na/en/re20"
+          },
+          "source": "https://products.electrovoice.com/na/en/re20 and theaudacitytopodcast.com/re20 (one bass tilt-down switch, Off/On; exact spot on the body not confirmed from the manual - unverified)"
+        }
       ],
       "distance_cm": {
         "min": 3,
@@ -2448,8 +2525,21 @@
       "patterns": [
         "cardioid"
       ],
-      "switches": [
-        "Voice / kick-drum curve switch"
+      "controls": [
+        {
+          "key": "voice_curve",
+          "prompt": "Your mic has a switch for talking or for drums. Which way is it set?",
+          "options": ["Voice", "Kick drum"],
+          "help": {
+            "what": "This switch changes the mic's tone: one setting is shaped for talking and singing, the other for drums.",
+            "positions": [
+              { "label": "Voice", "meaning": "The setting made for talking. This is the one you want for streaming." },
+              { "label": "Kick drum", "meaning": "Cuts the middle and boosts the bass for drums, so a voice sounds hollow." }
+            ],
+            "manual_url": "https://www.electrovoice.com/product/re320"
+          },
+          "source": "UNVERIFIED: switch location and labels not confirmed from the RE320 manual"
+        }
       ],
       "distance_cm": {
         "min": 3,

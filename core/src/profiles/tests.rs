@@ -389,3 +389,23 @@ fn every_profile_matches_its_own_patterns() {
         }
     }
 }
+
+#[test]
+fn every_mic_question_is_exclusive_with_not_sure_and_switches_have_help() {
+    let db = db();
+    let re20 = db.questions_for_mic("ev_re20");
+    let q = re20.iter().find(|q| q.id == QuestionId::SwitchPositions).expect("switch question");
+    assert_eq!(q.key.as_deref(), Some("bass_tilt"));
+    assert!(q.options.len() >= 3, "off / on / not sure: {:?}", q.options);
+    assert!(q.help.as_ref().is_some_and(|h| !h.what.is_empty() && h.location.is_some()));
+    for id in ["ev_re20", "ev_re320", "shure_sm7b", "shure_sm7db"] {
+        let m = db.mic(id).unwrap();
+        assert!(!m.controls.is_empty(), "{id}");
+        for q in db.questions_for_mic(id) {
+            assert!(q.options.is_empty() || q.options.iter().any(|o| o == NOT_SURE), "{id} {:?}", q.id);
+        }
+        for c in &m.controls {
+            assert!(c.options.len() >= 2 && c.help.is_some() && c.source.is_some(), "{id} {}", c.key);
+        }
+    }
+}

@@ -31,7 +31,7 @@ export async function render(root, { go, refreshNav }) {
   const consent = html(`
     <div class="card stack">
       <h2>First, a quick heads-up</h2>
-      <p class="muted">To change settings in OBS for you, Setup Coach reads OBS's remote-control settings (the websocket password) from this PC. Your audio and video are analysed on this computer and never uploaded.</p>
+      <p class="muted">To change settings in OBS for you, Setup Coach reads OBS's remote-control settings (the password OBS made for this) from this PC. Your audio and video are analysed on this computer and never uploaded.</p>
       <div class="row"><button class="btn primary lg" id="go">Sounds good — let's start</button></div>
     </div>`);
   if (state.env) return showEnv(body, go, refreshNav);
@@ -92,12 +92,23 @@ async function showEnv(body, go, refreshNav, fetch = false) {
     // Real backend: ProfileMatch.questions (API.md). Browser mock: needs_questions.
     // The "which mic is it?" questions (no answer list) are the picker's job now.
     const qs = (mic?.profile?.questions || mic?.profile?.needs_questions || []).filter((q) => !(q.id === 'which_mic_on_interface' || (q.id === 'which_model' && !(q.options && q.options.length))));
-    const extra = mic && /focusrite|goxlr|scarlett|wave xlr|rodecaster|umc|interface|analogue/i.test(mic.name)
-      ? [{ id: 'gain_at_max', prompt: 'Is the gain knob for your mic turned all (or almost all) the way up?', options: ['Yes', 'No', "I'm not sure"] }]
+    // A GoXLR has no gain knob (gain lives in the GoXLR app), so we never ask; the coach reads
+    // or sets it itself. Interfaces with a real knob get a plain "look at it" question.
+    const isGoxlr = mic && /goxlr/i.test(mic.name);
+    const extra = mic && !isGoxlr && /focusrite|scarlett|wave xlr|rodecaster|umc|interface|analogue/i.test(mic.name)
+      ? [{
+        id: 'gain_at_max',
+        prompt: 'Look at the round knob that controls how loud your mic is. Is it turned almost all the way round to the right?',
+        options: ['Yes, almost all the way', 'No, it is lower than that', "I'm not sure"],
+        help: {
+          what: 'This knob is on the front of the box your mic plugs into. It is often labelled "Gain" or has a small microphone symbol.',
+          where: 'Turn so the little line on the knob points to the right. If it points up or to the left, choose "No".',
+        },
+      }]
       : [];
     const all = [...qs, ...extra];
     if (!all.length) return;
-    qBox.append(html(`<div><h2>A couple of quick questions</h2><p class="muted">So we can give advice for your exact gear. Tap an answer — "not sure" is fine.</p></div>`));
+    qBox.append(html(`<div><h2>A couple of quick questions</h2><p class="muted">So we can give advice for your exact gear. Tap an answer. If you are not sure, tap "I'm not sure": we will use safe, standard settings. You can skip these and carry on.</p></div>`));
     for (const q of all) qBox.append(questionCard(q));
   }
   renderMicChoice();
@@ -138,7 +149,7 @@ function obsCard(env, retry) {
       ? 'OBS\'s remote control is switched off.'
       : (o.error || 'We couldn\'t log in to OBS remote control.');
     fix = o.websocket_enabled === false
-      ? '<ol class="coach-steps"><li>In OBS, open <b>Tools → WebSocket Server Settings</b>.</li><li>Tick <b>Enable WebSocket server</b> and press OK.</li><li>Come back and press "Check again".</li></ol>'
+      ? '<ol class="coach-steps"><li>In OBS, open <b>Tools → WebSocket Server Settings</b> (this is OBS's remote-control switch).</li><li>Tick <b>Enable WebSocket server</b> and press OK.</li><li>Come back and press "Check again".</li></ol>'
       : '';
   }
   const card = html(`
@@ -184,15 +195,24 @@ function devicePicker(label, icon, list, selected, onPick) {
   return card;
 }
 
+const qKey = (q) => (q.key ? `${q.id}:${q.key}` : q.id);
+
 function applyAnswer(q, value) {
-  state.answers[q.id] = value;
+  // value === null clears the answer (tap the chosen button again to change your mind).
+  if (value === null) {
+    delete state.answers[qKey(q)];
+    if (q.id === 'gain_at_max') state.answers.gain_at_max = undefined;
+    else if (q.id === 'onboard_processing') state.answers.onboard_auto_level = undefined;
+    return;
+  }
+  state.answers[qKey(q)] = value;
   const yes = value === 'Yes';
   const unsure = /not sure/i.test(value);
   switch (q.id) {
     case 'which_mic_on_interface':
     case 'which_model':
     case 'which_headset_model':
-      state.answers.mic_model_id = /something else/i.test(value) ? undefined : value;
+      state.answers.mic_model_id = unsure || /something else/i.test(value) ? undefined : value;
       break;
     case 'booster_in_chain':
       state.answers.booster = unsure ? undefined : yes;
@@ -201,24 +221,55 @@ function applyAnswer(q, value) {
       state.answers.onboard_auto_level = unsure ? undefined : yes;
       break;
     case 'gain_at_max':
-      state.answers.gain_at_max = unsure ? undefined : yes;
+      state.answers.gain_at_max = unsure ? undefined : /^yes/i.test(value);
       break;
     default:
       break;
   }
 }
 
+// "What does this mean / where is it?" Plain words only; image and manual link optional.
+function helpBlock(h) {
+  if (!h || (!h.what && !h.where && !(h.positions || []).length)) return null;
+  const safeUrl = /^https:\/\//.test(h.manual_url || '') ? h.manual_url : null;
+  const safeImg = /^[\w./-]+$/.test(h.image || '') && !(h.image || '').includes('..') ? h.image : null;
+  const pos = (h.positions || []).map((p) => `<li><b>${esc(p.label)}</b>: ${esc(p.meaning)}</li>`).join('');
+  const d = html(`
+    <details class="q-help">
+      <summary>Where is it? What does this mean?</summary>
+      <div class="stack" style="gap:8px;margin-top:8px">
+        ${h.what ? `<p>${esc(h.what)}</p>` : ''}
+        ${h.where ? `<p><b>Where to find it:</b> ${esc(h.where)}</p>` : ''}
+        ${safeImg ? `<img src="${esc(safeImg)}" alt="" style="max-width:100%;border-radius:8px">` : ''}
+        ${pos ? `<ul class="q-help-pos">${pos}</ul>` : ''}
+        ${safeUrl ? `<p><a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer" class="q-help-link">Open the maker's page for this mic</a></p>` : ''}
+      </div>
+    </details>`);
+  return d;
+}
+
 function questionCard(q) {
-  const opts = q.options && q.options.length ? q.options : ['Yes', 'No', "I'm not sure"];
-  const card = html(`<div class="card flat stack"><h3>${esc(q.prompt)}</h3><div class="choices"></div></div>`);
+  // Every closed question is exclusive and always has an "I'm not sure".
+  let opts = q.options && q.options.length ? [...q.options] : ['Yes', 'No'];
+  if (!opts.some((o) => /not sure/i.test(o))) opts.push("I'm not sure");
+  const card = html(`<div class="card flat stack"><h3>${esc(q.prompt)}</h3><div class="choices" role="radiogroup"></div></div>`);
+  const help = helpBlock(q.help);
+  if (help) card.append(help);
   const box = card.querySelector('.choices');
+  const note = html('<p class="subtle q-note" aria-live="polite"></p>');
+  card.append(note);
   const draw = () => {
     box.innerHTML = '';
+    const cur = state.answers[qKey(q)];
     for (const o of opts) {
-      const b = html(`<button class="choice ${state.answers[q.id] === o ? 'selected' : ''}">${esc(o)}</button>`);
-      b.addEventListener('click', () => { applyAnswer(q, o); draw(); });
+      const on = cur === o;
+      const b = html(`<button class="choice ${on ? 'selected' : ''}" role="radio" aria-checked="${on}">${esc(o)}</button>`);
+      b.addEventListener('click', () => { applyAnswer(q, on ? null : o); draw(); });
       box.append(b);
     }
+    note.textContent = !cur ? ''
+      : /not sure/i.test(cur) ? "That's fine. We'll use safe, standard settings and check by listening."
+      : 'Got it. Tap it again if you want to change your answer.';
   };
   draw();
   return card;

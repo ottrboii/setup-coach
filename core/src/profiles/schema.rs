@@ -226,6 +226,47 @@ impl MicClass {
     ];
 }
 
+/// One position of a switch and what it does to the sound, in plain words.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HelpPosition {
+    pub label: String,
+    pub meaning: String,
+}
+
+/// "What does this mean / where is it?" shown under a question.
+/// No numbers: plain words only (numbers belong in Advanced).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct Help {
+    /// One everyday sentence: what it does.
+    pub what: String,
+    /// Where to find it on the device (omit when not sourced).
+    #[serde(default, rename = "where")]
+    pub location: Option<String>,
+    #[serde(default)]
+    pub positions: Vec<HelpPosition>,
+    /// Image path under app/ui/ (only licensed or self-drawn art).
+    #[serde(default)]
+    pub image: Option<String>,
+    /// Official manual / data sheet page.
+    #[serde(default)]
+    pub manual_url: Option<String>,
+}
+
+/// A switch on a mic, asked as one exclusive-choice question.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MicControl {
+    /// Stable answer key, e.g. `bass_tilt`.
+    pub key: String,
+    pub prompt: String,
+    /// Mutually exclusive positions (an "I'm not sure" choice is always added).
+    pub options: Vec<String>,
+    #[serde(default)]
+    pub help: Option<Help>,
+    /// Where the facts came from; absent = unverified.
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MicProfile {
     pub id: String,
@@ -255,9 +296,10 @@ pub struct MicProfile {
     pub windows_slider_is_hw_gain: Option<bool>,
     #[serde(default)]
     pub hardware_controls: Vec<String>,
-    /// Switches the user may have flipped (asked about with a photo).
+    /// Switches the user may have flipped. Each becomes one question with
+    /// mutually exclusive positions plus "I'm not sure", and a help block.
     #[serde(default)]
-    pub switches: Vec<String>,
+    pub controls: Vec<MicControl>,
     #[serde(default)]
     pub onboard_dsp: Vec<OnboardDsp>,
     #[serde(default)]
