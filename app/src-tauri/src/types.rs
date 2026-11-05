@@ -178,6 +178,100 @@ pub struct AbInfo {
     /// by more than the 30 dB the matching can correct.
     #[serde(default)]
     pub note: Option<String>,
+    /// Findings of the final take that are still open (minor or worse), as
+    /// found when it was recorded. Empty without a final take. The "I can't do
+    /// this" path of the A/B screen is built from these.
+    #[serde(default)]
+    pub findings: Vec<Finding>,
+}
+
+/// Stable reason a recording/A-B command failed, so the UI can word it itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AbErrorCode {
+    /// No first test saved for this mic yet.
+    NoFirstTest,
+    /// There is no final take yet (export, playback).
+    NoFinalTake,
+    /// The mic isn't connected and we have no recordings for it.
+    MicMissing,
+    /// `record_final` without a running recording.
+    NoRecording,
+    /// The running recording was made with another mic.
+    WrongMic,
+    TooShort,
+    /// No reading step was marked.
+    NoReadStep,
+    /// No new settings applied yet, so there is nothing to render.
+    NoAppliedChain,
+    /// A saved recording is damaged or can't be read.
+    Unreadable,
+    Other,
+}
+
+/// Error of `get_ab`, `record_final` and `export_ab`: `{ code, message }`.
+/// `message` is plain English and is only a fallback for unknown codes.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AbError {
+    pub code: AbErrorCode,
+    pub message: String,
+}
+
+impl AbError {
+    pub fn new(code: AbErrorCode, message: impl Into<String>) -> Self {
+        AbError { code, message: message.into() }
+    }
+}
+
+impl std::fmt::Display for AbError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<String> for AbError {
+    fn from(message: String) -> Self {
+        AbError { code: AbErrorCode::Other, message }
+    }
+}
+
+impl From<&str> for AbError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+impl From<AbError> for String {
+    fn from(e: AbError) -> String {
+        e.message
+    }
+}
+
+/// What `restore_backup` would do with one saved item (`preview_restore`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RestorePreviewItem {
+    /// Vault key, the same id `restore_backup` reports it under.
+    pub key: String,
+    /// Same values as `BackupItem.kind`.
+    pub kind: String,
+    /// Plain item name, as in `BackupInfo.items`.
+    pub label: String,
+    /// `"change"` = will be put back; `"skip"` = will be left alone (see
+    /// `note`); `"needs_obs_closed"` = an OBS file that can only be put back
+    /// while OBS is closed.
+    pub action: String,
+    /// Plain reason for `skip` / `needs_obs_closed`; null for `change`.
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RestorePreview {
+    pub id: String,
+    pub label: String,
+    /// Newest item first, in the order restore goes through them.
+    pub items: Vec<RestorePreviewItem>,
+    /// OBS (the program) is running right now.
+    pub obs_running: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

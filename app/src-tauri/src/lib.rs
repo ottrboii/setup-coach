@@ -99,6 +99,8 @@ pub fn run() {
             commands::open_for_user,
             commands::list_backups,
             commands::restore_backup,
+            commands::preview_restore,
+            commands::obs_running,
             commands::record_final,
             commands::get_ab,
             commands::export_ab,

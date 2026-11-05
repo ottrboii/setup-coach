@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, icons, scoreRing, toast, loading, errorBanner, advanced, kvTable, fmt } from '../components.js';
 import { state, MIC_CONSTRAINT } from '../state.js';
+import { abErrorWords } from '../backupcopy.js';
 
 export async function render(root, { go }) {
   const page = html('<section class="stack-lg"></section>');
@@ -30,9 +31,10 @@ export async function render(root, { go }) {
       info = await api.getAb(micId);
     } catch (e) {
       body.innerHTML = '';
-      body.append(html(`<div class="banner info"><div class="stack" style="gap:4px"><b>Nothing to compare yet</b><span>${esc(e.message)}</span></div></div>`));
-      const b = html('<button class="btn primary">Test my mic</button>');
-      b.addEventListener('click', () => go('mic'));
+      const w = abErrorWords(e);
+      body.append(html(`<div class="banner info"><div class="stack" style="gap:4px"><b>${esc(w.title)}</b><span>${esc(w.text)}</span></div></div>`));
+      const b = html(`<button class="btn primary">${esc(w.actionLabel || 'Test my mic')}</button>`);
+      b.addEventListener('click', () => go(w.action || 'mic'));
       body.append(b);
       return;
     }
@@ -83,14 +85,15 @@ export async function render(root, { go }) {
       try {
         const p = await api.exportAb(micId);
         toast('Saved to your Desktop', p, 'good');
-      } catch (e) { toast("Couldn't save the clips", e.message, 'bad'); }
+      } catch (e) { const w = abErrorWords(e); toast(w.title, w.text, 'bad'); }
       ev.currentTarget.disabled = false;
     });
     actions.querySelector('#again').addEventListener('click', () => go('ab-record'));
     body.append(actions);
 
     // Anything left to fix? "I can't do this" is always allowed and re-tunes around it.
-    const open = (state.micVerify?.after?.findings || state.micReport?.findings || []).filter((f) => f.severity !== 'info' && f.fix_kind !== 'auto');
+    // From the final take itself (get_ab.findings), not from the earlier verify step.
+    const open = (info.findings || []).filter((f) => f.severity !== 'info' && f.fix_kind !== 'auto');
     if (open.length && state.micContext) {
       const box = html('<div class="card stack"><h3>Still not quite right?</h3><p class="muted">If you can do one of these, it helps most. If you can\'t, tell us and we will tune your settings around it.</p><div class="findings"></div></div>');
       const list = box.querySelector('.findings');

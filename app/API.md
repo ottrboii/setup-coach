@@ -290,6 +290,8 @@ so it survives updates and uninstall.
 |---|---|---|
 | `list_backups` | – | `BackupInfo[]` – `original` first (if any), then newest first |
 | `restore_backup` | `{ id: string }` – `"original"` = put everything back how it was before Setup Coach | `ApplyResult` |
+| `preview_restore` | `{ id: string }` – dry run of `restore_backup`, writes nothing (added 2026-11-05) | `RestorePreview` – error (plain) if the backup is gone |
+| `obs_running` | – (added 2026-11-05) | `boolean` – the OBS program is running right now (not "connected over websocket") |
 
 ```ts
 BackupInfo = { id: string, created_at: string /* ISO UTC */,
@@ -297,8 +299,29 @@ BackupInfo = { id: string, created_at: string /* ISO UTC */,
                                    // "Before setting up your Yeti Stereo Microphone", "Before quick fixes",
                                    // "Before: Turn off Windows audio enhancements", "Before changing your HD Pro Webcam C920 settings",
                                    // "Before auto-adjusting your mic level", "Before going back to …"
-               items: string[] }   // plain item names, e.g. "OBS: filters on \"Mic/Aux\"", "Windows: Voice Clarity"
+               items: BackupItem[] }   // changed 2026-11-05: was string[]
+BackupItem = { kind: BackupItemKind,   // stable; word it yourself in plain language
+               label: string }         // English fallback, e.g. "OBS: filters on \"Mic/Aux\"", "Windows: Voice Clarity"
+BackupItemKind = "obs_filters" | "obs_source_settings" | "obs_mute" | "obs_monitoring" | "obs_setting"
+               | "obs_video" | "obs_scene_file" | "obs_profile_file" | "obs_websocket"
+               | "windows_setting" | "mic_level" | "camera" | "voice_chain" | "goxlr"
+
+RestorePreview = { id: string, label: string,
+                   items: RestorePreviewItem[],   // newest first = the order restore goes through them
+                   obs_running: boolean }         // same as `obs_running`, at the time of the call
+RestorePreviewItem = { key: string,               // same id `restore_backup` reports the item under
+                       kind: BackupItemKind, label: string,
+                       action: "change"          // will be put back
+                             | "skip"            // will be left alone, `note` says why (device unplugged, OBS closed
+                                                 //   for live OBS items, GoXLR Utility not running, source gone)
+                             | "needs_obs_closed", // OBS file/flag: only possible while OBS is closed
+                       note: string | null }
 ```
+`preview_restore` mirrors the checks `restore_backup` makes but does not compare
+values: "change" means "will be written", not "differs from now". Suggested
+flow: on "Go back to this", call `obs_running` + `preview_restore`; if any item
+is `needs_obs_closed`, ask the user to close OBS first (poll `obs_running` until
+false), then restore. Word the confirmation from `kind` + `action`.
 `restore_backup` result ids are vault keys (`obs_filters:Mic/Aux`,
 `windows:voice_clarity:<endpoint>`, `camera:<id>`, `chain_json`,
 `obs_file:<path>`, `goxlr:<serial>` …). Restore goes newest item first (so
@@ -330,15 +353,34 @@ the earliest saved value wins), and:
 | Command | Args | Returns |
 |---|---|---|
 | `record_final` | `{ deviceId: string, context: MicContext, constraints: Constraint[] }` | `AbInfo` |
-| `get_ab` | `{ deviceId: string }` | `AbInfo` – error (plain) if there's no original yet |
-| `export_ab` | `{ deviceId: string }` | `string` – folder path: `Desktop\Setup Coach A-B - <device name>\A original.wav`, `B final.wav` (the matched reading clips) |
+| `get_ab` | `{ deviceId: string }` | `AbInfo` – rejects with `AbError` (below), e.g. `no_first_test` |
+| `export_ab` | `{ deviceId: string }` | `string` (rejects with `AbError`) – folder path: `Desktop\Setup Coach A-B - <device name>\A original.wav`, `B final.wav` (the matched reading clips) |
 
 ```ts
 AbInfo = { original: AbTake, final: AbTake | null,
            matched_gain_db: number,
+           findings: Finding[],        // added 2026-11-05: open (minor or worse) findings of the FINAL take, as found when it was
+                                       //   recorded; [] without a final take. Source for the "I can't do this" path (rescan_mic with constraints).
+                                       //   Saved in final.json; takes recorded before this change give [].
            note: string | null }       // plain-language caveat, e.g. when the takes differ by >30 dB and could only be matched part way; show it when set   // final LUFS − original LUFS (0 when no final); >0 = final was louder
 AbTake = { path: string, lufs: number /* reading part, LUFS */, score: number /* mic score 0–100 */ }
+
+// Rejection value of get_ab, record_final and export_ab (an object, not a string; added 2026-11-05):
+AbError = { code: AbErrorCode, message: string /* plain English fallback */ }
+AbErrorCode = "no_first_test"      // get_ab/record_final: no first test saved for this mic yet -> run the mic test
+            | "no_final_take"      // export_ab: nothing recorded after the fixes yet
+            | "mic_missing"        // get_ab: that mic isn't plugged in and we have no recordings for it
+            | "no_recording"       // record_final: start_mic_test wasn't running
+            | "wrong_mic"          // record_final: the running recording is from another mic
+            | "too_short"          // record_final: under a second recorded
+            | "no_read_step"       // record_final: the read step wasn't marked
+            | "no_applied_chain"   // record_final: apply the new settings first
+            | "unreadable"         // a saved recording is damaged -> run the mic test again
+            | "other"
 ```
+`get_ab` with an original but no final take is **not** an error: `final` is null.
+Other commands still reject with a plain string. UI: show your own wording per
+`code`, fall back to `message`.
 The "final take" is **not a live recording through OBS**: it is the new read
 run through the applied chain with core's offline renderer. Word it as "your new
 sound" / "how it should sound with your new settings", not as a live take.

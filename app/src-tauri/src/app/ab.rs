@@ -9,7 +9,7 @@
 //!   final-raw.wav, final.wav, final.json
 
 use super::{AppCore, R};
-use crate::types::{AbInfo, AbTake};
+use crate::types::{AbError, AbErrorCode, AbInfo, AbTake};
 use crate::wav;
 use coach_core::audio::{self, dsp, findings::MicContext, process, AudioBuffer, MicReport, MicTest, ProcessingChain, Segment, SegmentKind};
 use coach_core::Constraint;
@@ -36,6 +36,10 @@ pub struct TakeMeta {
     /// The chain `final.wav` was rendered with.
     #[serde(default)]
     pub chain: Option<ProcessingChain>,
+    /// All findings of this take as found when it was recorded (the final
+    /// take: after processing). `get_ab` shows the open ones.
+    #[serde(default)]
+    pub findings: Vec<coach_core::Finding>,
 }
 
 /// Highest playback level difference we'll correct (beyond this a take is
@@ -112,13 +116,20 @@ struct Take {
     lufs: f64,
 }
 
-fn load_take(dir: &Path, stem: &str) -> R<Take> {
+/// `missing` = the code when the take simply isn't there; a take that is there
+/// but can't be read is `Unreadable`.
+fn load_take(dir: &Path, stem: &str, missing: AbErrorCode) -> Result<Take, AbError> {
     let path = dir.join(format!("{stem}.wav"));
-    let meta: TakeMeta = std::fs::read_to_string(dir.join(format!("{stem}.json")))
+    let json = dir.join(format!("{stem}.json"));
+    if !path.exists() || !json.exists() {
+        return Err(AbError::new(missing, "We don't have that recording yet."));
+    }
+    let unreadable = || AbError::new(AbErrorCode::Unreadable, "A saved recording can't be read. Please run the mic test again.");
+    let meta: TakeMeta = std::fs::read_to_string(&json)
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
-        .ok_or("We don't have that recording yet.")?;
-    let w = wav::read(&path)?;
+        .ok_or_else(unreadable)?;
+    let w = wav::read(&path).map_err(|_| unreadable())?;
     let clip = read_clip(&w.samples, w.sample_rate, &meta.segments);
     let lufs = dsp::integrated_lufs(&clip, w.sample_rate);
     Ok(Take { meta, path, clip, lufs })
@@ -169,6 +180,7 @@ impl AppCore {
             score,
             backup_id: self.vault().latest_id(),
             chain,
+            findings: report.findings.clone(),
         }
     }
 
@@ -215,23 +227,24 @@ impl AppCore {
     /// take: `final-raw.wav` (as captured) and `final.wav` (through the
     /// applied chain). The UI runs the same guided "read" step as the first
     /// test (same passage).
-    pub fn record_final(&self, device_id: &str, ctx: MicContext, constraints: Vec<Constraint>) -> R<AbInfo> {
+    pub fn record_final(&self, device_id: &str, ctx: MicContext, constraints: Vec<Constraint>) -> Result<AbInfo, AbError> {
+        use AbErrorCode::*;
         self.stop_capture();
         let (rec, last) = {
             let mut inner = self.inner.lock().unwrap();
-            (inner.recording.take().ok_or("Start the recording first.")?, inner.last_device.clone())
+            (inner.recording.take().ok_or(AbError::new(NoRecording, "Start the recording first."))?, inner.last_device.clone())
         };
         if last.as_deref() != Some(device_id) {
-            return Err("That recording was made with a different mic. Please record again.".into());
+            return Err(AbError::new(WrongMic, "That recording was made with a different mic. Please record again."));
         }
         let test = {
             let r = rec.lock().unwrap();
             if r.len() < r.sample_rate as usize {
-                return Err("The recording is too short. Please read the passage again.".into());
+                return Err(AbError::new(TooShort, "The recording is too short. Please read the passage again."));
             }
             let segments = super::segments_from_marks(&r.marks, r.len() as f64 / r.sample_rate as f64);
             if !segments.iter().any(|s| s.kind == SegmentKind::Read) {
-                return Err("We didn't get the reading step. Please read the passage again.".into());
+                return Err(AbError::new(NoReadStep, "We didn't get the reading step. Please read the passage again."));
             }
             MicTest { audio: AudioBuffer { sample_rate: r.sample_rate, channels: r.channels.clone() }, segments }
         };
@@ -240,10 +253,10 @@ impl AppCore {
             inner.applied_chain.clone()
         }
         .or_else(|| self.load_setup().and_then(|p| p.mic_chain))
-        .ok_or("Apply your new settings first, then record the final take.")?;
+        .ok_or(AbError::new(NoAppliedChain, "Apply your new settings first, then record the final take."))?;
         let dir = self.device_recordings_dir(device_id);
         if !dir.join("original.wav").exists() {
-            return Err("We don't have your first recording for this mic, so there's nothing to compare with yet.".into());
+            return Err(AbError::new(NoFirstTest, "We don't have your first recording for this mic, so there's nothing to compare with yet."));
         }
         let rendered = process::render_test(&test, &chain);
         let report = audio::scan(&rendered, &ctx, &constraints);
@@ -254,19 +267,30 @@ impl AppCore {
         self.get_ab(device_id)
     }
 
-    fn ab_takes(&self, device_id: &str) -> R<AbTakes> {
+    fn ab_takes(&self, device_id: &str) -> Result<AbTakes, AbError> {
         let dir = self.device_recordings_dir(device_id);
-        let original = load_take(&dir, "original").map_err(|_| "Run the mic test first: we keep your first recording for the comparison.".to_string())?;
-        let fin = if dir.join("final.json").exists() { Some(load_take(&dir, "final")?) } else { None };
+        let original = match load_take(&dir, "original", AbErrorCode::NoFirstTest) {
+            Err(e) if e.code == AbErrorCode::NoFirstTest => {
+                let unknown = !dir.exists() && self.platform.audio.list_inputs().iter().all(|d| d.id != device_id);
+                return Err(if unknown {
+                    AbError::new(AbErrorCode::MicMissing, "We can't find that microphone, and we have no recordings for it. Plug it in and run the mic test.")
+                } else {
+                    AbError::new(AbErrorCode::NoFirstTest, "Run the mic test first: we keep your first recording for the comparison.")
+                });
+            }
+            other => other?,
+        };
+        let fin = if dir.join("final.json").exists() { Some(load_take(&dir, "final", AbErrorCode::NoFinalTake)?) } else { None };
         let gains = fin.as_ref().map(|f| match_gains(original.lufs, f.lufs)).unwrap_or((0.0, 0.0, 0.0));
         Ok((original, fin, gains))
     }
 
-    pub fn get_ab(&self, device_id: &str) -> R<AbInfo> {
+    pub fn get_ab(&self, device_id: &str) -> Result<AbInfo, AbError> {
         let (o, f, (_, _, diff)) = self.ab_takes(device_id)?;
         let note = f.as_ref().and_then(|f| match_limit_note(o.lufs, f.lufs));
+        let findings = f.as_ref().map(|f| f.meta.findings.iter().filter(|x| x.severity >= coach_core::Severity::Minor).cloned().collect()).unwrap_or_default();
         let take = |t: &Take| AbTake { path: t.path.display().to_string(), lufs: (t.lufs * 10.0).round() / 10.0, score: t.meta.score };
-        Ok(AbInfo { original: take(&o), final_take: f.as_ref().map(take), matched_gain_db: (diff * 10.0).round() / 10.0, note })
+        Ok(AbInfo { original: take(&o), final_take: f.as_ref().map(take), matched_gain_db: (diff * 10.0).round() / 10.0, note, findings })
     }
 
     /// The loudness-matched reading clips (original, final).
@@ -285,9 +309,9 @@ impl AppCore {
 
     /// Copy both loudness-matched takes to the Desktop:
     /// `Setup Coach A-B - <device>\A original.wav`, `B final.wav`.
-    pub fn export_ab(&self, device_id: &str) -> R<String> {
+    pub fn export_ab(&self, device_id: &str) -> Result<String, AbError> {
         let (sr, o, f) = self.matched_clips(device_id)?;
-        let f = f.ok_or("Record your final take first.")?;
+        let f = f.ok_or(AbError::new(AbErrorCode::NoFinalTake, "Record your final take first."))?;
         let name = self.device_name(device_id).unwrap_or_else(|| {
             std::fs::read_to_string(self.device_recordings_dir(device_id).join("original.json"))
                 .ok()

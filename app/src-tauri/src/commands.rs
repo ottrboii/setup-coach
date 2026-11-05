@@ -163,19 +163,29 @@ pub async fn restore_backup(app: S<'_>, id: String) -> R<ApplyResult> {
 }
 
 #[tauri::command]
-pub async fn record_final(app: S<'_>, device_id: String, context: MicContext, constraints: Vec<Constraint>) -> R<AbInfo> {
+pub async fn record_final(app: S<'_>, device_id: String, context: MicContext, constraints: Vec<Constraint>) -> Result<AbInfo, AbError> {
     let app = app.inner().clone();
-    tokio::task::spawn_blocking(move || app.record_final(&device_id, context, constraints)).await.map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || app.record_final(&device_id, context, constraints)).await.map_err(|e| AbError::from(e.to_string()))?
 }
 
 #[tauri::command]
-pub async fn get_ab(app: S<'_>, device_id: String) -> R<AbInfo> {
+pub async fn get_ab(app: S<'_>, device_id: String) -> Result<AbInfo, AbError> {
     let app = app.inner().clone();
-    tokio::task::spawn_blocking(move || app.get_ab(&device_id)).await.map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || app.get_ab(&device_id)).await.map_err(|e| AbError::from(e.to_string()))?
 }
 
 #[tauri::command]
-pub async fn export_ab(app: S<'_>, device_id: String) -> R<String> {
+pub async fn export_ab(app: S<'_>, device_id: String) -> Result<String, AbError> {
     let app = app.inner().clone();
-    tokio::task::spawn_blocking(move || app.export_ab(&device_id)).await.map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || app.export_ab(&device_id)).await.map_err(|e| AbError::from(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn preview_restore(app: S<'_>, id: String) -> R<RestorePreview> {
+    app.preview_restore(&id).await
+}
+
+#[tauri::command]
+pub async fn obs_running(app: S<'_>) -> R<bool> {
+    Ok(app.obs_running())
 }

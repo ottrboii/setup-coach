@@ -247,21 +247,30 @@ export function createMock() {
   let healthBytes = 0;
   let lastCameraId = null;
   let constraints = [];
-  let obsClosedOnce = false;
+  let obsPolls = 0;          // obs_running says true for the first polls, then the 'user' has closed OBS
+  let obsRunning = true;
+  let mockAbError = null;
+  try { mockAbError = new URLSearchParams(location.search).get('mock_ab_error'); } catch { /* not in a browser */ }
   let abFinal = null;
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
+  const bi = (kind, label) => ({ kind, label });
   const backups = [
-    { id: 'original', created_at: ago(72), label: 'How it was before Setup Coach', items: ['OBS: filters on "Mic/Aux"', 'Windows: Voice Clarity', 'Windows: audio enhancements', 'OBS: scene file'] },
-    { id: '20261104T081500Z-000', created_at: ago(2), label: 'Before setting up your Yeti Stereo Microphone', items: ['OBS: filters on "Mic/Aux"', 'Voice chain for OBS'] },
-    { id: '20261104T080200Z-000', created_at: ago(2.3), label: 'Before: Turn off Windows audio enhancements', items: ['Windows: audio enhancements', 'Windows: Voice Clarity'] },
-    { id: '20261103T190000Z-000', created_at: ago(20), label: 'Before changing your HD Pro Webcam C920 settings', items: ['Camera: brightness, contrast and white balance'] },
+    { id: 'original', created_at: ago(72), label: 'How it was before Setup Coach', items: [bi('obs_filters', 'OBS: filters on "Mic/Aux"'), bi('windows_setting', 'Windows: Voice Clarity'), bi('windows_setting', 'Windows: audio enhancements'), bi('camera', 'Camera: HD Pro Webcam C920 settings'), bi('obs_scene_file', 'OBS: settings file Stream.json')] },
+    { id: '20261104T081500Z-000', created_at: ago(2), label: 'Before setting up your Yeti Stereo Microphone', items: [bi('obs_filters', 'OBS: filters on "Mic/Aux"'), bi('voice_chain', 'Setup Coach voice settings')] },
+    { id: '20261104T080200Z-000', created_at: ago(2.3), label: 'Before: Turn off Windows audio enhancements', items: [bi('windows_setting', 'Windows: audio enhancements'), bi('windows_setting', 'Windows: Voice Clarity')] },
+    { id: '20261103T190000Z-000', created_at: ago(20), label: 'Before changing your HD Pro Webcam C920 settings', items: [bi('camera', 'Camera: HD Pro Webcam C920 settings')] },
   ];
   const abInfo = () => ({
     original: { path: 'original.wav', lufs: -36.9, score: 38 },
     final: abFinal,
     matched_gain_db: abFinal ? 20.5 : 0,
     note: null,
+    findings: abFinal ? [
+      finding('mic.roomy', 'mic', 'minor', 'Your room adds some echo', 'Hard walls bounce your voice back to the mic.', 'Hang something soft behind you, or sit closer to the mic.', 'manual'),
+      finding('mic.plosives', 'mic', 'minor', 'Some p and b sounds pop', 'Bursts of air from p and b hit the mic.', 'Speak slightly across the mic, or add a pop filter.', 'manual'),
+    ] : [],
   });
+  const abErr = (code, message) => Object.assign(new Error(message), { code });
   let saved = null;
   const coached = { mic: false, camera: false };
   const coachSim = createCoachSim((ev, payload) => emit(ev, payload), drawCoachOverlay);
@@ -396,20 +405,42 @@ export function createMock() {
       await wait(1100);
       const b = backups.find((x) => x.id === id);
       if (!b) throw new Error("We couldn't find that backup any more.");
-      const needsFiles = b.items.some((i) => i.startsWith('OBS: scene file'));
-      if (needsFiles && !obsClosedOnce) {
-        obsClosedOnce = true;
+      const needsFiles = b.items.some((i) => i.kind === 'obs_scene_file');
+      if (needsFiles && obsRunning) {
+        obsRunning = false; // as if the user closed OBS now
         return { applied: ['windows:voice_clarity:mic'], failed: [{ id: 'obs_file:basic.ini', error: 'Close OBS, then press Restore again so we can put back its files.' }], restart_obs_needed: false, skipped: [{ id: 'goxlr:S123', error: 'GoXLR Utility is not running, so the GoXLR was left as it is.' }] };
       }
       return { applied: b.items.map((_, i) => 'item' + i), failed: [], restart_obs_needed: needsFiles, skipped: id === 'original' ? [{ id: 'camera:cam1', error: 'Your webcam is not plugged in, so it was left as it is.' }] : [] };
+    },
+    async obs_running() {
+      await wait(150);
+      obsPolls += 1;
+      if (obsPolls > 3) { obsRunning = false; }
+      return obsRunning;
+    },
+    async preview_restore({ id }) {
+      await wait(350);
+      const b = backups.find((x) => x.id === id);
+      if (!b) throw new Error("We couldn't find that backup any more.");
+      const items = b.items.map((it, i) => {
+        const key = `${it.kind}:${i}`;
+        if (it.kind === 'obs_scene_file') return { key, kind: it.kind, label: it.label, action: obsRunning ? 'needs_obs_closed' : 'change', note: obsRunning ? 'OBS has to be closed before this can be put back.' : null };
+        if (it.kind === 'camera' && id === 'original') return { key, kind: it.kind, label: it.label, action: 'skip', note: "Your webcam isn't connected, so its settings will be left alone." };
+        return { key, kind: it.kind, label: it.label, action: 'change', note: null };
+      });
+      return { id, label: b.label, items, obs_running: obsRunning };
     },
     async record_final() {
       await wait(1500);
       abFinal = { path: 'final.wav', lufs: -16.4, score: 91 };
       return abInfo();
     },
-    async get_ab() { await wait(250); return abInfo(); },
-    async export_ab() { await wait(300); return 'C:\\Users\\you\\Desktop\\Setup Coach A-B - Yeti Stereo Microphone'; },
+    async get_ab() {
+      await wait(250);
+      if (mockAbError) throw abErr(mockAbError, 'Mock error (' + mockAbError + ').');
+      return abInfo();
+    },
+    async export_ab() { await wait(300); if (!abFinal) throw abErr('no_final_take', 'Record your final take first.'); return 'C:\\Users\\you\\Desktop\\Setup Coach A-B - Yeti Stereo Microphone'; },
     async reapply_saved_setup() { await wait(700); return { applied: ['mic_chain', 'camera'], failed: [], restart_obs_needed: false }; },
   };
 
