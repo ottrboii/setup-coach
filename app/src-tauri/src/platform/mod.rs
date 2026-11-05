@@ -213,6 +213,39 @@ pub fn native() -> Platform {
     }
 }
 
+/// `--fx-helper …` (the one-off elevated process that changes a single
+/// Windows audio setting). `Some(exit code)` = this was a helper run: exit
+/// with it without starting the app.
+pub fn fx_helper_cli(args: &[String]) -> Option<i32> {
+    #[cfg(windows)]
+    {
+        windows::fx_helper_main(args)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = args;
+        None
+    }
+}
+
+/// Capture endpoint ids look like `{0.0.1.00000000}.{guid}`. The elevated
+/// helper (which writes to HKLM) and the Settings deep link accept nothing else.
+pub fn is_capture_endpoint_id(id: &str) -> bool {
+    id.starts_with("{0.0.1.00000000}.{") && id.len() < 80 && id.chars().all(|c| c.is_ascii_hexdigit() || matches!(c, '{' | '}' | '.' | '-'))
+}
+
+/// The Windows Settings page for exactly this microphone (Settings > System >
+/// Sound > the mic, where "Audio enhancements" lives). Documented form
+/// `ms-settings:sound-properties?endpointId={0.0.1.00000000}.{guid}`; falls
+/// back to the default-mic page when the id isn't a Windows endpoint id.
+pub fn sound_properties_uri(endpoint: &str) -> String {
+    if is_capture_endpoint_id(endpoint) {
+        format!("ms-settings:sound-properties?endpointId={endpoint}")
+    } else {
+        "ms-settings:sound-defaultinputproperties".into()
+    }
+}
+
 /// Make stdout usable for the command-line modes (`--self-test`). The
 /// release app is a GUI-subsystem program on Windows: started from a console
 /// without redirection it has no stdout, so attach to the parent's console.

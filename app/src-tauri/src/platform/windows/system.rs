@@ -82,22 +82,174 @@ fn sysfx_disabled(d: &IMMDevice) -> Option<bool> {
     }
 }
 
+/// Registry name of `PKEY_AudioEndpoint_Disable_SysFx` (Windows keeps a copy
+/// in both `Properties` and `FxProperties`; checked on a real Windows 11 PC).
+const FX_PROP_NAME: &str = "{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5";
+
+fn read_sysfx(endpoint: &str) -> bool {
+    find_device(endpoint).and_then(|d| sysfx_disabled(&d)).unwrap_or(false)
+}
+
+/// Write "enhancements off/on" from this process. Windows only lets
+/// administrators do this (IMMDevice::OpenPropertyStore: "A client that is not
+/// running as an administrator is restricted to read-only access"), so for
+/// everyone else this fails and `set_sysfx` falls back to a one-off UAC helper.
+pub(crate) fn write_sysfx_in_process(endpoint: &str, disabled: bool) -> Result<(), String> {
+    com_init();
+    let d = find_device(endpoint).ok_or("That microphone isn't connected any more.")?;
+    unsafe {
+        let store = d.OpenPropertyStore(STGM_READWRITE).map_err(|_| admin_msg())?;
+        let mut pv = PROPVARIANT::default();
+        (*pv.Anonymous.Anonymous).vt = VT_UI4;
+        (*pv.Anonymous.Anonymous).Anonymous.ulVal = u32::from(disabled);
+        store.SetValue(&PKEY_DISABLE_SYSFX, &pv).map_err(|_| admin_msg())?;
+        store.Commit().map_err(|_| admin_msg())?;
+    }
+    // The copy Windows' own Settings page writes next to it (best effort).
+    if let Some(guid) = endpoint_guid(endpoint) {
+        if let Ok((k, _)) = RegKey::predef(HKEY_LOCAL_MACHINE)
+            .create_subkey_with_flags(format!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\{guid}\FxProperties"), KEY_READ | KEY_WRITE)
+        {
+            let _ = k.set_value(FX_PROP_NAME, &u32::from(disabled));
+        }
+    }
+    Ok(())
+}
+
+/// Re-read until the value shows up (Windows applies it a moment later).
+fn wait_for_sysfx(endpoint: &str, disabled: bool) -> bool {
+    for _ in 0..12 {
+        if read_sysfx(endpoint) == disabled {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    false
+}
+
+/// Turn Windows "Audio enhancements" off (or back on) for one mic and prove it
+/// by reading the value back. Order: write directly (works for admins), else
+/// ask Windows for permission (UAC) for just this one change. Only `Ok` when
+/// the re-read shows the new value.
+pub(crate) fn set_sysfx(endpoint: &str, disabled: bool) -> Result<(), String> {
+    let direct = write_sysfx_in_process(endpoint, disabled);
+    if direct.is_ok() && wait_for_sysfx(endpoint, disabled) {
+        return Ok(());
+    }
+    if read_sysfx(endpoint) == disabled {
+        return Ok(());
+    }
+    run_elevated_helper(&["sysfx", endpoint, if disabled { "1" } else { "0" }])?;
+    if wait_for_sysfx(endpoint, disabled) {
+        Ok(())
+    } else {
+        Err("Windows still shows audio enhancements as on for this mic.".into())
+    }
+}
+
+/// Run this same exe with administrator rights for one change (Windows shows
+/// its normal permission prompt), wait for it, and map its exit code.
+fn run_elevated_helper(args: &[&str]) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+    use windows::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
+    let wide = |s: &std::ffi::OsStr| s.encode_wide().chain(std::iter::once(0)).collect::<Vec<u16>>();
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let params: String = std::iter::once("--fx-helper").chain(args.iter().copied()).map(|a| format!("\"{a}\"")).collect::<Vec<_>>().join(" ");
+    let (verb, file, params) = (wide("runas".as_ref()), wide(exe.as_os_str()), wide(params.as_ref()));
+    unsafe {
+        let mut info = SHELLEXECUTEINFOW { cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32, fMask: SEE_MASK_NOCLOSEPROCESS, ..Default::default() };
+        info.lpVerb = PCWSTR(verb.as_ptr());
+        info.lpFile = PCWSTR(file.as_ptr());
+        info.lpParameters = PCWSTR(params.as_ptr());
+        info.nShow = 0; // SW_HIDE
+        ShellExecuteExW(&mut info).map_err(|_| "Windows' permission prompt was closed, so nothing was changed.".to_string())?;
+        if info.hProcess.is_invalid() {
+            return Err("Windows didn't start the permission helper.".into());
+        }
+        let _ = WaitForSingleObject(info.hProcess, 60_000);
+        let mut code = 1u32;
+        let _ = GetExitCodeProcess(info.hProcess, &mut code);
+        let _ = CloseHandle(info.hProcess);
+        if code == 0 {
+            Ok(())
+        } else {
+            Err("The permission helper couldn't change it.".into())
+        }
+    }
+}
+
+/// `setup-coach-app.exe --fx-helper sysfx <endpoint> <0|1>`: runs elevated,
+/// changes exactly one value, exits 0 only if the read-back matches.
+pub fn fx_helper_main(args: &[String]) -> Option<i32> {
+    let i = args.iter().position(|a| a == "--fx-helper")?;
+    let rest = &args[i + 1..];
+    let code = match rest {
+        [what, endpoint, flag] if what == "sysfx" && crate::platform::is_capture_endpoint_id(endpoint) && (flag == "0" || flag == "1") => {
+            let disabled = flag == "1";
+            match write_sysfx_in_process(endpoint, disabled) {
+                Ok(()) if wait_for_sysfx(endpoint, disabled) => 0,
+                _ => 1,
+            }
+        }
+        _ => 2,
+    };
+    Some(code)
+}
+
 fn endpoint_volume(d: &IMMDevice) -> Option<f32> {
     unsafe { d.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None).ok()?.GetMasterVolumeLevelScalar().ok() }
 }
 
 /// Windows 11 "Voice Clarity" (deep noise suppression) state.
 fn voice_clarity(d: &IMMDevice) -> Option<bool> {
+    voice_clarity_effect(d).map(|(_, on)| on)
+}
+
+/// (user can change it, it is on) for the deep-noise-suppression effect.
+fn voice_clarity_effect(d: &IMMDevice) -> Option<(bool, bool)> {
     unsafe {
         let m: IAudioEffectsManager = d.Activate(CLSCTX_ALL, None).ok()?;
         let mut ptr: *mut AUDIO_EFFECT = std::ptr::null_mut();
         let mut n = 0u32;
         m.GetAudioEffects(&mut ptr, &mut n).ok()?;
         let effects = std::slice::from_raw_parts(ptr, n as usize);
-        let on = effects.iter().find(|e| e.id == AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION).map(|e| e.state == AUDIO_EFFECT_STATE_ON);
+        let found = effects
+            .iter()
+            .find(|e| e.id == AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION)
+            .map(|e| (e.canSetState.as_bool(), e.state == AUDIO_EFFECT_STATE_ON));
         CoTaskMemFree(Some(ptr as _));
-        on
+        found
     }
+}
+
+/// Switch Voice Clarity and prove it by reading it back.
+fn set_voice_clarity(endpoint: &str, on: bool) -> Result<(), String> {
+    let d = find_device(endpoint).ok_or("That microphone isn't connected any more.")?;
+    let Some((can_set, now)) = voice_clarity_effect(&d) else {
+        // No such effect on this mic: nothing to switch off.
+        return if on { Err("Voice Clarity isn't available on this mic.".into()) } else { Ok(()) };
+    };
+    if now == on {
+        return Ok(());
+    }
+    if !can_set {
+        return Err("Windows doesn't let apps change Voice Clarity for this mic.".into());
+    }
+    unsafe {
+        let m: IAudioEffectsManager = d.Activate(CLSCTX_ALL, None).map_err(|_| "Windows doesn't let apps change Voice Clarity for this mic.".to_string())?;
+        m.SetAudioEffectState(AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION, if on { AUDIO_EFFECT_STATE_ON } else { AUDIO_EFFECT_STATE_OFF })
+            .map_err(|_| "Windows wouldn't switch Voice Clarity for this mic.".to_string())?;
+    }
+    for _ in 0..8 {
+        if find_device(endpoint).and_then(|d| voice_clarity(&d)) == Some(on) {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    Err("Windows still shows Voice Clarity as on for this mic.".into())
 }
 
 fn find_device(id: &str) -> Option<IMMDevice> {
@@ -351,10 +503,11 @@ impl SystemInspector for WinSystem {
         match action {
             // Registry-backed endpoint settings: the exact key must open for writing.
             Action::DisableExclusiveMode { endpoint } | Action::DisableListen { endpoint } => props_key(endpoint, true).is_some(),
-            // Property-store / audio-effects / boost changes need the same rights; probe the shared parent key.
-            Action::DisableEnhancements { endpoint } | Action::DisableVoiceClarity { endpoint } | Action::SetMicBoost { endpoint, .. } => {
-                props_key(endpoint, true).is_some()
-            }
+            // Enhancements / Voice Clarity: if we aren't an administrator we ask
+            // Windows for permission (UAC) for just that change, and fall back to
+            // a guided step if it's refused, so always offer them.
+            Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. } => true,
+            Action::SetMicBoost { endpoint, .. } => props_key(endpoint, true).is_some(),
             _ => true,
         }
     }
@@ -377,21 +530,8 @@ impl SystemInspector for WinSystem {
                 let v: IAudioEndpointVolume = d.Activate(CLSCTX_ALL, None).map_err(|e| e.to_string())?;
                 v.SetMasterVolumeLevelScalar(volume.clamp(0.0, 1.0), std::ptr::null()).map_err(|e| e.to_string())
             },
-            Action::DisableEnhancements { endpoint } => unsafe {
-                let d = find_device(endpoint).ok_or("That microphone isn't connected any more.")?;
-                let store = d.OpenPropertyStore(STGM_READWRITE).map_err(|_| admin_msg())?;
-                let mut pv = PROPVARIANT::default();
-                (*pv.Anonymous.Anonymous).vt = VT_UI4;
-                (*pv.Anonymous.Anonymous).Anonymous.ulVal = 1;
-                store.SetValue(&PKEY_DISABLE_SYSFX, &pv).map_err(|_| admin_msg())?;
-                store.Commit().map_err(|_| admin_msg())
-            },
-            Action::DisableVoiceClarity { endpoint } => unsafe {
-                let d = find_device(endpoint).ok_or("That microphone isn't connected any more.")?;
-                let m: IAudioEffectsManager = d.Activate(CLSCTX_ALL, None).map_err(|_| "Voice Clarity can't be changed on this PC. Turn it off in Settings → System → Sound → your mic.".to_string())?;
-                m.SetAudioEffectState(AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION, AUDIO_EFFECT_STATE_OFF)
-                    .map_err(|_| "Turn off Voice Clarity in Settings → System → Sound → your mic → Audio enhancements.".to_string())
-            },
+            Action::DisableEnhancements { endpoint } => set_sysfx(endpoint, true),
+            Action::DisableVoiceClarity { endpoint } => set_voice_clarity(endpoint, false),
             Action::DisableListen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, false),
             Action::DisableExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, false),
             Action::DisableUsbSelectiveSuspend => {
@@ -454,21 +594,11 @@ impl SystemInspector for WinSystem {
                 let ev: IAudioEndpointVolume = d.Activate(CLSCTX_ALL, None).map_err(|e| e.to_string())?;
                 ev.SetMasterVolumeLevelScalar((v.value.as_f64().unwrap_or(1.0) as f32).clamp(0.0, 1.0), std::ptr::null()).map_err(|e| e.to_string())
             },
-            WinKey::Enhancements { endpoint } => unsafe {
-                let d = find_device(endpoint).ok_or_else(gone)?;
-                let store = d.OpenPropertyStore(STGM_READWRITE).map_err(|_| admin_msg())?;
-                let mut pv = PROPVARIANT::default();
-                (*pv.Anonymous.Anonymous).vt = VT_UI4;
-                (*pv.Anonymous.Anonymous).Anonymous.ulVal = u32::from(flag);
-                store.SetValue(&PKEY_DISABLE_SYSFX, &pv).map_err(|_| admin_msg())?;
-                store.Commit().map_err(|_| admin_msg())
-            },
-            WinKey::VoiceClarity { endpoint } => unsafe {
-                let d = find_device(endpoint).ok_or_else(gone)?;
-                let m: IAudioEffectsManager = d.Activate(CLSCTX_ALL, None).map_err(|_| "Voice Clarity can't be changed on this PC.".to_string())?;
-                m.SetAudioEffectState(AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRESSION, if flag { AUDIO_EFFECT_STATE_ON } else { AUDIO_EFFECT_STATE_OFF })
-                    .map_err(|_| "Windows didn't let us change Voice Clarity back. Change it in Settings → System → Sound → your mic.".to_string())
-            },
+            WinKey::Enhancements { endpoint } => {
+                find_device(endpoint).ok_or_else(gone)?;
+                set_sysfx(endpoint, flag)
+            }
+            WinKey::VoiceClarity { endpoint } => set_voice_clarity(endpoint, flag).map_err(|e| format!("{e} Change it in Settings → System → Sound → your mic.")),
             WinKey::Listen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, flag),
             WinKey::ExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, flag),
             WinKey::MicBoost { .. } => Ok(()),
