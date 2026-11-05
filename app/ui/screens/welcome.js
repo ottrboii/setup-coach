@@ -149,7 +149,7 @@ function obsCard(env, retry) {
       ? 'OBS\'s remote control is switched off.'
       : (o.error || 'We couldn\'t log in to OBS remote control.');
     fix = o.websocket_enabled === false
-      ? '<ol class="coach-steps"><li>In OBS, open <b>Tools → WebSocket Server Settings</b> (this is OBS's remote-control switch).</li><li>Tick <b>Enable WebSocket server</b> and press OK.</li><li>Come back and press "Check again".</li></ol>'
+      ? '<ol class="coach-steps"><li>In OBS, open <b>Tools → WebSocket Server Settings</b> (this is the OBS remote-control switch).</li><li>Tick <b>Enable WebSocket server</b> and press OK.</li><li>Come back and press "Check again".</li></ol>'
       : '';
   }
   const card = html(`

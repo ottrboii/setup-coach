@@ -13,7 +13,7 @@ export const STEPS = [
   { kind: 'read', secs: 11, title: 'Read this out loud', text: 'Use your normal streaming voice.', script: true },
   { kind: 'loud', secs: 3, title: 'Now get loud!', text: 'Laugh, cheer or yell like you just won a clutch round.' },
   { kind: 'typing', secs: 4, title: 'Type on your keyboard', text: "Type like you're in chat — don't talk." },
-  { kind: 'desk_tap', secs: 5, optional: true, title: 'Tap your desk twice', text: 'Tap the desk next to your mic stand, like you would bump it mid-game. Then sit still for a moment. Can''t do this right now? Skip it.' },
+  { kind: 'desk_tap', secs: 5, optional: true, title: 'Tap your desk twice', text: 'Tap the desk next to your mic stand, like you would bump it mid-game. Then sit still for a moment. Cannot do this right now? Skip it.' },
   { kind: 'cable_wiggle', secs: 4, title: 'Wiggle the mic cable', text: 'Keep talking while you gently wiggle the cable where it plugs in.' },
   { kind: 'moving', secs: 5, title: 'Lean back and look around', text: 'Keep talking while you lean back and turn your head, like mid-game.' },
 ];
