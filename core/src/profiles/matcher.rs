@@ -343,6 +343,12 @@ impl ProfileDb {
         Some(MatchResult { profile, confidence: Confidence::Generic, needs_questions: with_questions(profile) })
     }
 
+    /// Questions a specific mic profile needs answered, for a mic the user
+    /// picked by hand (the matcher only builds them for mics it recognised).
+    pub fn questions_for_mic(&self, id: &str) -> Vec<Question> {
+        self.mic(id).map(mic_questions).unwrap_or_default()
+    }
+
     /// Find a camera body by free text from the picker ("a6000", "Sony ZV-E10").
     pub fn find_camera_body(&self, query: &str) -> Option<&CameraBodyProfile> {
         let q = normalize(query);

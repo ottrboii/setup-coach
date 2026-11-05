@@ -82,6 +82,10 @@ export const api = {
   restoreBackup: (id) => call('restore_backup', { id }),
   previewRestore: (id) => call('preview_restore', { id }),
   obsRunning: () => call('obs_running'),
+  // What mic is plugged into this device?
+  listMicProfiles: () => call('list_mic_profiles'),
+  getMicBehind: (deviceId) => call('get_mic_behind', { deviceId }),
+  setMicBehind: (deviceId, choice) => call('set_mic_behind', { deviceId, choice }),
   recordFinal: (deviceId, context, constraints) => call('record_final', { deviceId, context, constraints }),
   getAb: (deviceId) => call('get_ab', { deviceId }),
   exportAb: (deviceId) => call('export_ab', { deviceId }),

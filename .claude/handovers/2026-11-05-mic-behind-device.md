@@ -1,3 +1,7 @@
+# Handover: "What mic is behind this device?" (DONE 2026-11-05, branch app-mic-behind-device)
+
+Status: built end to end (see PR). Backend `list_mic_profiles` / `get_mic_behind` / `set_mic_behind` (app/src-tauri/src/app/micchoice.rs, vault item `mic_choice`), `mic_behind` in setup.json, chosen profile drives `get_environment`, `mic_context`, auto gain. UI: app/ui/micpicker.js used on Welcome (gates the scan), scan, mic test (gates Start) and mic report (re-analyses the last recording on change). Documented in app/API.md. Still needs Otto's real PC: pick RE20 on "Chat Mic" and look at the thresholds/questions.
+Original brief below.
 # Handover: "What mic is behind this device?" (not started)
 
 From Otto's first real run (2026-11-05). Otto picked the right device ("Chat Mic", a GoXLR input) but the GoXLR hides the real mic. Decision (coordinator): no auto-guessing. Ask the user.

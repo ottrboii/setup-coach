@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, icons, loading, errorBanner } from '../components.js';
 import { state, selectedMic } from '../state.js';
+import { openMicChoice, yourMicLine } from '../micpicker.js';
 
 const CONFIDENCE = {
   exact: ['ok', 'Recognised'],
@@ -61,9 +62,27 @@ async function showEnv(body, go, refreshNav, fetch = false) {
   wrap.append(obsCard(env, () => showEnv(body, go, refreshNav, true)));
 
   const devices = html(`<div class="grid-2"></div>`);
-  devices.append(devicePicker('Microphone', icons.mic, env.mics, state.micId, (id) => { state.micId = id; renderQuestions(); }));
+  devices.append(devicePicker('Microphone', icons.mic, env.mics, state.micId, (id) => { state.micId = id; renderMicChoice(); renderQuestions(); }));
   devices.append(devicePicker('Camera', icons.cam, env.cameras, state.cameraId, (id) => { state.cameraId = id; }));
   wrap.append(devices);
+
+  // What mic is plugged into this? Asked once for interface/GoXLR-type or generic-named devices.
+  const choiceBox = html('<div class="stack" id="mic-choice"></div>');
+  wrap.append(choiceBox);
+  function renderMicChoice(attention = false) {
+    choiceBox.innerHTML = '';
+    const mic = selectedMic();
+    if (!mic) return;
+    const after = () => { renderMicChoice(); renderQuestions(); };
+    if (mic.needs_mic_choice) {
+      openMicChoice(choiceBox, mic, { required: true, onDone: after });
+      if (attention) choiceBox.firstElementChild?.classList.add('needs-attention');
+    } else if (mic.mic_choice) {
+      const card = html('<div class="card flat stack"><div class="slot"></div></div>');
+      card.querySelector('.slot').append(yourMicLine(mic, () => openMicChoice(choiceBox, mic, { onDone: after })));
+      choiceBox.append(card);
+    }
+  }
 
   const qBox = html('<div class="stack"></div>');
   wrap.append(qBox);
@@ -71,7 +90,8 @@ async function showEnv(body, go, refreshNav, fetch = false) {
     qBox.innerHTML = '';
     const mic = selectedMic();
     // Real backend: ProfileMatch.questions (API.md). Browser mock: needs_questions.
-    const qs = mic?.profile?.questions || mic?.profile?.needs_questions || [];
+    // The "which mic is it?" questions (no answer list) are the picker's job now.
+    const qs = (mic?.profile?.questions || mic?.profile?.needs_questions || []).filter((q) => !(q.id === 'which_mic_on_interface' || (q.id === 'which_model' && !(q.options && q.options.length))));
     const extra = mic && /focusrite|goxlr|scarlett|wave xlr|rodecaster|umc|interface|analogue/i.test(mic.name)
       ? [{ id: 'gain_at_max', prompt: 'Is the gain knob for your mic turned all (or almost all) the way up?', options: ['Yes', 'No', "I'm not sure"] }]
       : [];
@@ -80,12 +100,19 @@ async function showEnv(body, go, refreshNav, fetch = false) {
     qBox.append(html(`<div><h2>A couple of quick questions</h2><p class="muted">So we can give advice for your exact gear. Tap an answer — "not sure" is fine.</p></div>`));
     for (const q of all) qBox.append(questionCard(q));
   }
+  renderMicChoice();
   renderQuestions();
 
   const next = html(`<div class="row"><button class="btn primary lg">Run the free quick scan</button><span class="subtle">Checks Windows and OBS settings — takes a few seconds.</span></div>`);
   next.querySelector('button').addEventListener('click', () => {
     // A button must never fail silently: if going on throws, say so and log it.
     try {
+      // Confirm what is plugged in before we scan and test ("Not sure" counts).
+      if (selectedMic()?.needs_mic_choice) {
+        renderMicChoice(true);
+        choiceBox.scrollIntoView?.({ block: 'center' });
+        return;
+      }
       go('scan');
     } catch (e) {
       api.logUi('error', 'welcome.go_scan', e && e.stack ? e.stack : e);

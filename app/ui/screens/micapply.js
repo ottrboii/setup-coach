@@ -64,18 +64,56 @@ export async function render(root, { go }) {
     page.append(advanced('Advanced: exact settings', html(`<pre class="json">${esc(JSON.stringify(c, null, 2))}</pre>`)));
   }
 
+  // Applying must never end in a dead screen: every failure says what happened,
+  // keeps the button usable and is logged (api.call logs backend rejections).
+  function showApplyError(btn, e, retry) {
+    page.querySelector('.apply-error')?.remove();
+    const box = html('<div class="apply-error"></div>');
+    box.append(errorBanner(e, retry));
+    page.append(box);
+    btn.disabled = false;
+    btn.textContent = 'Apply to OBS';
+  }
+
   async function apply(ev) {
     const btn = ev.currentTarget;
     btn.disabled = true;
+    page.querySelector('.apply-error')?.remove();
     btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Applying…';
+    let res;
     try {
-      const res = await api.applyMicChain(r.chain, state.obsInput);
-      if (res.failed?.length) toast('Some settings need a hand', res.failed.map((f) => f.error).join(' '), 'warn');
-      btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Checking the result…';
+      res = await api.applyMicChain(r.chain, state.obsInput);
+    } catch (e) {
+      showApplyError(btn, e, () => btn.click());
+      return;
+    }
+    const failed = res && res.failed ? res.failed : [];
+    if (failed.length && !(res.applied && res.applied.length)) {
+      // Nothing took: don't carry on to a before/after of something that wasn't applied.
+      api.logUi('error', 'micapply.apply', failed.map((f) => f.error).join(' '));
+      showApplyError(btn, new Error(failed.map((f) => f.error).join(' ') || "Your settings couldn't be applied."), () => btn.click());
+      return;
+    }
+    if (failed.length) toast('Some settings need a hand', failed.map((f) => f.error).join(' '), 'warn');
+    await verify(btn, res);
+  }
+
+  async function verify(btn, res) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Checking the result…';
+    try {
       state.micVerify = await api.verifyMic();
       drawVerify(res);
     } catch (e) {
-      page.append(errorBanner(e));
+      // Applied, but the check failed: say so, offer the check again and a way on.
+      api.logUi('error', 'micapply.verify', e && e.stack ? e.stack : e);
+      page.querySelector('.apply-error')?.remove();
+      const box = html('<div class="apply-error stack"></div>');
+      box.append(errorBanner(new Error("Your settings are applied, but we couldn't check the result. " + (e && e.message ? e.message : '')), () => verify(btn, res)));
+      const next = html('<div class="row"><button class="btn lg" id="skip">Continue without the check</button></div>');
+      next.querySelector('#skip').addEventListener('click', () => go('camera'));
+      box.append(next);
+      page.append(box);
       btn.disabled = false;
       btn.textContent = 'Apply to OBS';
     }
