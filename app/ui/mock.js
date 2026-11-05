@@ -214,7 +214,7 @@ function cameraReport(constraints, cameraId) {
         ], notes: [] }
     : { class: 'full_uvc',
         uvc: { auto_exposure: false, ae_priority: false, exposure_log2: -5.64, target_shutter_s: 0.02, shutter_exact: true, gain: 32, auto_wb: false, wb_kelvin: 4300,
-               auto_focus: false, focus: 30, sharpness: 110, saturation: 120, backlight_comp: constraints.includes('cant_move_backlight') ? 1 : 0, powerline_hz: 50, hdr: null },
+               auto_focus: false, focus: 30, sharpness: 110, saturation: 120, backlight_comp: constraints.includes('cant_move_backlight') ? 1 : 0, powerline_hz: mainsOverride || 50, hdr: null },
         format: { width: 1920, height: 1080, fps: 30, format: 'mjpeg' }, light_limited: constraints.includes('cant_add_light'),
         coach_steps: ['Put your main light in front of you, slightly above eye level.', 'Close the blinds behind you, or turn your desk so the window is to the side.'],
         notes: constraints.includes('cant_add_light') ? ['Your room is dim, so we chose 30 fps and a bit more gain for a brighter picture.'] : [] };
@@ -255,6 +255,14 @@ export function createMock() {
   let mockAbError = null;
   try { mockAbError = new URLSearchParams(location.search).get('mock_ab_error'); } catch { /* not in a browser */ }
   let abFinal = null;
+  // ?mock_busy_camera=obs (OBS holds it, we can free it) | other (Zoom holds it; frees itself after a few polls) | black (unknown holder)
+  let mockBusy = null;
+  try { mockBusy = new URLSearchParams(location.search).get('mock_busy_camera'); } catch { /* not in a browser */ }
+  let busyPolls = 0;
+  let mainsOverride = null;
+  let camFreed = false;
+  const camBusy = () => !!mockBusy && !camFreed && !(mockBusy === 'other' && busyPolls > 3);
+  const noPicture = () => Object.assign(new Error("We can't see your camera: the picture is black. Another app is probably using it."), { code: 'no_picture', reason: 'black' });
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
   const bi = (kind, label) => ({ kind, label });
   const backups = [
@@ -372,6 +380,7 @@ export function createMock() {
     async stop_preview() { return null; },
     async camera_state() { await wait(200); return { auto_exposure: true, ae_priority: true, auto_wb: true, auto_focus: true, requested_fps: 30, requested_width: 1920, requested_height: 1080, format: 'mjpeg' }; },
     async start_camera_test({ cameraId }) {
+      if (camBusy()) throw noPicture();
       lastCameraId = cameraId; camStep = 'neutral';
       clearInterval(camTimer);
       camTimer = setInterval(() => emit('camera-preview', frame()), 250);
@@ -379,7 +388,16 @@ export function createMock() {
       await wait(200);
       return null;
     },
-    async capture_camera_step({ step, seconds }) { camStep = step; await wait(Math.min(seconds, 4) * 1000); return { frames: Math.round(seconds * 4), faces_found: Math.round(seconds * 4) - 1 }; },
+    async camera_picture_status() {
+      await wait(300); busyPolls++;
+      const users = mockBusy === 'obs' ? [{ name: 'OBS Studio', confirmed: true }] : mockBusy === 'other' ? [{ name: 'Zoom', confirmed: true }] : [];
+      return { live: !camBusy(), reason: camBusy() ? 'black' : null, users, obs: { running: mockBusy === 'obs', connected: mockBusy === 'obs', source: mockBusy === 'obs' ? 'Webcam' : null, holding: mockBusy === 'obs' && !camFreed, can_free: mockBusy === 'obs' && !camFreed }, freed_source: camFreed ? 'Webcam' : null };
+    },
+    async free_camera() { await wait(900); camFreed = true; return { ok: true, source: 'Webcam', message: "Your camera is free. We'll give it back to OBS when we're done." }; },
+    async restore_freed_camera() { await wait(300); const was = camFreed; camFreed = false; return { ok: true, source: was ? 'Webcam' : null, message: was ? 'Your camera is back in OBS.' : 'Nothing to give back.' }; },
+    async get_mains() { return { hz: mainsOverride || 50, source: mainsOverride ? 'override' : 'time_zone', detected_hz: 50 }; },
+    async set_mains({ hz }) { mainsOverride = hz || null; return { hz: mainsOverride || 50, source: mainsOverride ? 'override' : 'time_zone', detected_hz: 50 }; },
+    async capture_camera_step({ step, seconds }) { if (camBusy()) throw noPicture(); camStep = step; await wait(Math.min(seconds, 4) * 1000); return { frames: Math.round(seconds * 4), faces_found: Math.round(seconds * 4) - 1 }; },
     async finish_camera_test({ constraints: cs }) {
       clearInterval(camTimer); await wait(1200);
       const r = cameraReport(cs || [], lastCameraId);

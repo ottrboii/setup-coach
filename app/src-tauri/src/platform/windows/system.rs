@@ -2,12 +2,11 @@
 
 use super::audio::capture_endpoints;
 use super::{com_init, run_hidden, running_processes};
-use crate::platform::{mains_for_country, GainControl, SystemInspector, WinKey, WinValue};
+use crate::platform::{detect_mains, GainControl, MainsGuess, SystemInspector, WinKey, WinValue};
 use coach_core::system::{
     Action, AudioEndpoint, CameraSystemState, Connection, DuckingPreference, GpuVendor, HardwareInfo, KnownProcessingApps, NetworkInfo,
     WindowsAudioState,
 };
-use coach_core::video::MainsHz;
 use std::path::PathBuf;
 use windows::core::GUID;
 use windows::Win32::Foundation::PROPERTYKEY;
@@ -111,6 +110,34 @@ fn reg_u32(root: winreg::HKEY, path: &str, name: &str) -> Option<u32> {
 
 fn reg_str(root: winreg::HKEY, path: &str, name: &str) -> Option<String> {
     RegKey::predef(root).open_subkey(path).ok()?.get_value::<String, _>(name).ok()
+}
+
+/// Apps Windows says are using the webcam right now: the privacy log
+/// (Settings > Privacy > Camera) keeps `LastUsedTimeStart` and sets
+/// `LastUsedTimeStop` to 0 while the camera is open. Returns raw entry names
+/// (exe paths with `#` for `\`, or packaged-app ids).
+fn webcam_in_use_now() -> Vec<String> {
+    let base = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
+    let mut out = Vec::new();
+    let Ok(root) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(base, KEY_READ) else { return out };
+    let mut scan = |key: &RegKey| {
+        for name in key.enum_keys().flatten() {
+            if name.eq_ignore_ascii_case("NonPackaged") {
+                continue;
+            }
+            let Ok(k) = key.open_subkey_with_flags(&name, KEY_READ) else { continue };
+            let start: u64 = k.get_value("LastUsedTimeStart").unwrap_or(0);
+            let stop: u64 = k.get_value("LastUsedTimeStop").unwrap_or(1);
+            if start > 0 && stop == 0 {
+                out.push(name);
+            }
+        }
+    };
+    scan(&root);
+    if let Ok(np) = root.open_subkey_with_flags("NonPackaged", KEY_READ) {
+        scan(&np);
+    }
+    out
 }
 
 fn consent_allowed(cap: &str) -> bool {
@@ -298,12 +325,18 @@ impl SystemInspector for WinSystem {
         }
     }
 
-    fn mains(&self) -> MainsHz {
-        reg_str(HKEY_CURRENT_USER, r"Control Panel\International\Geo", "Name").map(|c| mains_for_country(&c)).unwrap_or(MainsHz::Hz50)
+    fn mains_guess(&self) -> MainsGuess {
+        let tz = reg_str(HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\TimeZoneInformation", "TimeZoneKeyName");
+        let region = reg_str(HKEY_CURRENT_USER, r"Control Panel\International\Geo", "Name");
+        detect_mains(tz.as_deref(), region.as_deref())
     }
 
     fn obs_running(&self) -> bool {
         running_processes().iter().any(|p| p == "obs64.exe" || p == "obs32.exe" || p == "obs.exe")
+    }
+
+    fn camera_users(&self) -> Vec<crate::platform::CameraUser> {
+        crate::platform::merge_camera_users(&webcam_in_use_now(), &running_processes())
     }
 
     fn obs_config_dir(&self) -> Option<PathBuf> {

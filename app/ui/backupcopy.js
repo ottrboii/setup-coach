@@ -5,6 +5,7 @@ const KIND_WORDS = {
   obs_filters: 'The filters on a mic in OBS',
   obs_source_settings: 'How a source is set up in OBS',
   obs_mute: 'Whether a source is muted in OBS',
+  obs_camera_active: 'Whether OBS is holding your camera open',
   obs_monitoring: 'Whether you hear a source through OBS',
   obs_setting: 'A stream or recording setting in OBS',
   obs_video: 'The picture size OBS streams at',

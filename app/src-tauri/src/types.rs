@@ -247,6 +247,119 @@ impl From<AbError> for String {
     }
 }
 
+/// Why there is no usable camera picture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PictureReason {
+    /// Frames arrive but they are all black.
+    Black,
+    /// Frames arrive but are one flat colour / frozen.
+    Blank,
+    /// The camera could not be opened or read.
+    CantOpen,
+    /// The camera did not answer in time.
+    Timeout,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CameraErrorCode {
+    /// No usable picture (see `reason`): nothing was analysed.
+    NoPicture,
+    Other,
+}
+
+/// Error of `start_camera_test`, `capture_camera_step` and `finish_camera_test`:
+/// `{ code, reason?, message }`. `message` is plain English (fallback text).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CameraError {
+    pub code: CameraErrorCode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<PictureReason>,
+    pub message: String,
+}
+
+impl CameraError {
+    pub fn no_picture(reason: PictureReason) -> Self {
+        let message = match reason {
+            PictureReason::Black | PictureReason::Blank => "We can't see your camera: the picture is black. Another app is probably using it.",
+            PictureReason::CantOpen => "We can't open your camera. Another app is probably using it.",
+            PictureReason::Timeout => "Your camera isn't answering. Another app is probably using it.",
+        };
+        CameraError { code: CameraErrorCode::NoPicture, reason: Some(reason), message: message.into() }
+    }
+}
+
+impl std::fmt::Display for CameraError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<String> for CameraError {
+    fn from(message: String) -> Self {
+        CameraError { code: CameraErrorCode::Other, reason: None, message }
+    }
+}
+
+impl From<&str> for CameraError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+impl From<CameraError> for String {
+    fn from(e: CameraError) -> String {
+        e.message
+    }
+}
+
+/// How OBS stands towards the camera (part of `PictureStatus`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ObsCameraHold {
+    pub running: bool,
+    /// We can talk to OBS (WebSocket).
+    pub connected: bool,
+    /// The OBS video capture source that uses this camera.
+    pub source: Option<String>,
+    /// OBS has that source's camera open right now.
+    pub holding: bool,
+    /// "Free it for me" can work: connected, source found, and OBS holds it.
+    pub can_free: bool,
+}
+
+/// `camera_picture_status`: can we see the camera, and if not, who has it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PictureStatus {
+    pub live: bool,
+    pub reason: Option<PictureReason>,
+    /// Apps that have or probably have the camera, confirmed ones first.
+    pub users: Vec<crate::platform::CameraUser>,
+    pub obs: ObsCameraHold,
+    /// We released an OBS source and have not put it back yet.
+    pub freed_source: Option<String>,
+}
+
+/// `free_camera` / `restore_freed_camera` result.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FreeCameraResult {
+    pub ok: bool,
+    pub source: Option<String>,
+    /// Plain-language outcome (shown when `ok` is false).
+    pub message: String,
+}
+
+/// `get_mains` / `set_mains`: the power-grid frequency used for anti-flicker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MainsInfo {
+    /// In use: 50 or 60.
+    pub hz: u8,
+    /// "override" | "time_zone" | "region" | "default".
+    pub source: crate::platform::MainsSource,
+    /// What we would use without an override.
+    pub detected_hz: u8,
+}
+
 /// What `restore_backup` would do with one saved item (`preview_restore`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct RestorePreviewItem {
@@ -371,6 +484,8 @@ pub mod events {
     pub const COACH_CAMERA_OVERLAY: &str = "coach-camera-overlay";
     pub const MIC_LEVEL: &str = "mic-level";
     pub const CAMERA_PREVIEW: &str = "camera-preview";
+    /// `{ live: bool, reason?: PictureReason }`, sent when the camera picture is lost or comes back.
+    pub const CAMERA_PICTURE: &str = "camera-picture";
     pub const HEALTH_ALERT: &str = "health-alert";
     pub const HEALTH_SAMPLE: &str = "health-sample";
 }

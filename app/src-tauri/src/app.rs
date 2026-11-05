@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 mod ab;
+mod camera_busy;
 mod coaching;
 mod vault_ops;
 pub use ab::{match_gains, read_clip, slug, TakeMeta};
@@ -109,6 +110,10 @@ struct Inner {
     /// Vault keys already backed up during the running coach step (auto gain
     /// writes many times; one backup per step).
     coach_backed_up: Vec<String>,
+    /// OBS video source we released so the camera is free (put back later).
+    freed_camera: Option<String>,
+    /// Last `camera-picture` event sent: true = live.
+    picture_live: Option<bool>,
 }
 
 pub struct AppCore {
@@ -120,6 +125,8 @@ pub struct AppCore {
     pub health_interval: Duration,
     /// Interval between camera frames during a test step.
     pub frame_interval: Duration,
+    /// How long one camera read may take before we call the camera unresponsive.
+    pub grab_timeout: Duration,
     /// Interval between live-coaching ticks (~8 updates/s).
     pub coach_tick: Duration,
     /// Look for the GoXLR Utility daemon on localhost (off in tests).
@@ -141,6 +148,7 @@ impl AppCore {
             emitter,
             health_interval: Duration::from_secs(2),
             frame_interval: Duration::from_millis(250),
+            grab_timeout: Duration::from_secs(6),
             coach_tick: Duration::from_millis(125),
             goxlr_autodetect: AtomicBool::new(cfg!(windows)),
             obs: tokio::sync::Mutex::new(None),
@@ -903,28 +911,16 @@ impl AppCore {
         self.platform.camera.read_state(camera_id)
     }
 
-    async fn grab(&self, camera_id: &str, source: Option<&str>) -> R<video::Frame> {
-        if let (Some(src), Some(o)) = (source, self.obs().await) {
-            if let Ok(bytes) = obs::screenshot(o.as_ref(), src, 640).await {
-                return camera::decode_image(&bytes, 0.0);
-            }
-        }
-        let cam = self.platform.camera.clone();
-        let id = camera_id.to_string();
-        tokio::task::spawn_blocking(move || cam.grab_frame(&id)).await.map_err(|e| e.to_string())?
-    }
-
-    pub async fn start_camera_test(self: &Arc<Self>, camera_id: &str) -> R<()> {
+    pub async fn start_camera_test(self: &Arc<Self>, camera_id: &str) -> Result<(), CameraError> {
         self.stop_camera_preview();
-        let source = match self.obs().await {
-            Some(o) => {
-                let name = self.platform.camera.list().into_iter().find(|c| c.id == camera_id).map(|c| c.name).unwrap_or_default();
-                obs::read_state(o.as_ref(), self.obs_dir().as_deref()).await.ok().and_then(|s| obs_source_for_camera(&s, &name))
-            }
-            None => None,
-        };
-        // Make sure we can get a picture at all before starting.
-        self.grab(camera_id, source.as_deref()).await?;
+        let source = self.camera_obs_source(camera_id).await;
+        // Make sure there is a real picture before starting (a camera another
+        // app holds gives black frames or nothing).
+        if let Err(reason) = self.grab_checked(camera_id, source.as_deref()).await {
+            self.note_picture(Some(reason));
+            return Err(CameraError::no_picture(reason));
+        }
+        self.note_picture(None);
         let requested_fps = self.camera_state(camera_id).map(|s| s.requested_fps).unwrap_or(30.0);
         let running = Arc::new(AtomicBool::new(true));
         {
@@ -942,10 +938,14 @@ impl AppCore {
         let id = camera_id.to_string();
         tokio::spawn(async move {
             while running.load(Ordering::SeqCst) {
-                if let Ok(f) = me.grab(&id, source.as_deref()).await {
-                    if let Some(url) = camera::jpeg_data_url(&camera::downscale(&f, 480)) {
-                        me.emitter.emit(crate::types::events::CAMERA_PREVIEW, json!({ "image": url, "paper_guide": camera::PAPER_GUIDE }));
+                match me.grab_checked(&id, source.as_deref()).await {
+                    Ok(f) => {
+                        me.note_picture(None);
+                        if let Some(url) = camera::jpeg_data_url(&camera::downscale(&f, 480)) {
+                            me.emitter.emit(crate::types::events::CAMERA_PREVIEW, json!({ "image": url, "paper_guide": camera::PAPER_GUIDE }));
+                        }
                     }
+                    Err(reason) => me.note_picture(Some(reason)),
                 }
                 tokio::time::sleep(Duration::from_millis(250)).await;
             }
@@ -959,7 +959,7 @@ impl AppCore {
         }
     }
 
-    pub async fn capture_camera_step(&self, step: TestStep, seconds: f64) -> R<CaptureStepResult> {
+    pub async fn capture_camera_step(&self, step: TestStep, seconds: f64) -> Result<CaptureStepResult, CameraError> {
         let (id, source, started, fps) = {
             let inner = self.inner.lock().unwrap();
             let s = inner.camera.as_ref().ok_or("Start the camera test first.")?;
@@ -967,10 +967,21 @@ impl AppCore {
         };
         let n = ((seconds * 4.0).round() as usize).max(3);
         let mut frames = Vec::with_capacity(n);
+        let mut failed = None;
         let mut faces = 0;
         let base_index = self.inner.lock().unwrap().camera.as_ref().map(|s| s.frames.len()).unwrap_or(0);
         for k in 0..n {
-            let raw = self.grab(&id, source.as_deref()).await?;
+            let raw = match self.grab_checked(&id, source.as_deref()).await {
+                Ok(r) => r,
+                Err(reason) => {
+                    // A dropped frame is fine; a step with no picture at all is not.
+                    failed = Some(reason);
+                    if k + 1 < n {
+                        tokio::time::sleep(self.frame_interval).await;
+                    }
+                    continue;
+                }
+            };
             let small = camera::downscale(&raw, ANALYSIS_WIDTH);
             let face = self.platform.camera.detect_face(&raw).map(|r| camera::scale_rect(r, (raw.width, raw.height), (small.width, small.height)));
             let mut f = small;
@@ -993,13 +1004,18 @@ impl AppCore {
             }
         }
         let count = frames.len();
+        if count == 0 {
+            let reason = failed.unwrap_or(PictureReason::CantOpen);
+            self.note_picture(Some(reason));
+            return Err(CameraError::no_picture(reason));
+        }
         let mut inner = self.inner.lock().unwrap();
         let s = inner.camera.as_mut().ok_or("The camera test was stopped.")?;
         s.frames.extend(frames);
         Ok(CaptureStepResult { frames: count, faces_found: faces })
     }
 
-    pub fn finish_camera_test(&self, constraints: Vec<Constraint>) -> R<CameraReport> {
+    pub fn finish_camera_test(&self, constraints: Vec<Constraint>) -> Result<CameraReport, CameraError> {
         // Frames stay in the session so the UI can call this again with new
         // constraints ("I can't add a light") without re-capturing.
         self.stop_camera_preview();
@@ -1014,9 +1030,14 @@ impl AppCore {
         let session_camera = camera_id.clone();
         let class = self.camera_class(&camera_id);
         let state = self.camera_state(&camera_id).unwrap_or_default();
-        let mains = self.platform.system.mains();
+        let mains = self.mains();
         let capture = VideoTestCapture { frames };
-        let (metrics, findings) = video::analyze(&capture, &state, class, mains);
+        // Never analyse a capture without a real picture: no findings, no plan.
+        let (metrics, findings, _live) = video::analyze_live(&capture, &state, class, mains).map_err(|np| {
+            let reason = camera_busy::reason_of(np);
+            self.note_picture(Some(reason));
+            CameraError::no_picture(reason)
+        })?;
         let settings = video::recommend_settings(&metrics, &state, class, mains, &constraints);
         let score = coach_core::score::score_area(Area::Camera, &findings);
         let report = CameraReport { metrics, findings, settings, score, class };
