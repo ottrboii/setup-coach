@@ -37,6 +37,10 @@ pub struct FakeObsState {
     pub fail: Vec<String>,
     /// Output (scaled) resolution, `SetVideoSettings`.
     pub output_size: (u32, u32),
+    /// Inputs whose device is released ("Deactivate" pressed in OBS).
+    pub inactive: std::collections::HashSet<String>,
+    /// Screenshots come back black even for an active source.
+    pub black_screenshot: bool,
 }
 
 pub struct FakeObs {
@@ -234,8 +238,26 @@ impl ObsApi for FakeObs {
             }
             "GetStats" => Ok(st.stats.clone()),
             "GetStreamStatus" => Ok(st.stream.clone()),
+            "GetSourceActive" => {
+                input_idx.ok_or("no input")?;
+                Ok(json!({ "videoActive": !st.inactive.contains(&name), "videoShowing": true }))
+            }
+            "PressInputPropertiesButton" => {
+                input_idx.ok_or("no input")?;
+                if d["propertyName"].as_str() != Some("activate") {
+                    return Err("no such button".into());
+                }
+                if !st.inactive.remove(&name) {
+                    st.inactive.insert(name);
+                }
+                Ok(Value::Null)
+            }
             "GetSourceScreenshot" => {
-                let f = crate::platform::mock::synthetic_frame(0.9, 0.0);
+                let f = if st.black_screenshot || st.inactive.contains(&name) {
+                    coach_core::video::Frame::solid(320, 240, [0, 0, 0], 0.0)
+                } else {
+                    crate::platform::mock::synthetic_frame(0.9, 0.0)
+                };
                 let jpeg = crate::camera::encode_jpeg(&f, 80).map_err(|e| e.to_string())?;
                 Ok(json!({ "imageData": format!("data:image/jpg;base64,{}", base64::Engine::encode(&base64::engine::general_purpose::STANDARD, jpeg)) }))
             }

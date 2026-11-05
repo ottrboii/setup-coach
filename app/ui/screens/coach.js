@@ -61,6 +61,8 @@ export async function render(root, { go, refreshNav }) {
     destroyed = true;
     document.body.classList.remove('coach-done');
     stopLive();
+    // Give a camera we freed from OBS back now that the live coaching is over.
+    if (state.cameraFreed) { state.cameraFreed = false; state.keepCameraFree = false; api.restoreFreedCamera().catch(() => {}); }
   }
 
   // --------------------------------------------------------------- one step
@@ -262,6 +264,14 @@ export async function render(root, { go, refreshNav }) {
 
     unlisten.push(await on('coach-update', onUpdate));
     if (isCamera) unlisten.push(await on('coach-camera-overlay', (d) => { if (my === session && overlay) overlay.update(d); }));
+    if (isCamera) {
+      unlisten.push(await on('camera-picture', (p) => {
+        if (my !== session || p.live) return;
+        // Never coach from a black picture: say so instead.
+        $('.coach-headline').textContent = 'We lost sight of your camera';
+        $('.coach-detail').textContent = "Another app may have grabbed it. Go back to the camera check and we'll sort it out.";
+      }));
+    }
     if (my !== session || destroyed) return;
     try {
       await api.startCoach(step);

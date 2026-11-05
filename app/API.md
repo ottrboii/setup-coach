@@ -103,15 +103,47 @@ changes are coached, never applied.
 | Command | Args | Returns |
 |---|---|---|
 | `camera_state` | `{ cameraId: string }` | `CameraState` (core video) |
-| `start_camera_test` | `{ cameraId: string }` | `()` – emits `camera-preview` `{ image: string /* JPEG data URL, 480 px wide */, paper_guide: [x0, y0, x1, y1] /* fractions */ }` ~4/s until `finish_camera_test` |
+| `start_camera_test` | `{ cameraId: string }` | `()` (rejects with `CameraError`, below) – emits `camera-preview` `{ image: string /* JPEG data URL, 480 px wide */, paper_guide: [x0, y0, x1, y1] /* fractions */ }` ~4/s until `finish_camera_test` |
 | `capture_camera_step` | `{ step: "neutral" \| "turn_head" \| "hold_paper" \| "lean_in_out", seconds: number }` | `{ frames: number, faces_found: number }` |
 | `finish_camera_test` | `{ constraints: Constraint[] }` | `CameraReport` – frames are kept, so call again with new constraints to recalibrate (there is no `rescan_camera`) |
 | `apply_camera_settings` | `{ cameraId: string, settings: CameraSettings }` | `ApplyResult` |
+| `camera_picture_status` | `{ cameraId: string }` | `PictureStatus` – one live probe: can we see the camera, and who has it? (added 2026-11-05) |
+| `free_camera` | `{ cameraId: string }` | `FreeCameraResult` – "Free it for me": releases the camera from OBS' video capture source (its own Deactivate button via obs-websocket `PressInputPropertiesButton`), after a vault backup (`obs_camera_active`) |
+| `restore_freed_camera` | `()` | `FreeCameraResult` – gives it back (presses the button again only if the source is still inactive). Safe to call any time; `ok: true, source: null` = nothing to give back |
+| `get_mains` / `set_mains` | `()` / `{ hz: 50 \| 60 \| null }` | `MainsInfo` – power-grid frequency for anti-flicker; `null` clears the user's choice |
 
 ```ts
 CameraReport = { metrics: VideoMetrics, findings: Finding[], settings: CameraSettings,
                  score: Score, class: CameraClass }
 ```
+
+**No usable picture (added 2026-11-05).** A webcam can be opened by one app at a time; when OBS,
+Teams, Zoom... hold it we get black or flat frames, an open error or a hang. Such frames are never
+analysed: `start_camera_test`, `capture_camera_step` and `finish_camera_test` reject with a
+`CameraError` instead of ever returning findings or a plan from them.
+```ts
+CameraError = { code: "no_picture" | "other", reason?: PictureReason, message: string /* plain English fallback */ }
+PictureReason = "black" | "blank" | "cant_open" | "timeout"
+PictureStatus = { live: boolean, reason: PictureReason | null,
+                  users: { name: string /* "OBS Studio", "Zoom"... */, confirmed: boolean /* Windows says it is using the camera right now */ }[],
+                  obs: { running: boolean, connected: boolean,
+                         source: string | null,      // the OBS video capture source using this camera
+                         holding: boolean,           // OBS has that source's camera open
+                         can_free: boolean },        // "Free it for me" can work
+                  freed_source: string | null }      // we released this OBS source and have not put it back yet
+FreeCameraResult = { ok: boolean, source: string | null, message: string /* plain English, show when !ok */ }
+MainsInfo = { hz: 50 | 60, source: "override" | "time_zone" | "region" | "default", detected_hz: 50 | 60 }
+```
+Flow: on `no_picture` the UI shows "Your camera is being used by X, so we can't see it" and polls
+`camera_picture_status` (~2 s) until `live`, then restarts the test by itself; options are
+`free_camera` ("Free it for me"), "I'll close it myself" (just keep polling) and "I can't do this"
+(skip the camera). The camera is a `restore_freed_camera` call away from going back to OBS (the UI
+calls it when leaving the camera/coach screens); the vault entry `obs_camera_active` undoes it too.
+Event `camera-picture` `{ live: boolean, reason?: PictureReason }` is sent when the picture is lost
+or returns, during the preview and live camera coaching (coaching skips unusable frames).
+The mains frequency comes from the Windows time zone first (a PC set to a US region sitting in Europe
+is 50 Hz), then the region, then 50 Hz; the user's choice (`set_mains`, under Advanced) wins.
+`finish_camera_test` and the live flicker coach use it.
 Frames come from OBS (`GetSourceScreenshot` on the camera source) when OBS
 holds the camera, else from the camera directly. Screenshot sampling (~4/s)
 can't measure the camera's real frame rate, so frames are time-stamped at the
@@ -305,6 +337,7 @@ BackupItem = { kind: BackupItemKind,   // stable; word it yourself in plain lang
 BackupItemKind = "obs_filters" | "obs_source_settings" | "obs_mute" | "obs_monitoring" | "obs_setting"
                | "obs_video" | "obs_scene_file" | "obs_profile_file" | "obs_websocket"
                | "windows_setting" | "mic_level" | "camera" | "voice_chain" | "goxlr"
+               | "obs_camera_active"   // added 2026-11-05: OBS was holding the camera and we released it
 
 RestorePreview = { id: string, label: string,
                    items: RestorePreviewItem[],   // newest first = the order restore goes through them

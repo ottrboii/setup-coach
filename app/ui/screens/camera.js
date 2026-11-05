@@ -23,6 +23,8 @@ const CLASS_TEXT = {
 
 export async function render(root, { go, refreshNav }) {
   let unlisten = null;
+  let unlistenPicture = null;
+  let pollTimer = null;
   let cancelled = false;
   const cam = selectedCamera();
   const page = html('<section class="stack-lg"></section>');
@@ -77,6 +79,10 @@ export async function render(root, { go, refreshNav }) {
     view.querySelector('#cancel').addEventListener('click', () => { cancelled = true; teardown(); drawIntro(); cancelled = false; });
     try {
       unlisten = await on('camera-preview', (src) => { img.src = src; });
+      unlistenPicture = await on('camera-picture', (p) => {
+        const badge = view.querySelector('#badge');
+        if (badge) { badge.textContent = p.live ? 'Live' : 'No picture'; badge.classList.toggle('bad', !p.live); }
+      });
       await api.startCameraTest(state.cameraId);
       const dots = [...view.querySelectorAll('.step-dot')];
       for (let i = 0; i < STEPS.length; i++) {
@@ -100,8 +106,106 @@ export async function render(root, { go, refreshNav }) {
       drawReport();
     } catch (e) {
       teardown();
+      // No usable picture (camera busy, black frames): nothing was analysed.
+      if (e.code === 'no_picture') { drawBusy(); return; }
       page.append(errorBanner(e, runTest));
     }
+  }
+
+  // ---- No picture: the camera is probably held by another app ----
+
+  function joinNames(list) {
+    return list.length < 2 ? (list[0] || '') : list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+  }
+
+  function stopPoll() {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+  }
+
+  function drawBusy() {
+    stopPoll();
+    page.innerHTML = '';
+    let lastKey = null;
+    let waiting = false;
+    let freeing = false;
+    let freeError = null;
+    const box = html('<div class="stack-lg"></div>');
+    page.append(box);
+
+    function draw(st) {
+      const users = st.users || [];
+      const confirmed = users.filter((u) => u.confirmed).map((u) => u.name);
+      let holders = confirmed.length ? confirmed : (st.obs?.holding ? ['OBS'] : []);
+      if (!holders.length) holders = users.map((u) => u.name);
+      const obsRunning = st.obs?.running || users.some((u) => /^OBS/.test(u.name));
+      const title = holders.length
+        ? `Your camera is being used by ${joinNames(holders)}, so we can't see it`
+        : "Another app is probably using your camera, so we can't see it";
+      box.innerHTML = '';
+      box.append(header(title, "A webcam can only show its picture to one app at a time. Free it up and we'll carry on from here by ourselves."));
+      const card = html('<div class="card stack"></div>');
+      if (st.obs?.can_free) {
+        const b = html(`<button class="btn primary lg" id="free" ${freeing ? 'disabled' : ''}>${freeing ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Freeing…' : 'Free it for me'}</button>`);
+        b.addEventListener('click', freeIt);
+        card.append(html("<div class=\"stack\" style=\"gap:4px\"><b>Let us free it</b><span class=\"muted\">We'll pause the camera inside OBS for now and give it back when we're done. Nothing in your scenes changes.</span></div>"), b);
+      } else if (obsRunning && !st.obs?.connected) {
+        card.append(html("<div class=\"banner info\"><span>OBS is open, but we can't reach it to free the camera for you. Close OBS and we'll carry on.</span></div>"));
+      }
+      if (freeError) card.append(html(`<div class="banner warn"><span>${esc(freeError)}</span></div>`));
+      const who = holders.length ? joinNames(holders) : 'the other app';
+      const mine = html(`<div class="stack" style="gap:4px"><b>${st.obs?.can_free ? 'Or do it yourself' : 'Close it yourself'}</b><span class="muted">Close ${esc(who)} (or switch its camera off). This page notices by itself and carries on.</span></div>`);
+      const wait = html(`<button class="btn lg" id="mine">${waiting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Waiting for your camera…' : "I'll close it myself"}</button>`);
+      wait.addEventListener('click', () => { waiting = true; lastKey = null; draw(st); });
+      card.append(mine, wait);
+      const cant = html('<button class="btn ghost" id="cant">I can\'t do this</button>');
+      cant.addEventListener('click', drawSkipped);
+      card.append(cant);
+      box.append(card);
+      box.append(advanced('Advanced: what we found', kvTable([
+        ['Why there is no picture', st.reason || '—'],
+        ['Apps using the camera', users.map((u) => u.name + (u.confirmed ? '' : ' (running)')).join(', ') || 'none found'],
+        ['OBS source', st.obs?.source || 'none'],
+        ['OBS has the camera open', st.obs?.holding ? 'yes' : 'no'],
+      ])));
+    }
+
+    async function freeIt() {
+      freeing = true; freeError = null; lastKey = null;
+      try {
+        const r = await api.freeCamera(state.cameraId);
+        if (r.ok) state.cameraFreed = true; else freeError = r.message;
+      } catch (e) { freeError = e.message; }
+      freeing = false;
+      stopPoll();
+      await tick();
+    }
+
+    function drawSkipped() {
+      stopPoll();
+      page.innerHTML = '';
+      page.append(header('No problem', "Without seeing your camera we can't judge your light, colour or focus, so we'll leave the camera for now. Nothing was changed. Come back any time."));
+      const b = html('<div class="row"><button class="btn primary lg">Back to the start</button><button class="btn lg" id="retry">Try again</button></div>');
+      b.querySelector('.primary').addEventListener('click', () => go('home'));
+      b.querySelector('#retry').addEventListener('click', drawBusy);
+      page.append(b);
+    }
+
+    async function tick() {
+      if (cancelled) return;
+      let st;
+      try { st = await api.cameraPictureStatus(state.cameraId); } catch (e) { box.innerHTML = ''; box.append(errorBanner(e, drawBusy)); return; }
+      if (cancelled) return;
+      if (st.live) {
+        if (st.freed_source) state.cameraFreed = true;
+        toast('We can see your camera', 'Carrying on with the check.', 'good');
+        runTest();
+        return;
+      }
+      const key = JSON.stringify([st.users, st.obs, st.reason]) + freeing + waiting + freeError;
+      if (key !== lastKey) { lastKey = key; draw(st); }
+      pollTimer = setTimeout(tick, 2000);
+    }
+    tick();
   }
 
   function drawReport() {
@@ -121,7 +225,7 @@ export async function render(root, { go, refreshNav }) {
       const coachCard = html(`<div class="card coach-cta"><div class="stack" style="gap:4px;flex:1;min-width:240px"><h2>Let's fix your light together</h2>
         <p class="muted">Live preview with arrows: move the lamp, raise the camera, hold up the paper — we'll tell you the moment it looks right.</p></div>
         <button class="btn primary lg">Coach me through it</button></div>`);
-      coachCard.querySelector('button').addEventListener('click', () => { state.coach = { area: 'camera', steps: null, index: 0, status: {} }; go('coach'); });
+      coachCard.querySelector('button').addEventListener('click', () => { state.keepCameraFree = true; state.coach = { area: 'camera', steps: null, index: 0, status: {} }; go('coach'); });
       page.append(coachCard);
     }
     if (open.length) {
@@ -190,14 +294,17 @@ export async function render(root, { go, refreshNav }) {
     }
 
     const m = r.metrics || {};
-    page.append(advanced('Advanced: the numbers', kvTable([
+    const adv = html('<div class="stack"></div>');
+    adv.append(kvTable([
       ['Face vs background', fmt(m.face_vs_background_stops, 1, ' stops')],
       ['Colour cast on paper', fmt(m.paper_cast_pct, 1, ' %')],
       ['Noise', fmt(m.noise_sigma, 1)],
       ['Face sharpness', fmt(m.face_sharpness, 0)],
       ['Delivered fps', fmt(m.delivered_fps, 1)],
       ['Settings', JSON.stringify(r.settings.uvc || r.settings.format)],
-    ])));
+    ]));
+    mainsControl(adv);
+    page.append(advanced('Advanced: the numbers', adv));
   }
 
   async function cant(f, btn) {
@@ -218,6 +325,36 @@ export async function render(root, { go, refreshNav }) {
 
   function teardown() {
     if (unlisten) { unlisten(); unlisten = null; }
+    if (unlistenPicture) { unlistenPicture(); unlistenPicture = null; }
   }
-  return () => { cancelled = true; teardown(); };
+
+  // Power-grid frequency (anti-flicker): detected from the PC, changeable here.
+  async function mainsControl(into) {
+    let info;
+    try { info = await api.getMains(); } catch { return; }
+    const where = { override: 'set by you', time_zone: 'from your time zone', region: 'from your region', default: 'default' }[info.source] || '';
+    const row = html(`<div class="row" style="gap:10px;align-items:center"><label for="mains">Power grid</label>
+      <select id="mains"><option value="auto">Automatic (${info.detected_hz} Hz)</option><option value="50">50 Hz (Europe, most of the world)</option><option value="60">60 Hz (Americas, parts of Asia)</option></select>
+      <span class="muted">Using ${info.hz} Hz, ${esc(where)}.</span></div>`);
+    const sel = row.querySelector('select');
+    sel.value = info.source === 'override' ? String(info.hz) : 'auto';
+    sel.addEventListener('change', async () => {
+      sel.disabled = true;
+      try {
+        await api.setMains(sel.value === 'auto' ? null : Number(sel.value));
+        state.cameraReport = await api.finishCameraTest(state.cameraConstraints);
+        toast('Updated', 'Anti-flicker now matches your power grid.', 'good');
+        drawReport();
+      } catch (e) {
+        toast("Couldn't change it", e.message, 'bad');
+        sel.disabled = false;
+      }
+    });
+    into.append(row);
+  }
+  return () => {
+    cancelled = true; stopPoll(); teardown();
+    // Give the camera back to OBS unless the live coach still needs it.
+    if (state.cameraFreed && !state.keepCameraFree) { state.cameraFreed = false; api.restoreFreedCamera().catch(() => {}); }
+  };
 }

@@ -12,7 +12,7 @@ export async function call(cmd, args = {}) {
     if (isMock) return await mock.invoke(cmd, args);
     return await tauri.core.invoke(cmd, args);
   } catch (e) {
-    // Most commands reject with a plain string; A/B commands reject with { code, message }.
+    // Most commands reject with a plain string; A/B and camera-test commands reject with { code, message }.
     const err = new Error(typeof e === 'string' ? e : (e && e.message) || 'Something went wrong.');
     if (e && typeof e === 'object' && typeof e.code === 'string') err.code = e.code;
     throw err;
@@ -45,6 +45,11 @@ export const api = {
   captureCameraStep: (step, seconds) => call('capture_camera_step', { step, seconds }),
   finishCameraTest: (constraints) => call('finish_camera_test', { constraints }),
   applyCameraSettings: (cameraId, settings) => call('apply_camera_settings', { cameraId, settings }),
+  cameraPictureStatus: (cameraId) => call('camera_picture_status', { cameraId }),
+  freeCamera: (cameraId) => call('free_camera', { cameraId }),
+  restoreFreedCamera: () => call('restore_freed_camera'),
+  getMains: () => call('get_mains'),
+  setMains: (hz) => call('set_mains', { hz }),
   startHealthMonitor: () => call('start_health_monitor'),
   stopHealthMonitor: () => call('stop_health_monitor'),
   saveSetup: (name) => call('save_setup', { name }),

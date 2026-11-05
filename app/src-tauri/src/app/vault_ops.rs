@@ -17,6 +17,7 @@ pub enum Target {
     ObsFilters(String),
     ObsInputSettings(String),
     ObsInputMute(String),
+    ObsSourceActive(String),
     ObsMonitoring(String),
     ObsParam(String, String),
     ObsVideo,
@@ -107,6 +108,10 @@ impl AppCore {
             Target::ObsInputMute(input) => {
                 let r = obs().await?.request("GetInputMute", json!({ "inputName": input })).await.ok()?;
                 VaultItem::ObsInputMute { input: input.clone(), muted: r["inputMuted"].as_bool()? }
+            }
+            Target::ObsSourceActive(input) => {
+                let r = obs().await?.request("GetSourceActive", json!({ "sourceName": input })).await.ok()?;
+                VaultItem::ObsSourceActive { input: input.clone(), active: r["videoActive"].as_bool()? }
             }
             Target::ObsMonitoring(input) => {
                 let r = obs().await?.request("GetInputAudioMonitorType", json!({ "inputName": input })).await.ok()?;
@@ -219,7 +224,7 @@ impl AppCore {
                     None => live_obs_gone(),
                     Some(o) => o.request("GetSourceFilterList", json!({ "sourceName": input })).await.is_err().then(|| format!("OBS doesn't have \"{input}\" any more, so it will be left alone.")),
                 },
-                VaultItem::ObsInputSettings { input, .. } | VaultItem::ObsInputMute { input, .. } | VaultItem::ObsMonitoring { input, .. } => match obs.as_ref() {
+                VaultItem::ObsInputSettings { input, .. } | VaultItem::ObsInputMute { input, .. } | VaultItem::ObsSourceActive { input, .. } | VaultItem::ObsMonitoring { input, .. } => match obs.as_ref() {
                     None => live_obs_gone(),
                     Some(o) => o.request("GetInputSettings", json!({ "inputName": input })).await.is_err().then(|| format!("OBS doesn't have \"{input}\" any more, so it will be left alone.")),
                 },
@@ -307,6 +312,19 @@ impl AppCore {
                     return Ok(gone_input(input));
                 }
                 o.request("SetInputSettings", json!({ "inputName": input, "inputSettings": settings, "overlay": false })).await.map(|_| Done)
+            }
+            VaultItem::ObsSourceActive { input, active } => {
+                let Some(o) = obs.as_ref() else { return Ok(obs_closed_note()) };
+                match o.request("GetSourceActive", json!({ "sourceName": input })).await {
+                    Err(_) => Ok(gone_input(input)),
+                    Ok(now) => {
+                        // The OBS button toggles, so only press it when the state differs.
+                        if now["videoActive"].as_bool() != Some(*active) {
+                            o.request("PressInputPropertiesButton", json!({ "inputName": input, "propertyName": "activate" })).await?;
+                        }
+                        Ok(Done)
+                    }
+                }
             }
             VaultItem::ObsInputMute { input, muted } => {
                 let Some(o) = obs.as_ref() else { return Ok(obs_closed_note()) };
@@ -455,6 +473,7 @@ pub fn target_of(item: &VaultItem) -> Target {
         VaultItem::ObsFilters { input, .. } => Target::ObsFilters(input.clone()),
         VaultItem::ObsInputSettings { input, .. } => Target::ObsInputSettings(input.clone()),
         VaultItem::ObsInputMute { input, .. } => Target::ObsInputMute(input.clone()),
+        VaultItem::ObsSourceActive { input, .. } => Target::ObsSourceActive(input.clone()),
         VaultItem::ObsMonitoring { input, .. } => Target::ObsMonitoring(input.clone()),
         VaultItem::ObsProfileParam { category, name, .. } => Target::ObsParam(category.clone(), name.clone()),
         VaultItem::ObsVideoSettings { .. } => Target::ObsVideo,

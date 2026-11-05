@@ -90,19 +90,44 @@ pub async fn camera_state(app: S<'_>, camera_id: String) -> R<CameraState> {
 }
 
 #[tauri::command]
-pub async fn start_camera_test(app: S<'_>, camera_id: String) -> R<()> {
+pub async fn start_camera_test(app: S<'_>, camera_id: String) -> Result<(), CameraError> {
     app.inner().start_camera_test(&camera_id).await
 }
 
 #[tauri::command]
-pub async fn capture_camera_step(app: S<'_>, step: TestStep, seconds: f64) -> R<CaptureStepResult> {
+pub async fn capture_camera_step(app: S<'_>, step: TestStep, seconds: f64) -> Result<CaptureStepResult, CameraError> {
     app.capture_camera_step(step, seconds).await
 }
 
 #[tauri::command]
-pub async fn finish_camera_test(app: S<'_>, constraints: Vec<Constraint>) -> R<CameraReport> {
+pub async fn finish_camera_test(app: S<'_>, constraints: Vec<Constraint>) -> Result<CameraReport, CameraError> {
     let app = app.inner().clone();
-    tokio::task::spawn_blocking(move || app.finish_camera_test(constraints)).await.map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || app.finish_camera_test(constraints)).await.map_err(|e| CameraError::from(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn camera_picture_status(app: S<'_>, camera_id: String) -> R<PictureStatus> {
+    Ok(app.inner().camera_picture_status(&camera_id).await)
+}
+
+#[tauri::command]
+pub async fn free_camera(app: S<'_>, camera_id: String) -> R<FreeCameraResult> {
+    Ok(app.inner().free_camera(&camera_id).await)
+}
+
+#[tauri::command]
+pub async fn restore_freed_camera(app: S<'_>) -> R<FreeCameraResult> {
+    Ok(app.inner().restore_freed_camera().await)
+}
+
+#[tauri::command]
+pub async fn get_mains(app: S<'_>) -> R<MainsInfo> {
+    Ok(app.mains_info())
+}
+
+#[tauri::command]
+pub async fn set_mains(app: S<'_>, hz: Option<u8>) -> R<MainsInfo> {
+    app.set_mains(hz)
 }
 
 #[tauri::command]
