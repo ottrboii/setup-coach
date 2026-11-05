@@ -147,6 +147,44 @@ pub(crate) fn set_sysfx(endpoint: &str, disabled: bool) -> Result<(), String> {
     }
 }
 
+/// Registry-backed endpoint switches the elevated helper may touch.
+fn reg_flag_name(which: &str) -> Option<&'static str> {
+    match which {
+        "listen" => Some(PROP_LISTEN),
+        "exclusive" => Some(PROP_EXCLUSIVE),
+        _ => None,
+    }
+}
+
+fn wait_for_reg_flag(endpoint: &str, name: &str, on: bool) -> bool {
+    for _ in 0..12 {
+        if reg_bool(endpoint, name) == Some(on) {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    false
+}
+
+/// Set "Listen to this device" / "Allow exclusive control" for one mic and
+/// prove it by reading it back. Same order as `set_sysfx`: write directly
+/// (administrators), else one UAC prompt for just this change.
+fn set_reg_flag(which: &str, endpoint: &str, on: bool) -> Result<(), String> {
+    let name = reg_flag_name(which).ok_or("Unknown setting.")?;
+    if set_reg_bool(endpoint, name, on).is_ok() && wait_for_reg_flag(endpoint, name, on) {
+        return Ok(());
+    }
+    if reg_bool(endpoint, name) == Some(on) {
+        return Ok(());
+    }
+    run_elevated_helper(&["regflag", which, endpoint, if on { "1" } else { "0" }])?;
+    if wait_for_reg_flag(endpoint, name, on) {
+        Ok(())
+    } else {
+        Err("Windows still shows this setting unchanged for your mic.".into())
+    }
+}
+
 /// Run this same exe with administrator rights for one change (Windows shows
 /// its normal permission prompt), wait for it, and map its exit code.
 fn run_elevated_helper(args: &[&str]) -> Result<(), String> {
@@ -191,6 +229,16 @@ pub fn fx_helper_main(args: &[String]) -> Option<i32> {
             let disabled = flag == "1";
             match write_sysfx_in_process(endpoint, disabled) {
                 Ok(()) if wait_for_sysfx(endpoint, disabled) => 0,
+                _ => 1,
+            }
+        }
+        [what, which, endpoint, flag]
+            if what == "regflag" && reg_flag_name(which).is_some() && crate::platform::is_capture_endpoint_id(endpoint) && (flag == "0" || flag == "1") =>
+        {
+            let on = flag == "1";
+            let name = reg_flag_name(which).unwrap_or_default();
+            match set_reg_bool(endpoint, name, on) {
+                Ok(()) if wait_for_reg_flag(endpoint, name, on) => 0,
                 _ => 1,
             }
         }
@@ -501,12 +549,10 @@ impl SystemInspector for WinSystem {
 
     fn can_apply(&self, action: &Action) -> bool {
         match action {
-            // Registry-backed endpoint settings: the exact key must open for writing.
-            Action::DisableExclusiveMode { endpoint } | Action::DisableListen { endpoint } => props_key(endpoint, true).is_some(),
-            // Enhancements / Voice Clarity: if we aren't an administrator we ask
+            // Enhancements / Voice Clarity / Listen / Exclusive: if we aren't an administrator we ask
             // Windows for permission (UAC) for just that change, and fall back to
             // a guided step if it's refused, so always offer them.
-            Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. } => true,
+            Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. } | Action::DisableListen { .. } | Action::DisableExclusiveMode { .. } => true,
             Action::SetMicBoost { endpoint, .. } => props_key(endpoint, true).is_some(),
             _ => true,
         }
@@ -532,8 +578,8 @@ impl SystemInspector for WinSystem {
             },
             Action::DisableEnhancements { endpoint } => set_sysfx(endpoint, true),
             Action::DisableVoiceClarity { endpoint } => set_voice_clarity(endpoint, false),
-            Action::DisableListen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, false),
-            Action::DisableExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, false),
+            Action::DisableListen { endpoint } => set_reg_flag("listen", endpoint, false),
+            Action::DisableExclusiveMode { endpoint } => set_reg_flag("exclusive", endpoint, false),
             Action::DisableUsbSelectiveSuspend => {
                 for sub in ["/setacvalueindex", "/setdcvalueindex"] {
                     run_hidden("powercfg", &[sub, "SCHEME_CURRENT", USB_SUBGROUP, USB_SUSPEND, "0"]).ok_or("Couldn't change the power plan.")?;

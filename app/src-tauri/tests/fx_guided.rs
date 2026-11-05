@@ -128,6 +128,74 @@ async fn voice_clarity_follows_the_same_rules() {
     assert!(w.core.check_passes("voice_clarity_off").await);
 }
 
+fn is_listen(a: &Action) -> bool {
+    matches!(a, Action::DisableListen { .. })
+}
+fn is_excl(a: &Action) -> bool {
+    matches!(a, Action::DisableExclusiveMode { .. })
+}
+
+fn both_on(m: &MockPlatform) {
+    let mut w = m.system.windows.lock().unwrap();
+    w.endpoints[0].listen_to_device = true;
+    w.endpoints[0].exclusive_mode_allowed = true;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listen_and_exclusive_work_and_are_read_back() {
+    let w = world(both_on);
+    for f in [is_listen, is_excl] {
+        let id = action_id(&w, f).await;
+        let r = w.core.apply_actions(std::slice::from_ref(&id)).await;
+        assert_eq!(r.applied, vec![id], "{r:?}");
+        assert!(r.failed.is_empty(), "{r:?}");
+    }
+    let ep = w.mock.system.windows.lock().unwrap().endpoints[0].clone();
+    assert!(!ep.listen_to_device && !ep.exclusive_mode_allowed);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listen_and_exclusive_denied_become_guided_steps_and_complete_by_themselves() {
+    let w = world(|m| {
+        both_on(m);
+        *m.system.fx_mode.lock().unwrap() = FxMode::Denied;
+    });
+    for (f, check) in [(is_listen as fn(&Action) -> bool, "listen_off"), (is_excl, "exclusive_off")] {
+        let id = action_id(&w, f).await;
+        let r = w.core.apply_actions(std::slice::from_ref(&id)).await;
+        assert!(r.applied.is_empty(), "{r:?}");
+        let step = r.failed[0].guided.clone().expect("guided step");
+        assert_eq!(step.check.as_deref(), Some(check));
+        assert!(!w.core.check_passes(check).await);
+        assert!(step.open_target.is_some());
+    }
+    // The user flips "listen" in Windows; the app notices.
+    let step = {
+        let id = action_id(&w, is_listen).await;
+        w.core.apply_actions(&[id]).await.failed[0].guided.clone().unwrap()
+    };
+    w.core.start_coach(step).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    assert!(!wait_done(&w, 0.0).await);
+    w.mock.system.windows.lock().unwrap().endpoints[0].listen_to_device = false;
+    assert!(wait_done(&w, 5.0).await);
+    assert!(w.core.check_passes("listen_off").await);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listen_and_exclusive_that_claim_success_but_change_nothing_are_not_fixed() {
+    let w = world(|m| {
+        both_on(m);
+        *m.system.fx_mode.lock().unwrap() = FxMode::ClaimsButNothing;
+    });
+    for f in [is_listen, is_excl] {
+        let id = action_id(&w, f).await;
+        let r = w.core.apply_actions(&[id]).await;
+        assert!(r.applied.is_empty(), "wrong 'fixed' claim: {r:?}");
+        assert!(r.failed[0].guided.is_some());
+    }
+}
+
 #[test]
 fn settings_deep_link_targets_the_exact_device() {
     let id = "{0.0.1.00000000}.{abc4766e-8854-4d99-a2bb-8fc680147d1a}";
@@ -152,5 +220,10 @@ fn the_elevated_helper_ignores_normal_app_starts_and_bad_input() {
         assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "sysfx", "C:\\evil", "1"])), Some(2));
         assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "other", "{0.0.1.00000000}.{abc}", "1"])), Some(2));
         assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper"])), Some(2));
+        let ep = "{0.0.1.00000000}.{abc}";
+        assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "regflag", "run", ep, "0"])), Some(2));
+        assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "regflag", "listen", "C:\\evil", "0"])), Some(2));
+        assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "regflag", "listen", ep, "2"])), Some(2));
+        assert_eq!(fx_helper_cli(&a(&["app.exe", "--fx-helper", "regflag", "listen", ep])), Some(2));
     }
 }

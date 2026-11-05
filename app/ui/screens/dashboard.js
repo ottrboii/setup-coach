@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, toast, loading } from '../components.js';
 import { state } from '../state.js';
+import { guidedFailures, plainFailures, guidedFixCard } from '../guided.js';
 
 export async function render(root, { go, refreshNav }) {
   const sys = state.quick?.score?.find((s) => s.area === 'system');
@@ -18,6 +19,7 @@ export async function render(root, { go, refreshNav }) {
       <button class="btn primary lg" id="recheck">Re-check before stream</button></div>
       <div class="grid-4" id="tiles"></div>
       <div id="recheck-box"></div>
+      <div id="guided-box" class="stack"></div>
       <div class="grid-2">
         <div class="card stack"><h3>Save this setup</h3><p class="muted">We'll remember your mic and camera settings and put them back automatically when Windows or a replug resets them.</p>
           <div class="row"><input id="name" class="btn" style="flex:1;min-width:160px;text-align:left;cursor:text" value="${esc(state.saved?.name || 'My stream setup')}" aria-label="Setup name"/><button class="btn primary" id="save">Save</button></div>
@@ -80,7 +82,13 @@ export async function render(root, { go, refreshNav }) {
     b.disabled = true;
     try {
       const r = await api.reapplySavedSetup();
-      if (r.failed?.length) toast('Some settings need a hand', r.failed.map((f) => f.error).join(' '), 'warn');
+      const guided = guidedFailures(r);
+      const gbox = page.querySelector('#guided-box');
+      gbox.innerHTML = '';
+      for (const f of guided) gbox.append(guidedFixCard(f, { from: 'home', go }));
+      const plain = plainFailures(r);
+      if (plain.length) toast('Some settings need a hand', plain.map((f) => f.error).join(' '), 'warn');
+      else if (guided.length) toast('One thing is left for you', "Windows wants you to switch it yourself. We'll show you how.", 'warn');
       else toast('Setup re-applied', `${r.applied.length} part${r.applied.length === 1 ? '' : 's'} restored.`, 'good');
     } catch (e) {
       toast("Couldn't re-apply", e.message, 'bad');

@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, icons, scoreRing, toast, errorBanner, advanced } from '../components.js';
 import { state } from '../state.js';
+import { guidedFailures, guidedFixCard } from '../guided.js';
 
 /** Plain-language description of every stage in a ProcessingChain. */
 export function explainChain(c) {
@@ -88,6 +89,9 @@ export async function render(root, { go }) {
       return;
     }
     const failed = res && res.failed ? res.failed : [];
+    // Windows said no to something we can still walk them through.
+    page.querySelectorAll('.guided-fix').forEach((n) => n.remove());
+    for (const f of guidedFailures(res)) page.append(guidedFixCard(f, { from: 'mic-apply', go }));
     if (failed.length && !(res.applied && res.applied.length)) {
       // Nothing took: don't carry on to a before/after of something that wasn't applied.
       api.logUi('error', 'micapply.apply', failed.map((f) => f.error).join(' '));

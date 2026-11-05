@@ -74,6 +74,10 @@ ApplyResult = { applied: string[], failed: { id: string, error: string, guided?:
 
 **Windows audio enhancements / Voice Clarity (added 2026-11-05).** `DisableEnhancements` / `DisableVoiceClarity` are always offered (`needs_admin: true` means "Windows may show its permission prompt"). Apply order: write directly (administrators), else a one-off elevated helper of our own exe (`--fx-helper`, Windows' UAC prompt, changes exactly one value, 60 s), and Voice Clarity through the Windows audio-effects API. Afterwards the backend **re-reads the real state** and only puts the id in `applied` if the effect is really off. When it is not (prompt declined, driver won't allow it, call claimed success but nothing changed) the id lands in `failed` with a plain `error` and a `guided` `CoachStep` (`task: check_setting`, `check: "enhancements_off" | "voice_clarity_off"`, `open_target.uri_or_app: ms-settings:sound-properties?endpointId=<this mic>`). The UI should show a button that calls `open_target` + `start_coach(failure.guided)`: the coach polls the effect state and finishes by itself when it flips (no "did you do it?"). `coach_plan` uses the same step, so the guided path is identical from the plan.
 
+**"Listen to this device" / exclusive control (added 2026-11-05).** `DisableListen` / `DisableExclusiveMode` follow the same rules (always offered, direct write, else the same elevated helper `--fx-helper regflag <listen|exclusive> <endpoint> <0|1>`, read-back before `applied`, `failed[].guided` otherwise). The guided step has `check: "listen_off" | "exclusive_off"` and opens the classic `mmsys.cpl` Sound control panel (these two switches are not in the new Settings page). New `CheckSetting` predicates `listen_off`, `exclusive_off`; new step ids `check-listen_off`, `check-exclusive_off`.
+
+**UI use of `failed[].guided` (2026-11-05).** Scan results, the dashboard re-apply and the mic-apply screen show the plain `error` and one big "Show me how" button. It opens the coaching screen with that single step (`open_for_user(open_target)` + `start_coach(guided)` fire straight away), detects completion itself, then re-runs `run_quick_checks` and returns. "I can't do this" re-checks (and re-scans the mic advice if there is one) and returns.
+
 ## Mic test
 
 | Command | Args | Returns |
@@ -322,7 +326,7 @@ Notes (implementation, 2026-11-02):
   for steps not caused by a finding, e.g. GoXLR phantom power).
 - `CheckSetting` predicates (`check`): `goxlr_utility_running`,
   `goxlr_condenser`, `mic_privacy_allowed`, `voice_clarity_off`,
-  `enhancements_off`, `camera_privacy_allowed`, `obs_running`. A step with
+  `enhancements_off`, `listen_off`, `exclusive_off`, `camera_privacy_allowed`, `obs_running`. A step with
   `check: null` waits for the user's "Done". Auto `CheckSetting` steps
   (`check-goxlr-phantom`) make the change themselves, then verify.
 - `CoachArea` is `"mic" | "camera"`. `open_for_user` returns an error string

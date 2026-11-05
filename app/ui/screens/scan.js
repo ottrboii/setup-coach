@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, loading, errorBanner, toast, advanced } from '../components.js';
 import { state, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
+import { guidedFailures, plainFailures, guidedFixCard } from '../guided.js';
 
 const AREA_LABEL = { mic: 'Mic settings', system: 'Windows', camera: 'Camera', stream: 'Stream' };
 // Findings fixed by hand in Windows Sound settings when we lack the rights to do it.
@@ -91,12 +92,16 @@ export async function render(root, { go, refreshNav }) {
       const r = state.applied;
       const labelOf = (id) => q.actions.find((a) => a.id === id)?.label || 'That fix';
       const n = r.applied.length;
-      const fails = r.failed.map((f) => `<li><b>${esc(labelOf(f.id))}</b> — we couldn't do this automatically. ${esc(f.error)}</li>`).join('');
+      const guided = guidedFailures(r);
+      const fails = plainFailures(r).map((f) => `<li><b>${esc(labelOf(f.id))}</b> — we couldn't do this automatically. ${esc(f.error)}</li>`).join('');
       const head = n && !r.failed.length ? `Done — fixed ${n} thing${n === 1 ? '' : 's'} for you.`
         : n ? `Fixed ${n} thing${n === 1 ? '' : 's'}. The rest need a hand from you.`
-          : "We couldn't change anything automatically.";
+          : guided.length === r.failed.length ? 'Windows wants you to switch this one yourself.'
+            : "We couldn't change anything automatically.";
       body.append(html(`<div class="banner ${r.failed.length ? 'warn' : 'good'}" style="margin-top:16px"><div class="stack" style="gap:4px"><b>${esc(head)}</b>
         ${fails ? `<ul class="plain">${fails}</ul><span class="subtle">They stay on your list below. Use "Open Sound settings" where it's offered, or press the fix button to try again.</span>` : ''}</div></div>`));
+      // Windows said no, but we can walk them through it: one big button each.
+      for (const f of guided) body.append(guidedFixCard(f, { from: 'scan', go, label: labelOf(f.id) }));
       if (r.restart_obs_needed && n) body.append(html('<div class="banner warn" style="margin-top:12px"><span><b>Restart OBS</b> to finish applying the changes. We\'ll reconnect automatically.</span></div>'));
     }
 
