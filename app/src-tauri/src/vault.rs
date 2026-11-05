@@ -44,6 +44,9 @@ pub enum VaultItem {
     /// The full settings object of an OBS input (mic device, webcam mode).
     ObsInputSettings { input: String, settings: Value },
     ObsInputMute { input: String, muted: bool },
+    /// Whether OBS holds a video capture source's device (camera) open. We
+    /// release it temporarily so Setup Coach can see the camera.
+    ObsSourceActive { input: String, active: bool },
     ObsMonitoring { input: String, monitor_type: String },
     /// An OBS profile parameter (None = not set).
     ObsProfileParam { category: String, name: String, value: Option<String> },
@@ -72,6 +75,7 @@ impl VaultItem {
             VaultItem::ObsFilters { input, .. } => format!("obs_filters:{input}"),
             VaultItem::ObsInputSettings { input, .. } => format!("obs_input:{input}"),
             VaultItem::ObsInputMute { input, .. } => format!("obs_mute:{input}"),
+            VaultItem::ObsSourceActive { input, .. } => format!("obs_source_active:{input}"),
             VaultItem::ObsMonitoring { input, .. } => format!("obs_monitoring:{input}"),
             VaultItem::ObsProfileParam { category, name, .. } => format!("obs_param:{category}/{name}"),
             VaultItem::ObsVideoSettings { .. } => "obs_video".into(),
@@ -92,6 +96,7 @@ impl VaultItem {
             VaultItem::ObsFilters { .. } => "obs_filters",
             VaultItem::ObsInputSettings { .. } => "obs_source_settings",
             VaultItem::ObsInputMute { .. } => "obs_mute",
+            VaultItem::ObsSourceActive { .. } => "obs_camera_active",
             VaultItem::ObsMonitoring { .. } => "obs_monitoring",
             VaultItem::ObsProfileParam { .. } => "obs_setting",
             VaultItem::ObsVideoSettings { .. } => "obs_video",
@@ -122,6 +127,7 @@ impl VaultItem {
             VaultItem::ObsFilters { input, .. } => format!("OBS: filters on \"{input}\""),
             VaultItem::ObsInputSettings { input, .. } => format!("OBS: \"{input}\" settings"),
             VaultItem::ObsInputMute { input, .. } => format!("OBS: \"{input}\" mute"),
+            VaultItem::ObsSourceActive { input, .. } => format!("OBS: \"{input}\" holding the camera"),
             VaultItem::ObsMonitoring { input, .. } => format!("OBS: \"{input}\" monitoring"),
             VaultItem::ObsProfileParam { name, .. } => format!("OBS: {} setting", plain_param(name)),
             VaultItem::ObsVideoSettings { .. } => "OBS: stream resolution".into(),

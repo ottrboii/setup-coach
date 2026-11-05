@@ -568,7 +568,7 @@ impl AppCore {
             None => None,
         };
         let class = self.camera_class(&camera_id);
-        let mains = self.platform.system.mains();
+        let mains = self.mains();
         let mut state = self.camera_state(&camera_id).unwrap_or_default();
         let auto = step.auto && class.controllable();
         // Flicker: match anti-flicker to the local mains first.
@@ -583,9 +583,17 @@ impl AppCore {
             let mut n: u64 = 0;
             let mut tried_other_mains = false;
             while running.load(Ordering::SeqCst) {
-                let Ok(raw) = me.grab(&camera_id, source.as_deref()).await else {
-                    tokio::time::sleep(me.coach_tick * 2).await;
-                    continue;
+                // No real picture (camera busy, black frames): never coach from it.
+                let raw = match me.grab_checked(&camera_id, source.as_deref()).await {
+                    Ok(r) => {
+                        me.note_picture(None);
+                        r
+                    }
+                    Err(reason) => {
+                        me.note_picture(Some(reason));
+                        tokio::time::sleep(me.coach_tick * 4).await;
+                        continue;
+                    }
                 };
                 let mut small = camera::downscale(&raw, ANALYSIS_WIDTH);
                 small.timestamp_s = n as f64 / 4.0; // logical 4 fps

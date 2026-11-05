@@ -104,6 +104,8 @@ pub struct MockSystem {
     pub camera: CameraSystemState,
     pub processing: KnownProcessingApps,
     pub obs_running: Mutex<bool>,
+    /// Apps that "have the camera" (tests and demos).
+    pub camera_users: Mutex<Vec<CameraUser>>,
     pub obs_dir: Mutex<Option<PathBuf>>,
     /// Where `--self-test` puts its zip by default (None: fallback folder).
     pub desktop_dir: Mutex<Option<PathBuf>>,
@@ -132,11 +134,14 @@ impl SystemInspector for MockSystem {
     fn network(&self) -> Option<NetworkInfo> {
         Some(NetworkInfo::default())
     }
-    fn mains(&self) -> MainsHz {
-        MainsHz::Hz50
+    fn mains_guess(&self) -> MainsGuess {
+        MainsGuess { hz: MainsHz::Hz50, source: MainsSource::TimeZone }
     }
     fn obs_running(&self) -> bool {
         *self.obs_running.lock().unwrap()
+    }
+    fn camera_users(&self) -> Vec<CameraUser> {
+        self.camera_users.lock().unwrap().clone()
     }
     fn obs_config_dir(&self) -> Option<PathBuf> {
         self.obs_dir.lock().unwrap().clone()
@@ -276,6 +281,20 @@ pub struct MockCamera {
     /// Brightness of the synthetic scene (0..1); low = dark room.
     pub light: f64,
     pub frame_counter: Mutex<u64>,
+    /// What the camera delivers (a busy camera sends black or nothing).
+    pub picture: Mutex<MockPicture>,
+}
+
+/// What a mock camera hands out.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MockPicture {
+    Live,
+    /// All-black frames (another app holds the camera).
+    Black,
+    /// The camera cannot be opened.
+    Fail(String),
+    /// Reading takes this many ms (longer than the app waits = a hang).
+    Hang(u64),
 }
 
 /// Face box used by the synthetic frames (on a 320×240 frame).
@@ -312,8 +331,17 @@ impl CameraControl for MockCamera {
         Ok(Vec::new())
     }
     fn grab_frame(&self, _id: &str) -> Result<Frame, String> {
+        let mode = self.picture.lock().unwrap().clone();
+        match mode {
+            MockPicture::Fail(e) => return Err(e),
+            MockPicture::Hang(ms) => std::thread::sleep(std::time::Duration::from_millis(ms)),
+            _ => {}
+        }
         let mut c = self.frame_counter.lock().unwrap();
         *c += 1;
+        if mode == MockPicture::Black {
+            return Ok(Frame::solid(320, 240, [0, 0, 0], *c as f64 / 30.0));
+        }
         Ok(synthetic_frame(self.light, *c as f64 / 30.0))
     }
     fn detect_face(&self, frame: &Frame) -> Option<Rect> {
@@ -417,6 +445,7 @@ impl MockPlatform {
                 camera: CameraSystemState::default(),
                 processing: KnownProcessingApps::default(),
                 obs_running: Mutex::new(true),
+                camera_users: Mutex::new(Vec::new()),
                 obs_dir: Mutex::new(None),
                 desktop_dir: Mutex::new(None),
                 applied: Mutex::new(Vec::new()),
@@ -427,6 +456,7 @@ impl MockPlatform {
                 state: Mutex::new(CameraState { powerline_hz: Some(60), ..CameraState::default() }),
                 light: 0.9,
                 frame_counter: Mutex::new(0),
+                picture: Mutex::new(MockPicture::Live),
             }),
             dialogs: Arc::new(MockDialogs::default()),
         }

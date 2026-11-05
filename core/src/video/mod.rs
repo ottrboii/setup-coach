@@ -11,6 +11,7 @@
 //! face is never pushed towards a lighter-skin brightness target.
 
 pub mod findings;
+pub mod guard;
 pub mod image;
 pub mod metrics;
 pub mod recommend;
@@ -20,6 +21,7 @@ pub mod types;
 mod tests;
 
 pub use findings::findings;
+pub use guard::{CaptureCheck, FrameStats, NoPicture, check_capture, check_frame, frame_stats, live_frames_only};
 pub use metrics::{ColourCast, FlickerInfo, RangeHint, VideoMetrics, measure};
 pub use recommend::{
     CameraSettings, FormatChoice, UvcSettings, best_focus, capture_card_steps, flicker_safe_shutters,
@@ -43,4 +45,18 @@ pub fn analyze(
     let mut f = findings::findings(&m, state, class, mains);
     rank(&mut f);
     (m, f)
+}
+
+/// Like [`analyze`], but refuses captures without a real picture (black or
+/// flat frames from a camera another app holds): no metrics, no findings.
+/// Frames that are individually unusable are dropped before measuring.
+pub fn analyze_live(
+    capture: &VideoTestCapture,
+    state: &CameraState,
+    class: CameraClass,
+    mains: MainsHz,
+) -> Result<(VideoMetrics, Vec<Finding>, VideoTestCapture), NoPicture> {
+    let live = live_frames_only(capture)?;
+    let (m, f) = analyze(&live, state, class, mains);
+    Ok((m, f, live))
 }
