@@ -252,3 +252,22 @@ pub async fn get_mic_behind(app: S<'_>, device_id: String) -> R<Option<MicBehind
 pub async fn set_mic_behind(app: S<'_>, device_id: String, choice: MicBehindInput) -> R<MicBehindResult> {
     app.set_mic_behind(&device_id, choice).await
 }
+
+/// Testers' notes: append one to `%APPDATA%\SetupCoach\feedback.jsonl` (local only, never uploaded).
+#[tauri::command]
+pub async fn save_feedback(app: S<'_>, input: crate::feedback::FeedbackInput) -> R<crate::feedback::FeedbackSaved> {
+    crate::feedback::save(&app.data_dir, input, &crate::paths::now_iso(), env!("CARGO_PKG_VERSION"))
+}
+
+/// All saved notes as plain text (for "Copy my notes").
+#[tauri::command]
+pub async fn get_feedback(app: S<'_>) -> R<crate::feedback::FeedbackExport> {
+    Ok(crate::feedback::export(&app.data_dir))
+}
+
+/// Write the notes as a readable text file on the Desktop; returns the file path.
+#[tauri::command]
+pub async fn save_feedback_to_desktop(app: S<'_>) -> R<String> {
+    let out = crate::selftest::default_out_dir(&app);
+    crate::feedback::export_to_dir(&app.data_dir, &out).map(|p| p.display().to_string())
+}

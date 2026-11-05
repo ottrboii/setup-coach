@@ -16,7 +16,13 @@
         <span class="brand-name">Setup Coach</span>
       </div>
       <nav id="nav" class="nav"></nav>
-      <div class="sidebar-foot" id="obs-pill"></div>
+      <div class="sidebar-bottom">
+        <button type="button" id="notes-btn" class="notes-btn" aria-haspopup="dialog" title="Tell us what is wrong (Ctrl+Shift+F)">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 5h16v11H9l-5 4V5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span class="label">Tell us what's wrong</span><span class="draft-dot" data-draft hidden title="You have an unsaved note">&bull;</span>
+        </button>
+        <div class="sidebar-foot" id="obs-pill"></div>
+      </div>
     </aside>
     <main id="main" class="main" tabindex="-1"></main>
   </div>
