@@ -104,6 +104,7 @@ fn good() -> SystemSnapshot {
         },
         hardware: Some(HardwareInfo { gpu_vendor: GpuVendor::Nvidia, gpu_model: "RTX 4070".into(), has_nvenc: true, cpu_cores: 8, ..Default::default() }),
         network: Some(NetworkInfo { connection: Connection::Wired, measured_upload_kbps: Some(20_000) }),
+        connection: None,
     }
 }
 

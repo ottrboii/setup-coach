@@ -69,6 +69,11 @@ pub trait SystemInspector: Send + Sync {
     }
     /// `%APPDATA%\obs-studio` (or the platform equivalent).
     fn obs_config_dir(&self) -> Option<PathBuf>;
+    /// USB link speed / topology / drop history of cameras and mics, and the
+    /// apps holding them. Empty when the platform can't tell.
+    fn connection_state(&self) -> coach_core::system::ConnectionState {
+        coach_core::system::ConnectionState::default()
+    }
     /// Execute a Windows-side action (registry, endpoint, power settings).
     fn apply(&self, action: &Action) -> Result<(), String>;
     /// Whether `apply` can possibly succeed right now (e.g. the app has the
@@ -263,6 +268,32 @@ pub fn parse_usb_ids(s: &str) -> Option<(u16, u16)> {
     let vid = u16::from_str_radix(up.get(v + 4..v + 8)?, 16).ok()?;
     let pid = u16::from_str_radix(up.get(p + 4..p + 8)?, 16).ok()?;
     Some((vid, pid))
+}
+
+/// One device as printed by the USB probe script (`windows/usb_probe.ps1`).
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(default)]
+pub struct UsbProbeDevice {
+    pub name: String,
+    pub role: String,
+    pub vid: u16,
+    pub pid: u16,
+    pub speed: String,
+    pub superspeed_capable: Option<bool>,
+    pub controller: String,
+    pub behind_hub: bool,
+    pub hub_name: Option<String>,
+    pub hub_bus_powered: bool,
+    pub drops_7d: u32,
+}
+
+/// Parse the probe's JSON (an array; PowerShell may print a lone object).
+/// Anything unreadable gives an empty list: no data, no accusations.
+pub fn parse_usb_probe(text: &str) -> Vec<UsbProbeDevice> {
+    let t = text.trim().trim_start_matches('\u{feff}');
+    serde_json::from_str::<Vec<UsbProbeDevice>>(t)
+        .or_else(|_| serde_json::from_str::<UsbProbeDevice>(t).map(|d| vec![d]))
+        .unwrap_or_default()
 }
 
 /// An app that has (or may have) the camera open.

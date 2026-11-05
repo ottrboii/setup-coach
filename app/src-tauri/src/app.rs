@@ -325,6 +325,18 @@ impl AppCore {
 
     // ------------------------------------------------------------ quick checks
 
+    /// A camera whose profile says it needs USB 3 counts as USB 3 capable even when the hub can't tell us.
+    fn connection_with_profiles(&self, mut c: coach_core::system::ConnectionState) -> coach_core::system::ConnectionState {
+        use coach_core::profiles::CameraQuirk;
+        use coach_core::system::UsbRole;
+        for l in c.links.iter_mut().filter(|l| l.role == UsbRole::Camera && !l.superspeed_capable) {
+            if let Some(m) = self.profiles.match_camera(&Self::identity(&l.name, Some((l.vid, l.pid)))) {
+                l.superspeed_capable = m.profile.quirks.contains(&CameraQuirk::RequiresUsb3);
+            }
+        }
+        c
+    }
+
     async fn snapshot(&self) -> SystemSnapshot {
         let obs_state = match self.obs().await {
             Some(o) => obs::read_state(o.as_ref(), self.obs_dir().as_deref()).await.ok(),
@@ -344,6 +356,7 @@ impl AppCore {
             processing,
             hardware: sys.hardware(),
             network: sys.network(),
+            connection: Some(self.connection_with_profiles(sys.connection_state())),
             ..Default::default()
         };
         let inner = self.inner.lock().unwrap();

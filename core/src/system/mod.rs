@@ -6,6 +6,7 @@
 
 pub mod actions;
 pub mod camera;
+pub mod connection;
 pub mod diff;
 pub mod encoder;
 pub mod ids;
@@ -17,6 +18,7 @@ mod windows;
 mod tests;
 
 pub use actions::{quick_fixes, Action, PlannedAction};
+pub use connection::{ConnectionState, DeviceHolder, HeldDevice, UsbLink, UsbRole, UsbSpeed};
 pub use diff::snapshot_diff;
 pub use state::*;
 
@@ -32,6 +34,7 @@ pub fn audit(snapshot: &SystemSnapshot, constraints: &[Constraint]) -> Vec<Findi
     windows::check(snapshot, &mut out);
     obs_audio::check(snapshot, &mut out);
     camera::check(snapshot, &mut out);
+    connection::check(snapshot, &mut out);
     encoder::check(snapshot, constraints, &mut out);
 
     if constraints.contains(&Constraint::CantAddCleanGain) {

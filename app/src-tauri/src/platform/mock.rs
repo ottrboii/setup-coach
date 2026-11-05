@@ -121,6 +121,7 @@ pub struct MockSystem {
     pub obs_running: Mutex<bool>,
     /// Apps that "have the camera" (tests and demos).
     pub camera_users: Mutex<Vec<CameraUser>>,
+    pub connection: Mutex<coach_core::system::ConnectionState>,
     pub obs_dir: Mutex<Option<PathBuf>>,
     /// Where `--self-test` puts its zip by default (None: fallback folder).
     pub desktop_dir: Mutex<Option<PathBuf>>,
@@ -155,6 +156,10 @@ impl SystemInspector for MockSystem {
     fn obs_running(&self) -> bool {
         *self.obs_running.lock().unwrap()
     }
+    fn connection_state(&self) -> coach_core::system::ConnectionState {
+        self.connection.lock().unwrap().clone()
+    }
+
     fn camera_users(&self) -> Vec<CameraUser> {
         self.camera_users.lock().unwrap().clone()
     }
@@ -475,6 +480,7 @@ impl MockPlatform {
                 processing: KnownProcessingApps::default(),
                 obs_running: Mutex::new(true),
                 camera_users: Mutex::new(Vec::new()),
+            connection: Mutex::new(Default::default()),
                 obs_dir: Mutex::new(None),
                 desktop_dir: Mutex::new(None),
                 applied: Mutex::new(Vec::new()),

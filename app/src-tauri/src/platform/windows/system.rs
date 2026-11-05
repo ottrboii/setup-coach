@@ -2,7 +2,7 @@
 
 use super::audio::capture_endpoints;
 use super::{com_init, run_hidden, running_processes};
-use crate::platform::{detect_mains, GainControl, MainsGuess, SystemInspector, WinKey, WinValue};
+use crate::platform::{detect_mains, parse_usb_probe,GainControl, MainsGuess, SystemInspector, WinKey, WinValue};
 use coach_core::system::{
     Action, AudioEndpoint, CameraSystemState, Connection, DuckingPreference, GpuVendor, HardwareInfo, KnownProcessingApps, NetworkInfo,
     WindowsAudioState,
@@ -317,9 +317,14 @@ fn reg_str(root: winreg::HKEY, path: &str, name: &str) -> Option<String> {
 /// `LastUsedTimeStop` to 0 while the camera is open. Returns raw entry names
 /// (exe paths with `#` for `\`, or packaged-app ids).
 fn webcam_in_use_now() -> Vec<String> {
-    let base = r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
+    capability_in_use_now("webcam")
+}
+
+/// Same for webcam or microphone.
+fn capability_in_use_now(cap: &str) -> Vec<String> {
+    let base = format!(r"Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\{cap}");
     let mut out = Vec::new();
-    let Ok(root) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(base, KEY_READ) else { return out };
+    let Ok(root) = RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(&base, KEY_READ) else { return out };
     let mut scan = |key: &RegKey| {
         for name in key.enum_keys().flatten() {
             if name.eq_ignore_ascii_case("NonPackaged") {
@@ -338,6 +343,55 @@ fn webcam_in_use_now() -> Vec<String> {
         scan(&np);
     }
     out
+}
+
+/// The probe takes a few seconds; rescans within 15 s reuse the last answer.
+fn usb_links_cached() -> Vec<coach_core::system::UsbLink> {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static CACHE: Mutex<Option<(Instant, Vec<coach_core::system::UsbLink>)>> = Mutex::new(None);
+    let mut g = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some((at, v)) = g.as_ref() {
+        if at.elapsed() < Duration::from_secs(15) {
+            return v.clone();
+        }
+    }
+    let v = usb_links();
+    *g = Some((Instant::now(), v.clone()));
+    v
+}
+
+/// Read USB cameras/mics (speed, hubs, drop history) with a short PowerShell probe.
+fn usb_links() -> Vec<coach_core::system::UsbLink> {
+    use coach_core::system::{UsbLink, UsbRole, UsbSpeed};
+    let path = std::env::temp_dir().join("setup-coach-usb-probe.ps1");
+    if std::fs::write(&path, include_str!("usb_probe.ps1")).is_err() {
+        return Vec::new();
+    }
+    let Some(text) = run_hidden("powershell", &["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", &path.to_string_lossy()]) else { return Vec::new() };
+    let _ = std::fs::remove_file(&path);
+    parse_usb_probe(&text)
+        .into_iter()
+        .map(|p| UsbLink {
+            name: p.name,
+            role: if p.role == "camera" { UsbRole::Camera } else { UsbRole::Audio },
+            vid: p.vid,
+            pid: p.pid,
+            speed: match p.speed.as_str() {
+                "low" => UsbSpeed::Low,
+                "full" => UsbSpeed::Full,
+                "high" => UsbSpeed::High,
+                "super" => UsbSpeed::Super,
+                _ => UsbSpeed::Unknown,
+            },
+            superspeed_capable: p.superspeed_capable.unwrap_or(false),
+            controller: p.controller,
+            behind_hub: p.behind_hub,
+            hub_name: p.hub_name,
+            hub_bus_powered: p.hub_bus_powered,
+            drops_7d: p.drops_7d,
+        })
+        .collect()
 }
 
 fn consent_allowed(cap: &str) -> bool {
@@ -537,6 +591,21 @@ impl SystemInspector for WinSystem {
 
     fn camera_users(&self) -> Vec<crate::platform::CameraUser> {
         crate::platform::merge_camera_users(&webcam_in_use_now(), &running_processes())
+    }
+
+    fn connection_state(&self) -> coach_core::system::ConnectionState {
+        use coach_core::system::{ConnectionState, DeviceHolder, HeldDevice};
+        let running = running_processes();
+        let mut holders = Vec::new();
+        for (cap, device) in [("webcam", HeldDevice::Camera), ("microphone", HeldDevice::Mic)] {
+            // Mic: only Windows' own "in use right now" log counts; running apps
+            // are too common to accuse.
+            let running_for = if device == HeldDevice::Camera { running.as_slice() } else { &[] };
+            for u in crate::platform::merge_camera_users(&capability_in_use_now(cap), running_for) {
+                holders.push(DeviceHolder { app: u.name, device, confirmed: u.confirmed });
+            }
+        }
+        ConnectionState { links: usb_links_cached(), holders }
     }
 
     fn obs_config_dir(&self) -> Option<PathBuf> {

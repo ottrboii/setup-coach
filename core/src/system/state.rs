@@ -443,6 +443,7 @@ pub struct SystemSnapshot {
     pub mic: MicContext,
     pub hardware: Option<HardwareInfo>,
     pub network: Option<NetworkInfo>,
+    pub connection: Option<super::connection::ConnectionState>,
 }
 
 impl SystemSnapshot {
