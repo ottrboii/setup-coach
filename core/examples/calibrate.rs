@@ -7,6 +7,7 @@ fn show(name: &str, s: Scenario) {
     println!("== {name}: score {} | floor {:.1} rms {:.1} pk {:.1} quiet {:.1} lufs {:.1} snr {:.1} loud {:?} clip {:.5} f0 {:?} bw {} rev {:?} refl {:?} plos {} {:?} sib {:?} typ {:?} tap {:?} drop {} crk {} mv {:?}/{:?} lvr {:?} pause {:?} noise {:?}",
         r.score.value, m.noise_floor_dbfs, m.speech_rms_dbfs, m.speech_peak_dbfs, m.quiet_speech_dbfs, m.speech_lufs, m.snr_db, m.loud_peak_dbfs.map(|v| (v*10.0).round()/10.0), m.clipped_fraction, m.f0_hz.map(|v| v.round()), m.upper_bandwidth_hz, m.reverb_decay_s.map(|v| (v*100.0).round()/100.0), m.reflection.map(|r| ((r.delay_ms*100.0).round()/100.0, r.ripple_db.round())), m.plosive_events, m.plosive_worst_db.map(|v| v.round()), m.sibilance_db.map(|v| v.round()), m.typing_rel_db.map(|v| v.round()), m.tap_rel_db.map(|v| v.round()), m.dropouts, m.crackles, m.moving_drop_db.map(|v| v.round()), m.moving_spread_db.map(|v| v.round()), m.loud_vs_read_db.map(|v| v.round()), m.pause_floor_rise_db.map(|v| v.round()), m.noise_character);
     println!("   tone {:?}", m.tone);
+    println!("   vibration {:?}", m.vibration);
     println!("   dev {:?}", m.band_deviation_db.iter().map(|d| d.round() as i32).collect::<Vec<_>>());
     for f in &r.findings { println!("   - {:?} {} — {}", f.severity, f.id, f.title); }
 }
@@ -34,6 +35,7 @@ fn main() {
     if want("dull") { show("dull", Scenario { tone: vec![(3500.0, -10.0, 0.8), (8000.0, -10.0, 0.8)], ..d() }); }
     if want("harsh") { show("harsh", Scenario { tone: vec![(3500.0, 9.0, 1.0)], ..d() }); }
     if want("typing") { show("typing", Scenario { typing_db: -8.0, ..d() }); }
+    if want("coupled") { show("coupled", Scenario { tap_db: -4.0, tap_ring_s: 0.12, desk_coupling_db: Some(-14.0), ..d() }); }
     if want("tap") { show("tap", Scenario { tap_db: 0.0, ..d() }); }
     if want("drop") { show("drop", Scenario { dropouts: true, ..d() }); }
     if want("moving") { show("moving", Scenario { moving_drop_db: 9.0, ..d() }); }

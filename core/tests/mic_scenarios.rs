@@ -237,3 +237,94 @@ fn deesser_reduces_sharp_s_sounds() {
     let without_m = analyze(&render_test(&t, &without));
     assert!(with_m.sibilance_db.unwrap() < without_m.sibilance_db.unwrap() - 1.5, "{:?} vs {:?} ({de:?})", with_m.sibilance_db, without_m.sibilance_db);
 }
+
+fn thumps(s: Scenario) -> Option<coach_core::Finding> {
+    audio::scan(&build(&s), &MicContext::default(), &[]).findings.into_iter().find(|f| f.id == "mic.desk_thumps")
+}
+
+/// Same recording as the user would get if they skipped the optional tap step.
+fn thumps_without_tap(s: Scenario) -> Option<coach_core::Finding> {
+    let mut t = build(&s);
+    t.segments.retain(|g| g.kind != audio::SegmentKind::DeskTap);
+    audio::scan(&t, &MicContext::default(), &[]).findings.into_iter().find(|f| f.id == "mic.desk_thumps")
+}
+
+fn coupled() -> Scenario {
+    Scenario { tap_db: -4.0, tap_ring_s: 0.12, desk_coupling_db: Some(-14.0), ..d() }
+}
+
+#[test]
+fn desk_vibration_is_found_when_the_arm_touches_the_desk() {
+    let f = thumps(coupled()).expect("coupled mic must be flagged");
+    assert_eq!(f.severity, Severity::Major);
+    assert_eq!(f.suggest_product.as_deref(), Some("shock_mount"));
+    // The symptom is explained, the physical fix comes first, gain is not the fix.
+    assert!(f.why.contains("louder"), "{}", f.why);
+    assert!(f.fix.starts_with("Fix the touch first"), "{}", f.fix);
+    assert!(f.fix.contains("do not turn the gain down"), "{}", f.fix);
+    assert!(f.fix.find("foam or rubber").unwrap() < f.fix.find("low-cut").unwrap());
+    // A plain tap that shows as loud as the voice is enough on its own (the old rule).
+    assert!(thumps(Scenario { tap_db: 0.0, ..d() }).is_some());
+}
+
+#[test]
+fn desk_vibration_is_found_without_the_tap_step() {
+    // User skipped the optional tap: typing thumps and bumps in the quiet carry it.
+    assert!(thumps_without_tap(coupled()).is_some());
+    assert!(thumps_without_tap(d()).is_none());
+}
+
+#[test]
+fn desk_vibration_is_not_confused_with_other_low_frequency_things() {
+    assert!(thumps(d()).is_none(), "clean");
+    // Steady room rumble / HVAC, also loud.
+    for fan in [-52.0, -45.0, -40.0] {
+        assert!(thumps(Scenario { fan_dbfs: Some(fan), ..d() }).is_none(), "fan {fan}");
+        assert!(thumps_without_tap(Scenario { fan_dbfs: Some(fan), ..d() }).is_none(), "fan {fan} no tap");
+    }
+    // Mains hum.
+    assert!(thumps(Scenario { hum: Some((60.0, -55.0)), ..d() }).is_none(), "hum");
+    // Plosives (breath pops) in the read.
+    assert!(thumps(Scenario { plosive_db: 4.0, ..d() }).is_none(), "plosives");
+    assert!(thumps_without_tap(Scenario { plosive_db: 4.0, ..d() }).is_none(), "plosives no tap");
+    // Loud keyboard through the air is the keyboard finding, not desk vibration.
+    assert!(thumps(Scenario { typing_db: -8.0, ..d() }).is_none(), "airborne typing");
+    // A decoupled mic: small tap, nothing in the quiet.
+    assert!(thumps(Scenario { tap_db: -24.0, ..d() }).is_none(), "one weak clue alone");
+    // Coupling is still found through a loud fan.
+    assert!(thumps(Scenario { fan_dbfs: Some(-45.0), ..coupled() }).is_some(), "coupled + fan");
+}
+
+#[test]
+fn desk_vibration_replaces_keyboard_advice_and_never_blames_the_gain() {
+    let r = audio::scan(&build(&coupled()), &MicContext::default(), &[]);
+    let k = r.findings.iter().find(|f| f.id == "mic.keyboard");
+    if let Some(k) = k {
+        assert!(k.fix.starts_with("Fix the desk touch first"), "{}", k.fix);
+    }
+    assert!(r.chain.notes.iter().any(|n| n.contains("desk shaking") && n.contains("gain")), "{:?}", r.chain.notes);
+    // No gain-down advice caused by the thumps: the chain's gain comes from the voice only.
+    let calm = audio::scan(&build(&Scenario { tap_db: -35.0, ..d() }), &MicContext::default(), &[]);
+    assert_eq!(r.chain.hardware_gain_change_db, calm.chain.hardware_gain_change_db);
+}
+
+#[test]
+fn cant_fix_desk_vibration_falls_back_to_a_steeper_low_cut() {
+    let t = build(&coupled());
+    let before = audio::scan(&t, &MicContext::default(), &[]);
+    let after = audio::scan(&t, &MicContext::default(), &[Constraint::CantFixDeskVibration]);
+    let f = after.findings.iter().find(|f| f.id == "mic.desk_thumps").unwrap();
+    assert_eq!(f.severity, Severity::Info);
+    assert!(f.fix.starts_with("Got it"));
+    assert!(after.chain.highpass_hz >= 120.0 && after.chain.highpass_slope_db_oct == 24, "{:?}", after.chain.highpass_hz);
+    assert!(before.chain.highpass_hz < after.chain.highpass_hz);
+}
+
+#[test]
+fn old_saved_metrics_without_vibration_still_load() {
+    let m = analyze(&build(&d()));
+    let mut v = serde_json::to_value(&m).unwrap();
+    v.as_object_mut().unwrap().remove("vibration");
+    let back: coach_core::audio::AudioMetrics = serde_json::from_value(v).unwrap();
+    assert_eq!(back.vibration.thump_events, 0);
+}

@@ -1,6 +1,7 @@
 //! Turn a recorded guided test into measurements.
 
 use super::dsp::{self, Biquad, BAND_CENTERS, Spectrum};
+use super::vibration::{self, VibrationInfo};
 use super::{MicTest, SegmentKind};
 use serde::{Deserialize, Serialize};
 
@@ -127,6 +128,9 @@ pub struct AudioMetrics {
     pub typing_rel_db: Option<f64>,
     /// Desk-tap thump peak relative to speech peaks (dB).
     pub tap_rel_db: Option<f64>,
+    /// Desk / boom-arm vibration reaching the mic (taps, thumps, arm touching the desk).
+    #[serde(default)]
+    pub vibration: VibrationInfo,
     pub dropouts: usize,
     pub crackles: usize,
     /// How much quieter you get while moving (dB).
@@ -307,13 +311,24 @@ pub fn analyze(test: &MicTest) -> AudioMetrics {
     let sibilance_db = sibilance(&read, sr, speech_rms_dbfs, noise_floor_dbfs);
 
     // --- Other steps ------------------------------------------------------------
-    let typing_rel_db = segment_mono(test, SegmentKind::Typing, &live).map(|t| {
-        let f = dsp::frames(&t, sr, 10.0);
+    let typing_seg = segment_mono(test, SegmentKind::Typing, &live);
+    let typing_rel_db = typing_seg.as_ref().map(|t| {
+        let f = dsp::frames(t, sr, 10.0);
         dsp::percentile(&f.rms_db, 95.0) - speech_rms_dbfs
     });
-    let tap_rel_db = segment_mono(test, SegmentKind::DeskTap, &live).map(|t| {
-        let lf = dsp::filtered(&t, &[Biquad::lowpass(sr, 150.0, 0.707), Biquad::lowpass(sr, 150.0, 0.707)]);
+    let tap_seg = segment_mono(test, SegmentKind::DeskTap, &live);
+    let tap_rel_db = tap_seg.as_ref().map(|t| {
+        let lf = dsp::filtered(t, &[Biquad::lowpass(sr, 150.0, 0.707), Biquad::lowpass(sr, 150.0, 0.707)]);
         dsp::db_amp(dsp::peak_abs(&lf)) - speech_peak_dbfs
+    });
+    let vibration = vibration::measure(&vibration::Inputs {
+        sr,
+        speech_peak_dbfs,
+        speech_mid_db: vibration::speech_mid_db(&read, sr, active_thresh),
+        tap: tap_seg.as_deref(),
+        typing: typing_seg.as_deref(),
+        silence: silence.as_deref(),
+        read: &read,
     });
     let (dropouts, crackles) = match segment_mono(test, SegmentKind::CableWiggle, &live) {
         Some(w) => glitches(&w, sr),
@@ -367,6 +382,7 @@ pub fn analyze(test: &MicTest) -> AudioMetrics {
         sibilance_db,
         typing_rel_db,
         tap_rel_db,
+        vibration,
         dropouts,
         crackles,
         moving_drop_db,

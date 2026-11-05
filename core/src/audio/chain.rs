@@ -139,7 +139,17 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
     if m.tone.body_db < -8.0 {
         highpass_hz = highpass_hz.min(70.0);
     }
-    let highpass_slope_db_oct = if m.plosive_events > 2 || m.noise_character == NoiseCharacter::Rumble { 24 } else { 12 };
+    // Desk / boom vibration: the fix is physical. Gain is never turned down to
+    // hide it; a steeper low-cut is only the backup once the user can't fix it.
+    let desk_vibration = super::vibration::assess(m).is_some();
+    let steep_for_desk = desk_vibration && has(Constraint::CantFixDeskVibration);
+    if steep_for_desk {
+        highpass_hz = highpass_hz.max(120.0);
+        notes.push("Desk thumps stay, so the low-cut filter is steeper. It softens them but can't remove them; freeing the arm from the desk would.".into());
+    } else if desk_vibration {
+        notes.push("Your mic is picking up desk shaking. Turning the gain down would only hide it, so we don't offer that as the fix: free the arm from the desk (or pad the clamp) and test again.".into());
+    }
+    let highpass_slope_db_oct = if steep_for_desk || m.plosive_events > 2 || m.noise_character == NoiseCharacter::Rumble { 24 } else { 12 };
 
     // --- EQ from the deviation curve -----------------------------------------------
     let eq = derive_eq(m, has(Constraint::CantMoveMicCloser) || has(Constraint::CantTreatRoom), highpass_hz);
