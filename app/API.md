@@ -529,3 +529,6 @@ updater public key (PR/main CI, local dev) never checks.
 
 ### Profile questions (`Question`)
 Every closed question ends with `I'm not sure` (core adds it) and the UI adds it if missing. A switch is one question per control: `{ id: 'switch_positions', key: 'bass_tilt', prompt, options[], help? }`. `help` = `{ what, where?, positions: [{label, meaning}], image?, manual_url? }` (plain words, no numbers; `image` is a path under app/ui/, `manual_url` must be https). The UI stores the answer under `switch_positions:<key>` and a second tap clears it. Profile JSON: `controls: [{ key, prompt, options, help, source }]` replaces the old `switches` string list. Switch answers are UI-only for now: `MicAnswers` has no switch field (follow-up).
+
+## Connection health (2026-11-05)
+No contract change. \QuickChecks.findings\ now also carries ids \connection.usb3_on_usb2_port\, \connection.behind_hub\, \connection.device_dropouts\, \connection.cameras_share_controller\, \connection.camera_held_by_app\, \connection.mic_held_by_app\ (areas camera/mic, \ix_kind\ manual or guided, numbers only in \evidence\: \speed_mbps\, \drops_7d\). They clear on the next scan once the cause is gone. Backend: \SystemInspector::connection_state()\; Windows reads USB speed/hubs/drops with a PowerShell probe (cached 15 s) and the Windows camera/mic privacy log.

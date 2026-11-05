@@ -44,3 +44,18 @@ async fn real_quick_checks_finish_and_serialize() {
     let v = serde_json::to_value(&q).expect("QuickChecks serializes");
     assert!(v["findings"].is_array() && v["actions"].is_array() && v["score"].is_array());
 }
+
+/// Read-only: USB speed / hubs / drops and who holds the camera or mic.
+#[test]
+#[ignore = "reads the real PC"]
+fn real_connection_state_read_only() {
+    let start = Instant::now();
+    let c = setup_coach_app::platform::native().system.connection_state();
+    for l in &c.links {
+        println!("{} | {:?} | {:?} | hub={} bus_powered={} | drops_7d={}", l.name, l.role, l.speed, l.behind_hub, l.hub_bus_powered, l.drops_7d);
+    }
+    for h in &c.holders {
+        println!("holder: {} {:?} confirmed={}", h.app, h.device, h.confirmed);
+    }
+    assert!(start.elapsed() < Duration::from_secs(20), "probe too slow: {:?}", start.elapsed());
+}

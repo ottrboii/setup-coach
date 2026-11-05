@@ -71,3 +71,11 @@ pub const CHANGED_LEVEL: &str = "system.changed.mic_level";
 pub const CHANGED_DUCKING: &str = "system.changed.ducking";
 pub const CHANGED_OBS_FILTERS: &str = "system.changed.obs_mic_filters";
 pub const CHANGED_STUDIO_EFFECTS: &str = "system.changed.studio_effects_back_on";
+
+// Connection health
+pub const CONN_SLOW_PORT: &str = "connection.usb3_on_usb2_port";
+pub const CONN_HUB: &str = "connection.behind_hub";
+pub const CONN_DROPOUTS: &str = "connection.device_dropouts";
+pub const CONN_SHARED_CONTROLLER: &str = "connection.cameras_share_controller";
+pub const CONN_CAMERA_HELD: &str = "connection.camera_held_by_app";
+pub const CONN_MIC_HELD: &str = "connection.mic_held_by_app";
