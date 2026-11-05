@@ -38,6 +38,7 @@ fn world() -> World {
     let dir = tempfile::tempdir().unwrap();
     let mock = MockPlatform::demo();
     let core = Arc::new(AppCore::new(mock.platform(), dir.path().join("SetupCoach"), Arc::new(CollectingEmitter::default())));
+    core.goxlr_autodetect.store(false, std::sync::atomic::Ordering::SeqCst);
     *mock.system.desktop_dir.lock().unwrap() = Some(dir.path().join("Desktop"));
     World { core, mock, dir }
 }

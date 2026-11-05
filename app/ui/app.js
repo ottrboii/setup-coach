@@ -1,6 +1,6 @@
 // Setup Coach UI: tiny hash router + sidebar.
-import { isMock } from './api.js';
-import { esc, html } from './components.js';
+import { isMock, api } from './api.js';
+import { esc, html, errorBanner } from './components.js';
 import { state } from './state.js';
 import * as welcome from './screens/welcome.js';
 import * as scan from './screens/scan.js';
@@ -70,10 +70,34 @@ async function render() {
   main.innerHTML = '';
   main.scrollTop = 0;
   window.scrollTo(0, 0);
-  const res = await ROUTES[route].render(main, { go, refreshNav: () => renderNav(current()) });
-  if (typeof res === 'function') cleanup = res;
+  try {
+    const res = await ROUTES[route].render(main, { go, refreshNav: () => renderNav(current()) });
+    if (typeof res === 'function') cleanup = res;
+  } catch (e) {
+    showCrash(main, `screen:${route}`, e, () => render());
+  }
   main.focus({ preventScroll: true });
 }
+
+/** Never leave a blank or frozen screen: say what happened in plain words, offer a way on, and log it. */
+function showCrash(main, source, e, retry) {
+  api.logUi('error', source, e && e.stack ? e.stack : e);
+  main.querySelector('.crash')?.remove();
+  const box = html('<div class="crash" style="margin-top:16px"></div>');
+  box.append(errorBanner(new Error("Something went wrong on this screen. It's been written to the log. Try again, or go back to the start."), retry));
+  const back = html('<a class="btn sm" href="#/welcome" style="margin-top:8px">Back to the start</a>');
+  box.append(back);
+  main.append(box);
+}
+
+window.addEventListener('error', (ev) => {
+  const main = document.getElementById('main');
+  if (main) showCrash(main, 'window.error', ev.error || ev.message, () => render());
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  const main = document.getElementById('main');
+  if (main) showCrash(main, 'unhandledrejection', ev.reason, () => render());
+});
 
 window.addEventListener('hashchange', render);
 if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', render);

@@ -57,6 +57,9 @@ port/password from `%APPDATA%\obs-studio\plugin_config\obs-websocket\config.json
 |---|---|---|
 | `run_quick_checks` | – | `QuickChecks` |
 | `apply_actions` | `{ actionIds: string[] }` | `ApplyResult` |
+| `log_ui` | `{ level: string, source: string, message: string }` | `()` – appends a line to `%APPDATA%\SetupCoach\logs\ui.log` (in the self-test zip). The UI calls it for every rejected command and caught screen error. (added 2026-11-05) |
+
+`run_quick_checks` runs in a guarded task (45 s limit): a panic or hang rejects with a plain string instead of never answering. It only offers actions that can work: fixes that need administrator rights the app lacks are left out and their finding comes back `fix_kind: "guided"` (no "We can do it for you" sentence). OBS Advanced-mode keyframe interval / rate control are written to the profile's `streamEncoder.json` (with a vault backup).
 
 ```ts
 QuickChecks = { findings: Finding[], actions: PlannedActionView[], score: Score[] }

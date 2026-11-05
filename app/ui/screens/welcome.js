@@ -70,7 +70,8 @@ async function showEnv(body, go, refreshNav, fetch = false) {
   function renderQuestions() {
     qBox.innerHTML = '';
     const mic = selectedMic();
-    const qs = mic?.profile?.needs_questions || [];
+    // Real backend: ProfileMatch.questions (API.md). Browser mock: needs_questions.
+    const qs = mic?.profile?.questions || mic?.profile?.needs_questions || [];
     const extra = mic && /focusrite|goxlr|scarlett|wave xlr|rodecaster|umc|interface|analogue/i.test(mic.name)
       ? [{ id: 'gain_at_max', prompt: 'Is the gain knob for your mic turned all (or almost all) the way up?', options: ['Yes', 'No', "I'm not sure"] }]
       : [];
@@ -82,7 +83,17 @@ async function showEnv(body, go, refreshNav, fetch = false) {
   renderQuestions();
 
   const next = html(`<div class="row"><button class="btn primary lg">Run the free quick scan</button><span class="subtle">Checks Windows and OBS settings — takes a few seconds.</span></div>`);
-  next.querySelector('button').addEventListener('click', () => go('scan'));
+  next.querySelector('button').addEventListener('click', () => {
+    // A button must never fail silently: if going on throws, say so and log it.
+    try {
+      go('scan');
+    } catch (e) {
+      api.logUi('error', 'welcome.go_scan', e && e.stack ? e.stack : e);
+      wrap.querySelector('.go-error')?.remove();
+      wrap.append(errorBanner(new Error("We couldn't open the scan. Please try again."), () => go('scan')));
+      wrap.lastElementChild.classList.add('go-error');
+    }
+  });
   wrap.append(next);
 }
 

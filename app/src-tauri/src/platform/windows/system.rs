@@ -347,6 +347,18 @@ impl SystemInspector for WinSystem {
         super::desktop_dir()
     }
 
+    fn can_apply(&self, action: &Action) -> bool {
+        match action {
+            // Registry-backed endpoint settings: the exact key must open for writing.
+            Action::DisableExclusiveMode { endpoint } | Action::DisableListen { endpoint } => props_key(endpoint, true).is_some(),
+            // Property-store / audio-effects / boost changes need the same rights; probe the shared parent key.
+            Action::DisableEnhancements { endpoint } | Action::DisableVoiceClarity { endpoint } | Action::SetMicBoost { endpoint, .. } => {
+                props_key(endpoint, true).is_some()
+            }
+            _ => true,
+        }
+    }
+
     fn apply(&self, action: &Action) -> Result<(), String> {
         com_init();
         match action {

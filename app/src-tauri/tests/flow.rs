@@ -25,6 +25,7 @@ async fn world() -> World {
     let mock = MockPlatform::demo();
     let events = Arc::new(CollectingEmitter::default());
     let mut core = AppCore::new(mock.platform(), dir.path().join("data"), events.clone());
+    core.goxlr_autodetect.store(false, std::sync::atomic::Ordering::SeqCst);
     core.health_interval = Duration::from_millis(5);
     core.frame_interval = Duration::from_millis(1);
     let core = Arc::new(core);

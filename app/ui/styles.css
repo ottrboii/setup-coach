@@ -528,3 +528,6 @@ body.mini .coach-stepper { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .coach-card.success .burst::before, .coach-card.success .burst::after { display: none; }
 }
+
+.banner ul.plain { margin: 4px 0 0; padding-left: 18px; }
+.banner ul.plain li { margin: 2px 0; }

@@ -69,6 +69,9 @@ const QUICK = {
       'Set your mic to 48 kHz in Windows Sound settings. We\'ll open the right page for you.', 'guided'),
     finding('system.windows_ducking_on', 'system', 'minor', 'Windows turns your game down when Discord is open',
       "The 'Reduce other sounds by 80%' setting is on.", "We'll set it to 'Do nothing'.", 'auto'),
+    finding('system.exclusive_mode_allowed', 'system', 'minor', 'Apps can take over your mic',
+      '"Allow applications to take exclusive control" lets a game or app lock the mic so OBS or Discord suddenly hear nothing.',
+      'Turn off exclusive control for this mic in Windows Sound settings.', 'guided'),
     finding('stream.on_wifi', 'stream', 'minor', "You're streaming over Wi-Fi",
       'Wi-Fi can drop out for a moment, which shows up as dropped frames for viewers.',
       'Use a network cable if you can.', 'manual'),
@@ -344,9 +347,19 @@ export function createMock() {
   const handlers = {
     async get_environment() { await wait(600); return { ...ENVIRONMENT, saved_profile: saved }; },
     async connect_obs() { await wait(400); return ENVIRONMENT.obs; },
-    async run_quick_checks() { await wait(900); return QUICK; },
+    async run_quick_checks() {
+      await wait(900);
+      // ?fail=scan simulates a backend error so the error banner + retry can be checked in a browser.
+      if (/[?&]fail=scan\b/.test(location.search) && !window.__scanRetried) { window.__scanRetried = true; throw 'The scan hit an unexpected problem. Please try again.'; }
+      return QUICK;
+    },
+    async log_ui(entry) { (window.__uiLog ||= []).push(entry); return null; },
     async apply_actions({ actionIds }) {
       await wait(900);
+      // ?fail=apply simulates every fix failing (0 fixed).
+      if (/[?&]fail=apply\b/.test(location.search)) {
+        return { applied: [], failed: actionIds.map((id) => ({ id, error: "Windows didn't allow that change." })), restart_obs_needed: false, skipped: [] };
+      }
       const failed = actionIds.includes('a4') ? [{ id: 'a4', error: 'Windows needs you to confirm this one. We opened the Sound settings page for you.' }] : [];
       return { applied: actionIds.filter((a) => !failed.find((f) => f.id === a)), failed, restart_obs_needed: actionIds.includes('a1') };
     },

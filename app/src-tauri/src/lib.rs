@@ -74,6 +74,7 @@ pub fn run() {
             commands::get_environment,
             commands::connect_obs,
             commands::run_quick_checks,
+            commands::log_ui,
             commands::apply_actions,
             commands::mic_context,
             commands::start_mic_test,
