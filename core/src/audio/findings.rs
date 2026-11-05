@@ -411,13 +411,36 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
             );
         }
     }
-    if let Some(tp) = m.tap_rel_db {
-        if tp > -10.0 {
-            out.push(
-                f("mic.desk_thumps", Severity::Minor, "Desk bumps thump through the mic", "Vibrations travel from the desk up the mic stand.", "Use a boom arm or shock mount, and leave a little slack loop in the cable. We'll filter the lowest thumps.", FixKind::Manual)
-                    .with_evidence("tap_rel_db", tp)
-                    .suggesting("shock_mount"),
-            );
+    if let Some(v) = super::vibration::assess(m) {
+        let vi = &m.vibration;
+        let mut fd = f(
+            "mic.desk_thumps",
+            if v.major() { Severity::Major } else { Severity::Minor },
+            "Desk bumps and thumps shake your mic",
+            "Your mic is picking up shaking from the desk through its arm or stand. If the boom arm, the cable or your forearm touches the desk, every bump, key press and hit goes straight into the mic as a thud. That is why desk hits sound so loud and your mic sounds louder than it should. Turning the gain down only hides it for a moment and makes your voice quieter.",
+            "Fix the touch first. 1) Look for anything touching the desk besides the clamp: the arm, the cable, your forearm. Lift it free. 2) Put a piece of foam or rubber under the clamp or base. 3) Hang the mic in a shock mount. 4) Leave a loose loop of cable. Then run the test again. Please do not turn the gain down for this. If hits are still loud after that, we add a gentle low-cut filter as a backup.",
+            FixKind::Manual,
+        )
+        .suggesting("shock_mount");
+        if let Some(tp) = m.tap_rel_db {
+            fd = fd.with_evidence("tap_rel_db", tp);
+        }
+        for (k, val) in [
+            ("tap_ring_ms", vi.tap_ring_ms),
+            ("tap_lf_gap_db", vi.tap_lf_gap_db),
+            ("typing_lf_rel_db", vi.typing_lf_rel_db),
+            ("thump_worst_db", vi.thump_worst_db),
+        ] {
+            if let Some(x) = val {
+                fd = fd.with_evidence(k, x);
+            }
+        }
+        fd = fd.with_evidence("thump_events", vi.thump_events as f64).with_evidence("strong_clue", v.strong as u8 as f64).with_evidence("weak_clues", v.weak as f64);
+        out.push(fd);
+        // The loud keys are the same problem; do not send the user to the keyboard advice.
+        if let Some(k) = out.iter_mut().find(|x| x.id == "mic.keyboard") {
+            k.why = "Most of what the mic hears is the desk shaking, not the keys in the air (see the desk bumps card).".into();
+            k.fix = "Fix the desk touch first. If typing is still loud after that, move the mic closer to your mouth and point its back at the keyboard.".into();
         }
     }
     if m.dropouts > 0 || m.crackles > 0 {
@@ -459,6 +482,7 @@ fn constraint_map(c: Constraint) -> (&'static [&'static str], &'static str) {
         Constraint::CantTreatRoom => (&["mic.roomy"], "Got it — we've reduced compression so the room isn't pulled up, and tightened the expander to shorten echo tails."),
         Constraint::MovesALot => (&["mic.level_swings"], "Got it — we've added more level smoothing so moving around is less noticeable."),
         Constraint::CantFixPlosives => (&["mic.plosives"], "Got it — we've raised the low-cut filter a little to soften pops."),
+        Constraint::CantFixDeskVibration => (&["mic.desk_thumps"], "Got it — we've set a steeper low-cut filter to take the edge off desk thumps. It can't remove them completely."),
         _ => (&[], ""),
     }
 }

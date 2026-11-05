@@ -137,6 +137,7 @@ const CONSTRAINT_TEXT = {
   cant_move_mic_closer: ['mic.too_far', 'Got it — we\'ve tuned for the distance: gentler compression (so the room isn\'t pulled up), a tighter expander and a little clarity boost.'],
   cant_add_clean_gain: ['mic.not_enough_gain', "Got it — we're using your interface's max clean gain plus digital gain, with an expander to hide hiss between sentences."],
   cant_fix_plosives: ['mic.plosives', 'Got it — we\'ve raised the low-cut filter a little to soften pops.'],
+  cant_fix_desk_vibration: ['mic.desk_thumps', "Got it — we've set a steeper low-cut filter to take the edge off desk thumps. It can't remove them completely."],
   cant_remove_noise_source: ['mic.background_noise', 'Got it — we\'ve set a stronger expander and low-cut so the noise drops out between sentences.'],
 };
 
@@ -164,6 +165,10 @@ function micFindings(constraints, after = false) {
         finding('mic.keyboard', 'mic', 'minor', 'Your keyboard is too loud', 'The mic hears your typing almost as loud as your voice.',
           "Move the mic closer to your mouth and point its back at the keyboard. A boom arm helps. We'll quiet the gaps.", 'manual',
           { suggest_product: 'boom_arm', evidence: { typing_rel_db: -16 } }),
+        finding('mic.desk_thumps', 'mic', 'minor', 'Desk bumps and thumps shake your mic',
+          'Your mic is picking up shaking from the desk through its arm or stand. If the boom arm, the cable or your forearm touches the desk, every bump, key press and hit goes straight into the mic as a thud. That is why desk hits sound so loud and your mic sounds louder than it should. Turning the gain down only hides it for a moment and makes your voice quieter.',
+          'Fix the touch first. 1) Look for anything touching the desk besides the clamp: the arm, the cable, your forearm. Lift it free. 2) Put a piece of foam or rubber under the clamp or base. 3) Hang the mic in a shock mount. 4) Leave a loose loop of cable. Then run the test again. Please do not turn the gain down for this. If hits are still loud after that, we add a gentle low-cut filter as a backup.', 'manual',
+          { suggest_product: 'shock_mount', evidence: { tap_rel_db: -25.6, typing_lf_rel_db: -19.9, tap_lf_gap_db: 6 } }),
       ];
   for (const c of constraints) {
     const t = CONSTRAINT_TEXT[c];

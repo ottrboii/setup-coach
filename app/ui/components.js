@@ -82,6 +82,21 @@ const VISUALS = {
       <rect x="10" y="80" width="160" height="6" rx="3" fill="var(--surface-3)"/><path d="M160 80 V30 L110 14 L84 38" stroke="var(--text-3)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>${micShape(80, 44, -110)}</svg>`,
     text: 'A boom arm keeps the mic in front of your mouth and off the desk — no thumps, no reflections.',
   },
+  // "Show me" for desk bumps: where to look and what it looks like. Plain words only.
+  contact: {
+    svg: `<svg viewBox="0 0 180 90" width="180" height="90" aria-hidden="true">${mouth(36, 40)}
+      <rect x="6" y="78" width="168" height="8" rx="3" fill="var(--surface-3)"/><rect x="138" y="72" width="30" height="6" rx="2" fill="var(--good)"/><rect x="146" y="60" width="14" height="12" rx="2" fill="var(--text-3)"/>
+      <path d="M153 60 V30 L112 14 L84 34" stroke="var(--text-3)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>${micShape(80, 40, -110)}
+      <path d="M84 52 C70 62 66 74 52 77" stroke="var(--warn)" stroke-width="2.5" fill="none" stroke-dasharray="4 3"/><circle cx="52" cy="78" r="5" fill="none" stroke="var(--warn)" stroke-width="2.5"/>
+      <text x="150" y="56" text-anchor="middle" font-size="9" fill="var(--text-2)">padded</text><text x="52" y="68" text-anchor="middle" font-size="9" fill="var(--text-2)">cable on desk</text></svg>`,
+    text: 'Only the padded clamp should touch the desk. Look for these:',
+    points: [
+      'The boom arm or the mic resting on the desk, a monitor or the keyboard tray.',
+      'The cable lying on the desk right next to the mic. Give it a loose loop so it hangs free.',
+      'Your forearm or elbow on the desk edge near the arm. Test: tap the desk gently while you watch the mic. If it wobbles, shaking is reaching it.',
+      'The clamp or base sitting straight on a hard desk with nothing under it. A piece of foam or rubber helps.',
+    ],
+  },
   window: {
     svg: `<svg viewBox="0 0 180 90" width="180" height="90" aria-hidden="true"><rect x="96" y="8" width="70" height="58" rx="4" fill="#fff6d8" stroke="var(--border)"/><path d="M131 8v58M96 37h70" stroke="var(--border)"/>
       ${person(66, 40)}
@@ -112,7 +127,7 @@ const VISUAL_FOR = {
   'mic.too_far': 'distance', 'mic.thin': 'distance', 'mic.too_quiet': 'distance', 'mic.keyboard': 'distance', 'mic.background_noise': 'distance', 'mic.not_enough_gain': 'distance',
   'mic.plosives': 'angle', 'mic.sibilance': 'angle', 'mic.harsh': 'angle',
   'mic.wrong_side': 'side',
-  'mic.reflection': 'boom', 'mic.desk_thumps': 'boom', 'mic.level_swings': 'boom',
+  'mic.reflection': 'boom', 'mic.desk_thumps': 'contact', 'mic.level_swings': 'boom',
   'camera.backlit': 'window', 'camera.background_competes': 'window',
   'camera.harsh_shadows': 'key', 'camera.face_needs_light': 'key', 'camera.too_dark_grainy': 'key', 'camera.underexposed': 'key',
   'camera.glare': 'ring',
@@ -122,7 +137,8 @@ const VISUAL_FOR = {
 export function visualFor(id) {
   const v = VISUALS[VISUAL_FOR[id]];
   if (!v) return null;
-  return html(`<div class="visual">${v.svg}<p class="muted">${esc(v.text)}</p></div>`);
+  const points = v.points ? `<ul class="muted" style="margin:6px 0 0;padding-left:18px">${v.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul>` : '';
+  return html(`<div class="visual">${v.svg}<div><p class="muted">${esc(v.text)}</p>${points}</div></div>`);
 }
 
 /** Card for one finding. opts: { selectable, checked, onToggle, onDone, onCant, fixed, visual } */
