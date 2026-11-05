@@ -42,6 +42,12 @@ pub struct Scenario {
     pub typing_db: f64,
     /// Desk tap peak relative to speech peaks (dB).
     pub tap_db: f64,
+    /// How long the tap thud rings (decay time constant, s). A mic arm that
+    /// touches the desk rings on; a decoupled one stops quickly.
+    pub tap_ring_s: f64,
+    /// Desk coupling: key presses and a few bumps in the quiet arrive as low
+    /// thuds this far from the speech peaks (dB). `None` = decoupled mic.
+    pub desk_coupling_db: Option<f64>,
     pub dropouts: bool,
     /// Average level drop while moving (dB).
     pub moving_drop_db: f64,
@@ -72,6 +78,8 @@ impl Default for Scenario {
             bandlimit_hz: None,
             typing_db: -40.0,
             tap_db: -35.0,
+            tap_ring_s: 0.02,
+            desk_coupling_db: None,
             dropouts: false,
             moving_drop_db: 1.0,
             auto_level: false,
@@ -305,7 +313,30 @@ pub fn build(s: &Scenario) -> MicTest {
                 for i in 0..(0.08 * srf) as usize {
                     let tt = i as f64 / srf;
                     if c0 + i < n {
-                        acoustic[c0 + i] += peak * (2.0 * std::f64::consts::PI * 80.0 * tt).sin() * (-tt / 0.02).exp();
+                        acoustic[c0 + i] += peak * (2.0 * std::f64::consts::PI * 80.0 * tt).sin() * (-tt / s.tap_ring_s).exp();
+                    }
+                }
+            }
+        }
+        if let Some(c) = s.desk_coupling_db {
+            // Thuds from the desk: one per key press while typing, a few bumps in the quiet.
+            let thud = from_db(s.speech_level_dbfs + 10.0 + c);
+            let mut times: Vec<f64> = Vec::new();
+            if kind == SegmentKind::Typing {
+                let mut tt = 0.1;
+                while tt < dur - 0.1 {
+                    times.push(tt);
+                    tt += 0.25;
+                }
+            } else if kind == SegmentKind::Silence {
+                times.extend([0.7, 1.6, 2.4]);
+            }
+            for t in times {
+                let c0 = a + (t * srf) as usize;
+                for i in 0..(0.3 * srf) as usize {
+                    let tt = i as f64 / srf;
+                    if c0 + i < n {
+                        acoustic[c0 + i] += thud * (2.0 * std::f64::consts::PI * 70.0 * tt).sin() * (-tt / 0.04).exp();
                     }
                 }
             }

@@ -100,8 +100,14 @@ SegmentKind = "silence" | "read" | "loud" | "typing" | "desk_tap" | "cable_wiggl
 Event `mic-level`: `{ rms_db: number, peak_db: number, clipped: boolean }` (~20/s).
 
 Guided steps & durations (UI drives them, backend records): silence 5 s, read
-~10 s (on-screen text with p/b/s words), loud 3 s, typing 4 s, desk_tap 3 s,
-cable_wiggle 4 s, moving 5 s.
+~10 s (on-screen text with p/b/s words), loud 3 s, typing 4 s, desk_tap 5 s
+(tap twice next to the mic stand, then sit still; **optional**: the UI offers
+"Skip this step" and then never sends its `mark_step`, so the report falls back
+to typing/quiet-step evidence for desk vibration), cable_wiggle 4 s, moving 5 s.
+`finish_mic_test`'s constraints may now include `cant_fix_desk_vibration`
+(finding `mic.desk_thumps`; steeper low-cut as backup). `AudioMetrics` gained
+`vibration` (`#[serde(default)]`, old saved metrics still load); `Constraint`
+gained one variant. No command changes.
 
 `apply_mic_chain`'s `obsInput` may be empty or unknown: the backend then uses
 the OBS input capturing the mic from the last test (or OBS's main mic). It writes the chain atomically (temp file + rename) to `%APPDATA%\SetupCoach\chain.json` (read

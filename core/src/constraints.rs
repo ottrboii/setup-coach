@@ -21,6 +21,8 @@ pub enum Constraint {
     MovesALot,
     /// No pop filter / can't angle the mic off-axis.
     CantFixPlosives,
+    /// Can't free the arm/stand from the desk or add a pad / shock mount.
+    CantFixDeskVibration,
     // Camera
     /// No extra light can be added.
     CantAddLight,

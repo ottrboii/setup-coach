@@ -38,6 +38,7 @@ export const MIC_CONSTRAINT = {
   'mic.roomy': 'cant_treat_room',
   'mic.level_swings': 'moves_a_lot',
   'mic.plosives': 'cant_fix_plosives',
+  'mic.desk_thumps': 'cant_fix_desk_vibration',
 };
 
 export const CAMERA_CONSTRAINT = {

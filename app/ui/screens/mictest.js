@@ -13,7 +13,7 @@ export const STEPS = [
   { kind: 'read', secs: 11, title: 'Read this out loud', text: 'Use your normal streaming voice.', script: true },
   { kind: 'loud', secs: 3, title: 'Now get loud!', text: 'Laugh, cheer or yell like you just won a clutch round.' },
   { kind: 'typing', secs: 4, title: 'Type on your keyboard', text: "Type like you're in chat — don't talk." },
-  { kind: 'desk_tap', secs: 3, title: 'Tap your desk twice', text: 'Like you would bump it mid-game.' },
+  { kind: 'desk_tap', secs: 5, optional: true, title: 'Tap your desk twice', text: 'Tap the desk next to your mic stand, like you would bump it mid-game. Then sit still for a moment. Can''t do this right now? Skip it.' },
   { kind: 'cable_wiggle', secs: 4, title: 'Wiggle the mic cable', text: 'Keep talking while you gently wiggle the cable where it plugs in.' },
   { kind: 'moving', secs: 5, title: 'Lean back and look around', text: 'Keep talking while you lean back and turn your head, like mid-game.' },
 ];
@@ -25,6 +25,8 @@ export async function render(root, { go }) {
   let unlisten = null;
   let timer = null;
   let cancelled = false;
+  let skipped = false;
+  let skipResolve = null;
   const mic = selectedMic();
 
   root.append(html(`
@@ -47,7 +49,7 @@ export async function render(root, { go }) {
     <div class="card stack">
       <div class="device"><div class="ico">${icons.mic}</div><div class="stack" style="gap:2px" id="mic-line"></div></div>
       <div id="choice-slot"></div>
-      <ul class="explain" style="margin:0;padding:0">${STEPS.map((s) => `<li><span class="ico">${icons.check}</span><span><b>${esc(s.title)}</b> · ${s.secs}s</span></li>`).join('')}</ul>
+      <ul class="explain" style="margin:0;padding:0">${STEPS.map((s) => `<li><span class="ico">${icons.check}</span><span><b>${esc(s.title)}</b> · ${s.secs}s${s.optional ? ' · optional' : ''}</span></li>`).join('')}</ul>
       ${state.micConstraints.length ? `<div class="banner info"><span>We'll keep your answers in mind (${state.micConstraints.length} thing${state.micConstraints.length === 1 ? '' : 's'} you can't change).</span></div>` : ''}
       <div class="row"><button class="btn primary lg" id="start" ${mic ? '' : 'disabled'}>Start the test</button></div>
     </div>`);
@@ -96,7 +98,7 @@ export async function render(root, { go }) {
           <div class="meter-labels"><span>quiet</span><span>green zone = great talking level</span><span>too loud</span></div>
           <div id="hint" class="muted" aria-live="polite">&nbsp;</div>
         </div>
-        <div class="row"><button class="btn ghost" id="cancel">Cancel</button></div>
+        <div class="row"><button class="btn ghost" id="cancel">Cancel</button><button class="btn hidden" id="skip">Skip this step</button></div>
       </div>`);
     body.append(view);
     const fill = view.querySelector('#fill');
@@ -105,6 +107,9 @@ export async function render(root, { go }) {
     let currentKind = null;
     let peakHold = -90;
     let lastHintAt = 0;
+    const skipBtn = view.querySelector('#skip');
+    // Optional steps (the desk tap) can be skipped; the report then relies on what the other steps already show.
+    skipBtn.addEventListener('click', () => { skipped = true; clearInterval(timer); if (skipResolve) skipResolve(); });
     view.querySelector('#cancel').addEventListener('click', () => { cancelled = true; teardown(); go('mic'); });
 
     try {
@@ -144,13 +149,17 @@ export async function render(root, { go }) {
       view.querySelector('#text').textContent = s.text;
       view.querySelector('#script').classList.toggle('hidden', !s.script);
       hint.innerHTML = '&nbsp;';
+      skipped = false;
+      skipBtn.classList.toggle('hidden', !s.optional);
       await countdown(view.querySelector('#count'), 2, true);
       if (cancelled) return;
+      if (skipped) continue;
       await api.markStep(s.kind, 'start');
       await countdown(view.querySelector('#count'), s.secs);
       await api.markStep(s.kind, 'end');
     }
     dots.forEach((d) => { d.className = 'step-dot done'; });
+    skipBtn.classList.add('hidden');
     teardown();
     view.querySelector('#title').textContent = 'Nice! Crunching the numbers…';
     view.querySelector('#text').textContent = 'Comparing your voice with a natural reference and checking for noise, echo and pops.';
@@ -168,6 +177,7 @@ export async function render(root, { go }) {
 
   function countdown(el, secs, ready = false) {
     return new Promise((resolve) => {
+      skipResolve = resolve;
       let left = secs;
       el.textContent = ready ? '' : left;
       el.style.color = ready ? 'var(--text-3)' : '';
