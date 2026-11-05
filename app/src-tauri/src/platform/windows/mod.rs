@@ -6,6 +6,7 @@ mod audio;
 mod camera;
 mod dialogs;
 mod system;
+pub use system::fx_helper_main;
 
 use super::Platform;
 use std::sync::Arc;

@@ -82,6 +82,37 @@ fn settings_target(uri: &str, label: &str, steps: &[&str]) -> OpenTarget {
     OpenTarget { kind: OpenKind::WindowsSettings, uri_or_app: uri.into(), label: label.into(), steps: steps.iter().map(|s| s.to_string()).collect() }
 }
 
+/// The "you do it, we watch" step for Windows audio enhancements / Voice
+/// Clarity: opens the Sound settings page of exactly this mic and polls the
+/// real state (`check_passes`) until it is off. `check` is `enhancements_off`
+/// or `voice_clarity_off`.
+pub fn fx_guided_step(check: &str, endpoint: &str) -> CoachStep {
+    let (finding, title, steps): (&str, &str, [&str; 2]) = if check == "voice_clarity_off" {
+        (
+            ids::VOICE_CLARITY,
+            "Turn off Windows Voice Clarity",
+            ["Find \"Audio enhancements\" and set it to Off (or untick Windows Voice Clarity).", "That's all — we'll notice the moment it changes."],
+        )
+    } else {
+        (
+            ids::ENHANCEMENTS,
+            "Turn off Windows audio enhancements",
+            ["Find \"Audio enhancements\" and set it to Off.", "That's all — we'll notice the moment it changes."],
+        )
+    };
+    let mut s = step(
+        &format!("check-{check}"),
+        Some(finding),
+        T::CheckSetting,
+        title,
+        "Windows is processing your mic on top of everything else, which can make you sound muffled or warbly. Windows only lets you switch this off yourself, so we'll open the right page and watch for the change.",
+        "settings_toggle",
+    );
+    s.open_target = Some(settings_target(&crate::platform::sound_properties_uri(endpoint), "your microphone's settings in Windows", &steps));
+    s.check = Some(check.into());
+    s
+}
+
 impl AppCore {
     pub fn set_window_control(&self, w: Arc<dyn WindowControl>) {
         *self.window.lock().unwrap() = w;
@@ -238,15 +269,10 @@ impl AppCore {
             s.check = Some("mic_privacy_allowed".into());
             push(s, &mut out);
         }
-        for (id, check, title) in [
-            (ids::VOICE_CLARITY, "voice_clarity_off", "Turn off Windows Voice Clarity"),
-            (ids::ENHANCEMENTS, "enhancements_off", "Turn off Windows audio enhancements"),
-        ] {
+        let mic_ep = snap.as_ref().and_then(|s| s.mic_endpoint()).map(|e| e.id.clone()).unwrap_or_default();
+        for (id, check) in [(ids::VOICE_CLARITY, "voice_clarity_off"), (ids::ENHANCEMENTS, "enhancements_off")] {
             if has_sys(id) {
-                let mut s = step(&format!("check-{check}"), Some(id), T::CheckSetting, title, "Windows is processing your mic on top of everything else, which can make you sound muffled or warbly.", "settings_toggle");
-                s.open_target = Some(settings_target("ms-settings:sound", "Windows sound settings", &["Click your microphone under \"Input\".", "Set \"Audio enhancements\" to Off (and turn off Voice Clarity if you see it)."]));
-                s.check = Some(check.into());
-                push(s, &mut out);
+                push(fx_guided_step(check, &mic_ep), &mut out);
             }
         }
 

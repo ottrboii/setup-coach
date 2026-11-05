@@ -68,9 +68,11 @@ port/password from `%APPDATA%\obs-studio\plugin_config\obs-websocket\config.json
 QuickChecks = { findings: Finding[], actions: PlannedActionView[], score: Score[] }
 PlannedActionView = { id: string, label: string, resolves: string[], needs_admin: boolean,
                       needs_obs_closed: boolean, action: Action }   // Action = coach_core::system Action
-ApplyResult = { applied: string[], failed: { id: string, error: string }[], restart_obs_needed: boolean,
+ApplyResult = { applied: string[], failed: { id: string, error: string, guided?: CoachStep }[], restart_obs_needed: boolean,
                 skipped: { id: string, error: string }[] }   // plain notes; only restore_backup fills it (added 2026-11-03)
 ```
+
+**Windows audio enhancements / Voice Clarity (added 2026-11-05).** `DisableEnhancements` / `DisableVoiceClarity` are always offered (`needs_admin: true` means "Windows may show its permission prompt"). Apply order: write directly (administrators), else a one-off elevated helper of our own exe (`--fx-helper`, Windows' UAC prompt, changes exactly one value, 60 s), and Voice Clarity through the Windows audio-effects API. Afterwards the backend **re-reads the real state** and only puts the id in `applied` if the effect is really off. When it is not (prompt declined, driver won't allow it, call claimed success but nothing changed) the id lands in `failed` with a plain `error` and a `guided` `CoachStep` (`task: check_setting`, `check: "enhancements_off" | "voice_clarity_off"`, `open_target.uri_or_app: ms-settings:sound-properties?endpointId=<this mic>`). The UI should show a button that calls `open_target` + `start_coach(failure.guided)`: the coach polls the effect state and finishes by itself when it flips (no "did you do it?"). `coach_plan` uses the same step, so the guided path is identical from the plan.
 
 ## Mic test
 

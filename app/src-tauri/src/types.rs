@@ -170,6 +170,11 @@ pub struct QuickChecks {
 pub struct ApplyFailure {
     pub id: String,
     pub error: String,
+    /// When the app can't do this itself but the user can in a couple of
+    /// clicks: a ready `CheckSetting` coach step (opens the exact Windows page
+    /// for the device and watches for the change). Pass it to `start_coach`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guided: Option<CoachStep>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -188,10 +193,14 @@ impl ApplyResult {
         self.applied.push(id.into());
     }
     pub fn fail(&mut self, id: impl Into<String>, error: impl Into<String>) {
-        self.failed.push(ApplyFailure { id: id.into(), error: error.into() });
+        self.failed.push(ApplyFailure { id: id.into(), error: error.into(), guided: None });
+    }
+    /// Failed, but the user can finish it in a guided step.
+    pub fn fail_guided(&mut self, id: impl Into<String>, error: impl Into<String>, step: CoachStep) {
+        self.failed.push(ApplyFailure { id: id.into(), error: error.into(), guided: Some(step) });
     }
     pub fn skip(&mut self, id: impl Into<String>, note: impl Into<String>) {
-        self.skipped.push(ApplyFailure { id: id.into(), error: note.into() });
+        self.skipped.push(ApplyFailure { id: id.into(), error: note.into(), guided: None });
     }
 }
 
