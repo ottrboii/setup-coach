@@ -16,6 +16,18 @@ fn core() -> Arc<AppCore> {
     Arc::new(AppCore::new(setup_coach_app::platform::native(), dir, Arc::new(CollectingEmitter::default())))
 }
 
+/// Read-only: what the app believes about each capture endpoint's Windows
+/// audio enhancements / Voice Clarity (compare with Settings > System > Sound).
+#[test]
+#[ignore = "reads the real PC"]
+fn real_audio_effect_state_read_only() {
+    let p = setup_coach_app::platform::native();
+    let w = p.system.windows_audio().expect("windows audio state");
+    for e in &w.endpoints {
+        println!("{} | {} | enhancements_on={} voice_clarity_on={}", e.name, e.id, e.enhancements_enabled, e.voice_clarity_enabled);
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "touches the real PC"]
 async fn real_quick_checks_finish_and_serialize() {

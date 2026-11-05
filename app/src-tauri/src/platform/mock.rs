@@ -93,7 +93,22 @@ impl AudioBackend for MockAudio {
     }
 }
 
+/// How the mock behaves when asked to turn Windows audio enhancements /
+/// Voice Clarity off (tests for the paths Windows can take).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FxMode {
+    /// The change works.
+    #[default]
+    Works,
+    /// Windows says no (no administrator rights, UAC refused, a virtual
+    /// device whose driver won't allow it): returns an error, changes nothing.
+    Denied,
+    /// The call claims success but the real state doesn't change.
+    ClaimsButNothing,
+}
+
 pub struct MockSystem {
+    pub fx_mode: Mutex<FxMode>,
     /// Software mic level in dB (shared with a `LiveMock`).
     pub mic_gain_db: Arc<Mutex<f64>>,
     pub mic_gain_range: (f64, f64),
@@ -148,6 +163,16 @@ impl SystemInspector for MockSystem {
     }
     fn apply(&self, action: &Action) -> Result<(), String> {
         let mut w = self.windows.lock().unwrap();
+        if matches!(action, Action::DisableEnhancements { .. } | Action::DisableVoiceClarity { .. }) {
+            match *self.fx_mode.lock().unwrap() {
+                FxMode::Works => {}
+                FxMode::Denied => return Err("Windows' permission prompt was closed, so nothing was changed.".into()),
+                FxMode::ClaimsButNothing => {
+                    self.applied.lock().unwrap().push(action.clone());
+                    return Ok(());
+                }
+            }
+        }
         match action {
             Action::SetWindowsDucking { preference } => w.ducking = *preference,
             Action::SetEndpointVolume { endpoint, volume } => {
@@ -437,6 +462,7 @@ impl MockPlatform {
         MockPlatform {
             audio: Arc::new(MockAudio { inputs: vec![mic], recording: Mutex::new(None), played: Mutex::new(0), live: Mutex::new(None) }),
             system: Arc::new(MockSystem {
+                fx_mode: Mutex::new(FxMode::Works),
                 mic_gain_db: Arc::new(Mutex::new(0.0)),
                 mic_gain_range: (-10.0, 30.0),
                 mic_gain_adjustable: true,

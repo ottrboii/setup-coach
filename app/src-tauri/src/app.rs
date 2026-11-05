@@ -445,7 +445,13 @@ impl AppCore {
                 res.fail(id, "That fix is out of date. Run the checks again.");
                 continue;
             };
-            match self.execute(&p.action).await {
+            let mut outcome = self.execute(&p.action).await;
+            // Never say "fixed" on the strength of a call returning Ok: for the
+            // Windows audio effects, read the real state back.
+            if outcome.is_ok() && fx_check_id(&p.action).is_some() && self.fx_really_off(&p.action) != Some(true) {
+                outcome = Err("Windows still shows this as on, so we haven't counted it as fixed.".into());
+            }
+            match outcome {
                 Ok(restart) => {
                     res.restart_obs_needed |= restart;
                     res.ok(id);
@@ -453,10 +459,35 @@ impl AppCore {
                         self.inner.lock().unwrap().applied_devices.insert(ep);
                     }
                 }
-                Err(e) => res.fail(id, e),
+                Err(e) => match (fx_check_id(&p.action), action_endpoint(&p.action)) {
+                    // Windows keeps these for the user: hand over a guided step
+                    // that opens the exact page and watches for the change.
+                    (Some(check), Some(ep)) => res.fail_guided(
+                        id,
+                        format!("{e} You can switch it off yourself in a few clicks: we'll open the right page and watch for the change."),
+                        coaching::fx_guided_step(check, &ep),
+                    ),
+                    _ => res.fail(id, e),
+                },
             }
         }
         res
+    }
+
+    /// Re-read Windows after an enhancements / Voice Clarity change: is it
+    /// really off now? `None` = not one of those actions; `Some(false)` also
+    /// when Windows can't be read (we only report success we have seen).
+    fn fx_really_off(&self, action: &Action) -> Option<bool> {
+        fx_check_id(action)?;
+        let w = self.platform.system.windows_audio();
+        let off = |ep: &str| -> bool {
+            let Some(e) = w.as_ref().and_then(|w| w.endpoints.iter().find(|e| e.id == ep)) else { return false };
+            match action {
+                Action::DisableEnhancements { .. } => !e.enhancements_enabled,
+                _ => !e.voice_clarity_enabled,
+            }
+        };
+        Some(off(&action_endpoint(action)?))
     }
 
     /// Run one core `Action`. Ok(true) = OBS needs a restart to pick it up.
@@ -604,7 +635,11 @@ impl AppCore {
                 set_param(o, cat, "RecFormat2", format.clone()).await.map(|_| false)
             }
             // Windows-side actions.
-            other => self.platform.system.apply(other).map(|_| false),
+            // (Off the async threads: some of these wait for Windows' permission prompt.)
+            other => {
+                let (sys, a) = (self.platform.system.clone(), other.clone());
+                tokio::task::spawn_blocking(move || sys.apply(&a)).await.map_err(|e| e.to_string())?.map(|_| false)
+            }
         }
     }
 
@@ -1289,6 +1324,15 @@ pub fn plain_device_name(name: &str) -> String {
     match (name.find('('), name.rfind(')')) {
         (Some(a), Some(b)) if b > a + 1 => name[a + 1..b].trim().to_string(),
         _ => name.trim().to_string(),
+    }
+}
+
+/// The `CheckSetting` check that proves a Windows audio-effect action worked.
+fn fx_check_id(a: &Action) -> Option<&'static str> {
+    match a {
+        Action::DisableEnhancements { .. } => Some("enhancements_off"),
+        Action::DisableVoiceClarity { .. } => Some("voice_clarity_off"),
+        _ => None,
     }
 }
 
