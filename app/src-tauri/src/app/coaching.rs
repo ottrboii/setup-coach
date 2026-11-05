@@ -150,7 +150,7 @@ impl AppCore {
             }
         }
         let dev = self.platform.audio.list_inputs().into_iter().find(|d| d.id == device_id)?;
-        let hw = self.profiles.match_input(&Self::identity(&dev.name, dev.usb)).and_then(|m| m.mic.profile.windows_slider_is_hw_gain).unwrap_or(false);
+        let hw = self.effective_mic(&dev).and_then(|p| p.windows_slider_is_hw_gain).unwrap_or(false);
         (hw && self.platform.system.endpoint_gain_db(device_id).is_some()).then(|| GainSource::Windows { endpoint: device_id.to_string() })
     }
 

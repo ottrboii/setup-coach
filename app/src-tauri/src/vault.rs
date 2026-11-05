@@ -14,6 +14,7 @@
 
 use crate::goxlr::MicType;
 use crate::platform::WinValue;
+use crate::types::MicBehind;
 use crate::wav::write_atomic;
 use coach_core::video::CameraState;
 use serde::{Deserialize, Serialize};
@@ -60,6 +61,8 @@ pub enum VaultItem {
     /// The previous `chain.json` (None = there was none).
     ChainJson { content: Option<String> },
     GoXlr { serial: String, mic_type: MicType, gain_db: f64 },
+    /// Which physical mic the user said is behind a device (None = no answer).
+    MicChoice { device_id: String, choice: Option<MicBehind> },
 }
 
 impl VaultItem {
@@ -79,6 +82,7 @@ impl VaultItem {
             VaultItem::Camera { camera_id, .. } => format!("camera:{camera_id}"),
             VaultItem::ChainJson { .. } => "chain_json".into(),
             VaultItem::GoXlr { serial, .. } => format!("goxlr:{serial}"),
+            VaultItem::MicChoice { device_id, .. } => format!("mic_choice:{device_id}"),
         }
     }
 
@@ -104,6 +108,7 @@ impl VaultItem {
             VaultItem::Camera { .. } => "camera",
             VaultItem::ChainJson { .. } => "voice_chain",
             VaultItem::GoXlr { .. } => "goxlr",
+            VaultItem::MicChoice { .. } => "mic_choice",
         }
     }
 
@@ -130,6 +135,10 @@ impl VaultItem {
             VaultItem::Camera { camera_name, .. } => format!("Camera: {camera_name} settings"),
             VaultItem::ChainJson { .. } => "Setup Coach voice settings".into(),
             VaultItem::GoXlr { .. } => "GoXLR: mic type and gain".into(),
+            VaultItem::MicChoice { choice, .. } => match choice.as_ref().and_then(|c| c.display_name.as_deref()) {
+                Some(n) => format!("Which mic is plugged in: {n}"),
+                None => "Which mic is plugged in".into(),
+            },
         }
     }
 }

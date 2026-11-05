@@ -212,3 +212,18 @@ pub async fn preview_restore(app: S<'_>, id: String) -> R<RestorePreview> {
 pub async fn obs_running(app: S<'_>) -> R<bool> {
     Ok(app.obs_running())
 }
+
+#[tauri::command]
+pub async fn list_mic_profiles(app: S<'_>) -> R<Vec<MicProfileOption>> {
+    Ok(app.list_mic_profiles())
+}
+
+#[tauri::command]
+pub async fn get_mic_behind(app: S<'_>, device_id: String) -> R<Option<MicBehind>> {
+    Ok(app.mic_choice(&device_id))
+}
+
+#[tauri::command]
+pub async fn set_mic_behind(app: S<'_>, device_id: String, choice: MicBehindInput) -> R<MicBehindResult> {
+    app.set_mic_behind(&device_id, choice).await
+}

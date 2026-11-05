@@ -32,6 +32,10 @@ pub struct ProfileMatch {
     pub interface: Option<Box<ProfileMatch>>,
     /// The full profile as JSON (for the Advanced drawer).
     pub profile: serde_json::Value,
+    /// True when this is the mic the user said is plugged into the device
+    /// (`set_mic_behind`), not what we guessed from the Windows device name.
+    #[serde(default)]
+    pub chosen: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -45,6 +49,73 @@ pub struct AudioDeviceInfo {
     pub profile: Option<ProfileMatch>,
     /// The OBS audio input capturing this device, if any.
     pub obs_input: Option<String>,
+    /// What the user told us is plugged into this device (None = never asked).
+    #[serde(default)]
+    pub mic_choice: Option<MicBehind>,
+    /// True when we should ask "What mic is plugged into this?" now: an
+    /// interface/mixer-type or generic-named device with no answer yet.
+    #[serde(default)]
+    pub needs_mic_choice: bool,
+}
+
+/// How the user answered "What mic is plugged into this?" for one device.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MicBehind {
+    /// `chosen` (a profile from `list_mic_profiles`), `other` (not in the
+    /// list) or `skipped` (Not sure).
+    pub status: MicBehindStatus,
+    /// The mic profile id when `status` is `chosen`.
+    pub profile_id: Option<String>,
+    /// `Brand Model` of the chosen profile (for "Your mic: ...").
+    pub display_name: Option<String>,
+    /// The Windows device name this was answered for.
+    pub device_name: String,
+    pub chosen_at: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MicBehindStatus {
+    Chosen,
+    Other,
+    Skipped,
+}
+
+/// Argument of `set_mic_behind`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum MicBehindInput {
+    Profile { profile_id: String },
+    Other,
+    Skipped,
+    /// Forget the answer (ask again).
+    Clear,
+}
+
+/// Result of `set_mic_behind`: the device's new view, so the UI needn't
+/// reload the whole environment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MicBehindResult {
+    pub mic_choice: Option<MicBehind>,
+    pub profile: Option<ProfileMatch>,
+    pub needs_mic_choice: bool,
+}
+
+/// One entry of the "What mic is plugged into this?" picker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MicProfileOption {
+    pub id: String,
+    pub brand: String,
+    pub model: String,
+    /// `Brand Model`.
+    pub display_name: String,
+    pub family: String,
+    /// `usb` | `xlr` | `usb_xlr` | `headset` | `wireless` | `builtin`
+    pub connection: String,
+    /// `dynamic` | `condenser` | `electret`
+    pub capsule: String,
+    pub verified: bool,
+    pub aliases: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -63,6 +134,9 @@ pub struct SavedProfile {
     pub camera_settings: Option<CameraSettings>,
     pub camera_id: Option<String>,
     pub obs_input: Option<String>,
+    /// Which physical mic is behind which device (key = device id). Added 2026-11-05.
+    #[serde(default)]
+    pub mic_behind: std::collections::BTreeMap<String, MicBehind>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

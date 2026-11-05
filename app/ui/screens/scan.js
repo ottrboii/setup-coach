@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, loading, errorBanner, toast, advanced } from '../components.js';
 import { state, selectedMic } from '../state.js';
+import { openMicChoice, yourMicLine } from '../micpicker.js';
 
 const AREA_LABEL = { mic: 'Mic settings', system: 'Windows', camera: 'Camera', stream: 'Stream' };
 // Findings fixed by hand in Windows Sound settings when we lack the rights to do it.
@@ -16,13 +17,21 @@ export async function render(root, { go, refreshNav }) {
       <div class="spread">
         <div class="stack" style="gap:6px"><span class="eyebrow">Free quick scan</span><h1>Your settings check-up</h1>
         <p class="lead">We looked through Windows and OBS for the settings mix-ups that trip up most streamers.</p>
-        ${mic ? `<p class="muted" id="yourmic">Your mic: <b>${esc(mic.name)}</b> · <a href="#/welcome">Change</a></p>` : '<p class="muted">No mic picked yet · <a href="#/welcome">Pick your mic</a></p>'}</div>
+        <div id="miclinebox"></div></div>
         <button class="btn sm" id="rescan">Scan again</button>
       </div>
+      <div id="choice-slot"></div>
       <div id="body"></div>
     </section>`));
   const body = root.querySelector('#body');
   root.querySelector('#rescan').addEventListener('click', () => run(true));
+  const micSlot = root.querySelector('#choice-slot');
+  function drawMicLine() {
+    const box = root.querySelector('#miclinebox');
+    box.innerHTML = '';
+    box.append(yourMicLine(mic, () => openMicChoice(micSlot, mic, { onDone: drawMicLine })));
+  }
+  drawMicLine();
 
   async function run(force) {
     body.innerHTML = '';

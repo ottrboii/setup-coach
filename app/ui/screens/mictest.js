@@ -2,6 +2,7 @@
 import { api, on } from '../api.js';
 import { esc, html, icons, errorBanner } from '../components.js';
 import { state, selectedMic } from '../state.js';
+import { openMicChoice, yourMicLine } from '../micpicker.js';
 
 export const SCRIPT = `Hey chat! <mark>P</mark>eter <mark>p</mark>icked a <mark>b</mark>ig <mark>b</mark>ag of <mark>p</mark>opcorn for the <mark>s</mark>tream.
 <mark>S</mark>he <mark>s</mark>ays <mark>s</mark>ix <mark>s</mark>illy <mark>s</mark>nakes <mark>s</mark>neaked past the <mark>b</mark>oss.
@@ -44,16 +45,43 @@ export async function render(root, { go }) {
 
   const intro = html(`
     <div class="card stack">
-      <div class="device"><div class="ico">${icons.mic}</div><div class="stack" style="gap:2px"><b>${esc(mic ? mic.name : 'No mic selected')}</b><span class="subtle">Change it on the Welcome page.</span></div></div>
+      <div class="device"><div class="ico">${icons.mic}</div><div class="stack" style="gap:2px" id="mic-line"></div></div>
+      <div id="choice-slot"></div>
       <ul class="explain" style="margin:0;padding:0">${STEPS.map((s) => `<li><span class="ico">${icons.check}</span><span><b>${esc(s.title)}</b> · ${s.secs}s</span></li>`).join('')}</ul>
       ${state.micConstraints.length ? `<div class="banner info"><span>We'll keep your answers in mind (${state.micConstraints.length} thing${state.micConstraints.length === 1 ? '' : 's'} you can't change).</span></div>` : ''}
       <div class="row"><button class="btn primary lg" id="start" ${mic ? '' : 'disabled'}>Start the test</button></div>
     </div>`);
   body.append(intro);
-  intro.querySelector('#start').addEventListener('click', start);
-  if (state.autoStart === 'mic' && mic) { state.autoStart = null; start(); }
+  const startBtn = intro.querySelector('#start');
+  const slot = intro.querySelector('#choice-slot');
+  // Which mic is it? Shown as 'Your mic: ... · Change'; asked first when we can't tell.
+  function drawMicLine() {
+    const box = intro.querySelector('#mic-line');
+    box.innerHTML = '';
+    box.append(yourMicLine(mic, () => openMicChoice(slot, mic, { onDone: drawMicLine })));
+    startBtn.disabled = !mic || !!mic.needs_mic_choice;
+    startBtn.title = mic && mic.needs_mic_choice ? 'Tell us what mic is plugged in first (or choose Not sure).' : '';
+  }
+  drawMicLine();
+  if (mic && mic.needs_mic_choice) openMicChoice(slot, mic, { required: true, onDone: drawMicLine });
+  startBtn.addEventListener('click', start);
+  if (state.autoStart === 'mic' && mic && !mic.needs_mic_choice) { state.autoStart = null; start(); }
 
+  // The start button must never fail silently: any error (also halfway through
+  // the steps) ends in a message with a way to try again, and a log line.
   async function start() {
+    try {
+      await runTest();
+    } catch (e) {
+      if (cancelled) return;
+      api.logUi('error', 'mictest.start', e && e.stack ? e.stack : e);
+      teardown();
+      body.innerHTML = '';
+      body.append(errorBanner(e instanceof Error ? e : new Error(String(e)), () => { body.innerHTML = ''; start(); }));
+    }
+  }
+
+  async function runTest() {
     body.innerHTML = '';
     const view = html(`
       <div class="card stack-lg">
@@ -162,7 +190,7 @@ export async function render(root, { go }) {
   return () => { cancelled = true; teardown(); };
 }
 
-function cleanAnswers() {
+export function cleanAnswers() {
   const a = state.answers;
   const out = {};
   for (const k of ['mic_model_id', 'booster', 'gain_at_max', 'onboard_auto_level']) if (a[k] !== undefined) out[k] = a[k];

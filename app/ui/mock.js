@@ -19,14 +19,43 @@ const MIC_PROFILE = {
 };
 const SM7B = { id: 'shure_sm7b', brand: 'Shure', model: 'SM7B', family: 'sm7', aliases: ['SM7B'], connection: { type: 'xlr' }, capsule: 'dynamic' };
 
+// Mics for the 'What mic is plugged into this?' picker (shape of MicProfileOption in API.md).
+const MIC_OPTIONS = [
+  ['ev_re20', 'Electro-Voice', 'RE20', 'xlr', 'dynamic', ['RE-20']],
+  ['shure_sm7b', 'Shure', 'SM7B', 'xlr', 'dynamic', ['SM7']],
+  ['shure_sm58', 'Shure', 'SM58', 'xlr', 'dynamic', []],
+  ['shure_mv7', 'Shure', 'MV7', 'usb_xlr', 'dynamic', []],
+  ['rode_podmic', 'Rode', 'PodMic', 'xlr', 'dynamic', []],
+  ['rode_nt1a', 'Rode', 'NT1-A', 'xlr', 'condenser', ['NT1A']],
+  ['audio_technica_at2020', 'Audio-Technica', 'AT2020', 'xlr', 'condenser', []],
+  ['blue_yeti', 'Blue', 'Yeti', 'usb', 'condenser', []],
+  ['hyperx_quadcast', 'HyperX', 'QuadCast', 'usb', 'condenser', []],
+].map(([id, brand, model, connection, capsule, aliases]) => ({
+  id, brand, model, display_name: `${brand} ${model}`, family: id, connection, capsule, verified: false, aliases,
+}));
+// What the user said is behind each device id (the backend keeps this in setup.json).
+const micChoices = {};
+const MIC_FACTS = { ev_re20: { gain_needed_db: 55, distance_cm: [3, 15], address: 'end' }, shure_sm7b: { gain_needed_db: 60, distance_cm: [3, 10], address: 'end' } };
+
 const ENVIRONMENT = {
   app_version: '0.1.0-mock',
   windows_build: '26200.8524',
   obs: { running: true, connected: true, version: '33.0.1', websocket_enabled: true, error: null },
   mics: [
     {
+      id: '{0.0.1.00000000}.{goxlr-chat}', name: 'Chat Mic (TC-Helicon GoXLR Mini)', is_default: false,
+      is_default_comms: false, channels: 2, sample_rate: 48000, needs_mic_choice: true, mic_choice: null,
+      profile: {
+        profile: MIC_PROFILE, confidence: 'generic', chosen: false,
+        needs_questions: [
+          { id: 'which_mic_on_interface', prompt: 'Which mic is plugged into your interface?', photo_hint: null, options: [] },
+          { id: 'booster_in_chain', prompt: 'Is there a small box (like a Cloudlifter or FetHead) between the mic and the interface?', photo_hint: 'booster', options: ['Yes', 'No', "I'm not sure"] },
+        ],
+      },
+    },
+    {
       id: '{0.0.1.00000000}.{focusrite-in-1}', name: 'Analogue 1 + 2 (Focusrite USB Audio)', is_default: true,
-      is_default_comms: false, channels: 2, sample_rate: 48000,
+      is_default_comms: false, channels: 2, sample_rate: 48000, needs_mic_choice: true, mic_choice: null,
       profile: {
         profile: MIC_PROFILE, confidence: 'generic',
         needs_questions: [
@@ -39,7 +68,7 @@ const ENVIRONMENT = {
     },
     {
       id: '{0.0.1.00000000}.{c920-mic}', name: 'Microphone (HD Pro Webcam C920)', is_default: false,
-      is_default_comms: true, channels: 2, sample_rate: 48000,
+      is_default_comms: true, channels: 2, sample_rate: 48000, needs_mic_choice: false, mic_choice: null,
       profile: { profile: { id: 'generic_webcam_mic', brand: 'Generic', model: 'Webcam mic', family: 'generic', aliases: [] }, confidence: 'generic', needs_questions: [] },
     },
   ],
@@ -52,6 +81,21 @@ const ENVIRONMENT = {
   ],
   saved_profile: null,
 };
+
+/** A device as the environment shows it, with the user's 'what mic is plugged in' answer applied. */
+function withChoice(dev) {
+  const c = micChoices[dev.id] || null;
+  const asks = dev.id.includes('goxlr') || dev.id.includes('focusrite');
+  const out = { ...dev, mic_choice: c, needs_mic_choice: asks && !c };
+  if (c && c.status === 'chosen') {
+    const p = MIC_OPTIONS.find((o) => o.id === c.profile_id);
+    out.profile = {
+      profile: { id: p.id, brand: p.brand, model: p.model, family: p.family, aliases: p.aliases }, confidence: 'exact', chosen: true,
+      needs_questions: p.id === 'ev_re20' ? [{ id: 'switch_positions', prompt: 'How are the switches on your mic set?', photo_hint: null, options: ['Bass tilt (low-cut) switch', 'Flat'] }] : [],
+    };
+  }
+  return out;
+}
 
 const QUICK = {
   findings: [
@@ -337,7 +381,28 @@ export function createMock() {
   }
 
   const handlers = {
-    async get_environment() { await wait(600); return { ...ENVIRONMENT, saved_profile: saved }; },
+    async get_environment() {
+      await wait(600);
+      return { ...ENVIRONMENT, mics: ENVIRONMENT.mics.map(withChoice), saved_profile: saved };
+    },
+    async list_mic_profiles() { await wait(150); return MIC_OPTIONS; },
+    async get_mic_behind({ deviceId }) { return micChoices[deviceId] || null; },
+    async set_mic_behind({ deviceId, choice }) {
+      await wait(250);
+      const dev = ENVIRONMENT.mics.find((m) => m.id === deviceId);
+      if (!dev) throw 'That microphone isn\'t connected any more.';
+      // ?fail=mic simulates the save failing, to check the picker's error + retry in a browser.
+      if (/[?&]fail=mic\b/.test(location.search) && !window.__micRetried) { window.__micRetried = true; throw "We couldn't save a backup of your current settings, so nothing was changed."; }
+      const base = { device_name: dev.name, chosen_at: new Date().toISOString() };
+      if (choice.kind === 'clear') delete micChoices[deviceId];
+      else if (choice.kind === 'profile') {
+        const p = MIC_OPTIONS.find((o) => o.id === choice.profile_id);
+        if (!p) throw 'We don\'t know that microphone. Pick another one from the list, or choose "Other".';
+        micChoices[deviceId] = { status: 'chosen', profile_id: p.id, display_name: p.display_name, ...base };
+      } else micChoices[deviceId] = { status: choice.kind === 'other' ? 'other' : 'skipped', profile_id: null, display_name: null, ...base };
+      const m = withChoice(dev);
+      return { mic_choice: m.mic_choice, profile: m.profile, needs_mic_choice: m.needs_mic_choice };
+    },
     async connect_obs() { await wait(400); return ENVIRONMENT.obs; },
     async run_quick_checks() {
       await wait(900);
@@ -355,12 +420,16 @@ export function createMock() {
       const failed = actionIds.includes('a4') ? [{ id: 'a4', error: 'Windows needs you to confirm this one. We opened the Sound settings page for you.' }] : [];
       return { applied: actionIds.filter((a) => !failed.find((f) => f.id === a)), failed, restart_obs_needed: actionIds.includes('a1') };
     },
-    async mic_context({ answers }) {
+    async mic_context({ deviceId, answers }) {
       await wait(200);
+      // The named mic (picker) drives the context, like the real backend; a question answer wins.
+      const picked = micChoices[deviceId]?.status === 'chosen' ? micChoices[deviceId] : null;
       const sm7 = answers && answers.mic_model_id === 'Shure SM7B';
-      return { mic_name: sm7 ? 'Shure SM7B' : null, capsule: 'dynamic', address: 'end', connection: 'xlr', gain_needed_db: sm7 ? 60 : null,
+      const name = sm7 ? 'Shure SM7B' : picked ? picked.display_name : null;
+      const facts = (sm7 && MIC_FACTS.shure_sm7b) || (picked && MIC_FACTS[picked.profile_id]) || null;
+      return { mic_name: name, capsule: 'dynamic', address: facts?.address || 'end', connection: 'xlr', gain_needed_db: facts ? facts.gain_needed_db : null,
         interface_max_gain_db: 56, booster_db: answers && answers.booster ? 25 : null, gain_at_max: answers ? answers.gain_at_max ?? null : null,
-        onboard_auto_level: null, distance_cm: [3, 10] };
+        onboard_auto_level: null, distance_cm: facts ? facts.distance_cm : [3, 10] };
     },
     async start_mic_test() { micStep = null; startMicLevels(); await wait(150); return null; },
     async mark_step({ kind, edge }) { micStep = edge === 'start' ? kind : null; return null; },

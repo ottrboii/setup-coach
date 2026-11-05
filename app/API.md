@@ -29,14 +29,16 @@ Environment = {
   app_version: string, windows_build: string | null,
   obs: ObsStatus,
   mics: AudioDeviceInfo[], cameras: CameraDeviceInfo[],
-  saved_profile: SavedProfile | null   // last applied setup, re-applied on start
+  saved_profile: SavedProfile | null   // last applied setup, re-applied on start (null while setup.json only holds mic answers)
 }
 ObsStatus = { running: boolean, connected: boolean, version: string | null,
               websocket_enabled: boolean | null, error: string | null }
 AudioDeviceInfo = { id: string, name: string, is_default: boolean,
                     is_default_comms: boolean, channels: number, sample_rate: number,
                     profile: ProfileMatch | null,
-                    obs_input: string | null }   // OBS audio input capturing this device
+                    obs_input: string | null,    // OBS audio input capturing this device
+                    mic_choice: MicBehind | null,     // what the user said is plugged into it (added 2026-11-05)
+                    needs_mic_choice: boolean }       // ask "What mic is plugged into this?" now (see below)
 CameraDeviceInfo = { id: string, name: string, obs_source: string | null,
                      profile: ProfileMatch | null }
 // Owned view of core's MatchResult (which borrows the profile database).
@@ -44,7 +46,8 @@ ProfileMatch = { kind: "mic" | "interface" | "camera", profile_id: string,
                  display_name: string, confidence: "exact" | "name_match" | "generic",
                  verified: boolean, questions: Question[],      // core profiles::Question
                  interface: ProfileMatch | null,                 // mic behind an interface
-                 profile: object }                               // full profile JSON
+                 profile: object,                                // full profile JSON
+                 chosen: boolean }       // true = the user named this mic (`set_mic_behind`), not guessed from the Windows name
 ```
 
 `get_environment` auto-connects to OBS when possible: it reads the websocket
@@ -101,6 +104,45 @@ the OBS mic input, and creates/updates OBS built-in filters for gain, expander,
 compressor and limiter in the right order via obs-websocket. Hardware gain
 changes are coached, never applied.
 
+## What mic is plugged into this? (added 2026-11-05, approved)
+
+A GoXLR or audio interface hides the real mic: Windows only shows the device
+("Chat Mic"), so the user names the physical mic. No auto-guessing.
+
+| Command | Args | Returns |
+|---|---|---|
+| `list_mic_profiles` | – | `MicProfileOption[]` – every specific mic in `profiles/mics.json` (generic fallbacks left out), sorted by brand, model; the UI filters it for the search box |
+| `get_mic_behind` | `{ deviceId: string }` | `MicBehind \| null` |
+| `set_mic_behind` | `{ deviceId: string, choice: MicBehindInput }` | `MicBehindResult` – rejects with a plain string for an unplugged device or unknown profile |
+
+```ts
+MicProfileOption = { id: string, brand: string, model: string, display_name: string /* "Electro-Voice RE20" */,
+                     family: string, connection: "usb" | "xlr" | "usb_xlr" | "headset" | "wireless" | "builtin",
+                     capsule: "dynamic" | "condenser" | "electret", verified: boolean, aliases: string[] }
+MicBehind = { status: "chosen" | "other" | "skipped",   // other = not in the list, skipped = "Not sure"
+              profile_id: string | null, display_name: string | null,   // set when status is "chosen"
+              device_name: string, chosen_at: string }
+MicBehindInput = { kind: "profile", profile_id: string } | { kind: "other" } | { kind: "skipped" } | { kind: "clear" }   // clear = ask again
+MicBehindResult = { mic_choice: MicBehind | null, profile: ProfileMatch | null, needs_mic_choice: boolean }
+                  // the device's new view: patch `AudioDeviceInfo` with it, no need to reload the environment
+```
+- Stored per device id in `setup.json` (`mic_behind`) and written through the settings
+  vault like every other write: the previous answer is backed up first (label "Before choosing which
+  mic is plugged into Chat Mic", item kind `mic_choice`); if the backup can't be written nothing changes;
+  "go back to how it was" removes the answer again. An unreadable `setup.json` is kept as
+  `setup.json.unreadable`, not overwritten blindly.
+- `needs_mic_choice` is true for devices that hide or can't name the mic (interface/mixer inputs, unknown
+  USB mics, wireless receivers) while there is no answer yet; false for headsets, Bluetooth, built-in and
+  recognised mics, and after any answer (also "Not sure"). UI: ask once, before the scan / mic test, and
+  show "Your mic: Chat Mic (Electro-Voice RE20) · Change" on the scan, mic test and mic report screens.
+- Effect: with `status: "chosen"` the device's `profile` in `get_environment` is the chosen mic (`chosen: true`,
+  `confidence: "exact"`, its own `questions`, `interface` still the GoXLR/interface from the Windows name),
+  `mic_context` builds the `MicContext` from it (name, capsule, address, distance, gain needed, connection),
+  and auto gain asks it whether the Windows slider is hardware gain. Order in `mic_context`:
+  `answers.mic_model_id` (a profile id or the `Brand Model` label a question offered) > the saved answer > the
+  Windows-name match. After a change the UI calls `mic_context` again; on the report screen `rescan_mic`
+  re-analyses the last recording for the new mic, no retest.
+
 ## Camera test
 
 | Command | Args | Returns |
@@ -141,9 +183,10 @@ y 0.35–0.75, beside the face) the user fills with a white sheet during
 ```ts
 SavedProfile = { name: string, saved_at: string, mic_chain: ProcessingChain | null,
                  camera_settings: CameraSettings | null, camera_id: string | null,
-                 obs_input: string | null }
+                 obs_input: string | null,
+                 mic_behind: { [deviceId: string]: MicBehind } }   // added 2026-11-05, see "What mic is plugged into this?"
 ```
-Stored in `%APPDATA%\SetupCoach\setup.json`.
+Stored in `%APPDATA%\SetupCoach\setup.json`. `save_setup` keeps `mic_behind`. A `setup.json` that only holds mic answers has `name: ""`, `saved_at: ""` and is not reported as `saved_profile`.
 
 ## Live coaching (added 2026-11-02)
 
@@ -308,6 +351,7 @@ BackupItem = { kind: BackupItemKind,   // stable; word it yourself in plain lang
 BackupItemKind = "obs_filters" | "obs_source_settings" | "obs_mute" | "obs_monitoring" | "obs_setting"
                | "obs_video" | "obs_scene_file" | "obs_profile_file" | "obs_websocket"
                | "windows_setting" | "mic_level" | "camera" | "voice_chain" | "goxlr"
+               | "mic_choice"          // added 2026-11-05: the "what mic is plugged into this" answer
 
 RestorePreview = { id: string, label: string,
                    items: RestorePreviewItem[],   // newest first = the order restore goes through them

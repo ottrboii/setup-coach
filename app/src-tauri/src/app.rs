@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 
 mod ab;
 mod coaching;
+mod micchoice;
 mod vault_ops;
 pub use ab::{match_gains, read_clip, slug, TakeMeta};
 pub use coaching::{NoWindow, RecordingWindow, WindowControl};
@@ -215,20 +216,26 @@ impl AppCore {
             Some(o) => obs::read_state(o.as_ref(), self.obs_dir().as_deref()).await.ok(),
             None => None,
         };
+        let setup = self.load_setup();
         let mics = self
             .platform
             .audio
             .list_inputs()
             .into_iter()
-            .map(|d| AudioDeviceInfo {
-                profile: self.match_mic_view(&d.name, d.usb),
-                obs_input: obs_state.as_ref().and_then(|s| obs_input_for_device(s, &d.id, d.is_default)),
-                id: d.id,
-                name: d.name,
-                is_default: d.is_default,
-                is_default_comms: d.is_default_comms,
-                channels: d.channels,
-                sample_rate: d.sample_rate,
+            .map(|d| {
+                let choice = setup.as_ref().and_then(|s| s.mic_behind.get(&d.id)).cloned();
+                AudioDeviceInfo {
+                    profile: self.mic_view_for(&d.name, d.usb, choice.as_ref()),
+                    needs_mic_choice: choice.is_none() && self.asks_for_mic(&d.name, d.usb),
+                    mic_choice: choice,
+                    obs_input: obs_state.as_ref().and_then(|s| obs_input_for_device(s, &d.id, d.is_default)),
+                    id: d.id,
+                    name: d.name,
+                    is_default: d.is_default,
+                    is_default_comms: d.is_default_comms,
+                    channels: d.channels,
+                    sample_rate: d.sample_rate,
+                }
             })
             .collect();
         let cameras = self
@@ -249,7 +256,8 @@ impl AppCore {
             obs: obs_status,
             mics,
             cameras,
-            saved_profile: self.load_setup(),
+            // A setup.json that only holds mic answers is not a "saved setup".
+            saved_profile: setup.filter(|p| !p.saved_at.is_empty()),
         }
     }
 
@@ -284,9 +292,11 @@ impl AppCore {
                     questions: i.needs_questions.clone(),
                     interface: None,
                     profile: serde_json::to_value(i.profile).unwrap_or(Value::Null),
+                    chosen: false,
                 })
             }),
             profile: serde_json::to_value(p).unwrap_or(Value::Null),
+            chosen: false,
         })
     }
 
@@ -301,6 +311,7 @@ impl AppCore {
             questions: m.needs_questions.clone(),
             interface: None,
             profile: serde_json::to_value(m.profile).unwrap_or(Value::Null),
+            chosen: false,
         })
     }
 
@@ -594,10 +605,12 @@ impl AppCore {
     pub fn mic_context(&self, device_id: &str, answers: &MicAnswers) -> R<MicContext> {
         let dev = self.platform.audio.list_inputs().into_iter().find(|d| d.id == device_id).ok_or("That microphone isn't connected any more.")?;
         let m = self.profiles.match_input(&Self::identity(&dev.name, dev.usb));
+        // The mic the user named wins over what the Windows device name suggests.
         let mic = answers
             .mic_model_id
             .as_deref()
-            .and_then(|id| self.profiles.mic(id))
+            .and_then(|id| self.find_mic(id))
+            .or_else(|| self.chosen_profile(device_id))
             .or_else(|| m.as_ref().map(|m| m.mic.profile));
         let iface = m.as_ref().and_then(|m| m.interface.as_ref().map(|i| i.profile));
         let mut ctx = MicContext::default();
@@ -1147,11 +1160,14 @@ impl AppCore {
     }
 
     pub fn save_setup(&self, name: &str) -> R<SavedProfile> {
+        // Keep the answers to "What mic is plugged into this?".
+        let existing_choices = self.load_setup().map(|p| p.mic_behind).unwrap_or_default();
         let inner = self.inner.lock().unwrap();
         let p = SavedProfile {
             name: if name.trim().is_empty() { "My setup".into() } else { name.trim().to_string() },
             saved_at: crate::paths::now_iso(),
             mic_chain: inner.applied_chain.clone(),
+            mic_behind: existing_choices,
             camera_settings: inner.applied_camera.as_ref().map(|c| c.1.clone()),
             camera_id: inner.applied_camera.as_ref().map(|c| c.0.clone()),
             obs_input: inner.applied_input.clone(),

@@ -27,6 +27,8 @@ pub enum Target {
     Camera(String),
     ChainJson,
     GoXlr,
+    /// The "what mic is plugged into this device" answer (in setup.json).
+    MicChoice(String),
 }
 
 pub(crate) const CLOSE_OBS: &str = "Close OBS, then press Restore again — OBS only allows this change while it's closed.";
@@ -138,6 +140,7 @@ impl AppCore {
                 VaultItem::Camera { camera_id: id.clone(), camera_name: name, state: Box::new(self.platform.camera.read_state(id).ok()?) }
             }
             Target::ChainJson => VaultItem::ChainJson { content: std::fs::read_to_string(self.data_dir.join("chain.json")).ok() },
+            Target::MicChoice(device_id) => VaultItem::MicChoice { device_id: device_id.clone(), choice: self.load_setup().and_then(|p| p.mic_behind.get(device_id).cloned()) },
             Target::GoXlr => {
                 let (_, d) = self.goxlr_device().await?;
                 VaultItem::GoXlr { serial: d.serial, mic_type: d.mic_type, gain_db: d.mic_gain_db }
@@ -253,7 +256,7 @@ impl AppCore {
                 }
                 VaultItem::EndpointGain { endpoint, .. } => (!mic_here(endpoint)).then(|| "That microphone isn't connected, so its level will be left alone.".to_string()),
                 VaultItem::Camera { camera_id, camera_name, .. } => (!self.platform.camera.list().iter().any(|c| &c.id == camera_id)).then(|| format!("{camera_name} isn't connected, so its settings will be left alone.")),
-                VaultItem::ChainJson { .. } => None,
+                VaultItem::ChainJson { .. } | VaultItem::MicChoice { .. } => None,
                 VaultItem::GoXlr { serial, .. } => match self.goxlr().await {
                     None => Some("GoXLR Utility isn't running, so the GoXLR will be left alone.".to_string()),
                     Some(api) => (!api.devices().await.map(|d| d.iter().any(|x| &x.serial == serial)).unwrap_or(false)).then(|| "That GoXLR isn't connected, so it will be left alone.".to_string()),
@@ -421,6 +424,7 @@ impl AppCore {
                     }
                 }
             }
+            VaultItem::MicChoice { device_id, choice } => self.put_mic_choice(device_id, choice.clone()).map(|_| Done),
             VaultItem::GoXlr { serial, mic_type, gain_db } => {
                 let Some(api) = self.goxlr().await else {
                     return Ok(Skipped("GoXLR Utility isn't running, so the GoXLR was left alone. Start it and press Restore again.".into()));
@@ -470,5 +474,6 @@ pub fn target_of(item: &VaultItem) -> Target {
         VaultItem::Camera { camera_id, .. } => Target::Camera(camera_id.clone()),
         VaultItem::ChainJson { .. } => Target::ChainJson,
         VaultItem::GoXlr { .. } => Target::GoXlr,
+        VaultItem::MicChoice { device_id, .. } => Target::MicChoice(device_id.clone()),
     }
 }
