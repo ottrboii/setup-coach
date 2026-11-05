@@ -346,6 +346,24 @@ impl AppCore {
         snap
     }
 
+    /// Append one line to `<data dir>\logs\ui.log` (kept under ~512 KB).
+    pub fn log_ui(&self, level: &str, source: &str, message: &str) {
+        use std::io::Write;
+        let dir = self.data_dir.join("logs");
+        if std::fs::create_dir_all(&dir).is_err() {
+            return;
+        }
+        let path = dir.join("ui.log");
+        if std::fs::metadata(&path).map(|m| m.len() > 512 * 1024).unwrap_or(false) {
+            let _ = std::fs::rename(&path, dir.join("ui.old.log"));
+        }
+        let clean = |s: &str, n: usize| s.chars().take(n).collect::<String>().replace(['\r', '\n'], " ");
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+            let _ = writeln!(f, "{secs} [{}] {}: {}", clean(level, 10), clean(source, 40), clean(message, 2000));
+        }
+    }
+
     pub async fn run_quick_checks(&self) -> QuickChecks {
         let snap = self.snapshot().await;
         let mut findings = system::audit(&snap, &[]);
@@ -359,7 +377,14 @@ impl AppCore {
         }
         coach_core::finding::rank(&mut findings);
         let obs_running = self.platform.system.obs_running();
-        let actions: Vec<PlannedActionView> = system::quick_fixes(&snap, &findings)
+        // Never offer a one-click fix that is certain to fail (no admin rights):
+        // those findings become "you do it" steps up front.
+        let (fixable, blocked): (Vec<_>, Vec<_>) =
+            system::quick_fixes(&snap, &findings).into_iter().partition(|p| !needs_admin(&p.action) || self.platform.system.can_apply(&p.action));
+        let blocked_ids: Vec<String> = blocked.iter().flat_map(|p| p.resolves.clone()).collect();
+        let still_fixable: Vec<String> = fixable.iter().flat_map(|p| p.resolves.clone()).collect();
+        downgrade_unfixable(&mut findings, blocked_ids.iter().filter(|id| !still_fixable.contains(id)));
+        let actions: Vec<PlannedActionView> = fixable
             .into_iter()
             .enumerate()
             .map(|(i, p)| PlannedActionView {
@@ -526,7 +551,9 @@ impl AppCore {
                 if simple(&o).await {
                     Ok(false) // Simple mode always streams CBR.
                 } else {
-                    Err(format!("In OBS: Settings → Output → Streaming → set Rate Control to {mode}."))
+                    let dir = self.obs_dir().ok_or_else(|| format!("In OBS: Settings → Output → Streaming → set Rate Control to {mode}."))?;
+                    files::set_stream_encoder_field(&dir, "rate_control", json!(mode)).map_err(|e| format!("{e} In OBS: Settings → Output → Streaming → set Rate Control to {mode}."))?;
+                    Ok(false)
                 }
             }
             Action::SetObsKeyframeInterval { seconds } => {
@@ -534,7 +561,9 @@ impl AppCore {
                 if simple(&o).await {
                     Ok(false) // Simple mode uses a 2 s keyframe interval.
                 } else {
-                    Err(format!("In OBS: Settings → Output → Streaming → set Keyframe Interval to {seconds} s."))
+                    let dir = self.obs_dir().ok_or_else(|| format!("In OBS: Settings → Output → Streaming → set Keyframe Interval to {seconds} s."))?;
+                    files::set_stream_encoder_field(&dir, "keyint_sec", json!(seconds)).map_err(|e| format!("{e} In OBS: Settings → Output → Streaming → set Keyframe Interval to {seconds} s."))?;
+                    Ok(false)
                 }
             }
             Action::SetObsOutputResolution { width, height } => need_obs()
@@ -1237,6 +1266,19 @@ fn action_endpoint(a: &Action) -> Option<String> {
         | Action::DisableListen { endpoint } => Some(endpoint.clone()),
         Action::PinObsMicDevice { device_id, .. } => Some(device_id.clone()),
         _ => None,
+    }
+}
+
+/// Findings we turned out not to be able to fix automatically become guided
+/// steps: no "We can fix this" tag, and the "We can do it for you." sentence
+/// is dropped from the advice.
+pub fn downgrade_unfixable<'a>(findings: &mut [coach_core::finding::Finding], ids: impl Iterator<Item = &'a String>) {
+    let ids: Vec<&String> = ids.collect();
+    for f in findings.iter_mut().filter(|f| ids.contains(&&f.id)) {
+        f.fix_kind = coach_core::finding::FixKind::Guided;
+        if let Some(i) = f.fix.rfind(" We can ") {
+            f.fix.truncate(i);
+        }
     }
 }
 

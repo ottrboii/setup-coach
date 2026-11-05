@@ -22,9 +22,32 @@ pub async fn connect_obs(app: S<'_>, password: Option<String>) -> R<ObsStatus> {
     Ok(app.connect_obs(password).await)
 }
 
+/// The quick scan, guarded: it runs in its own task with a time limit, so a
+/// panic or a stuck Windows call becomes a plain error the UI can show
+/// instead of a promise that never settles.
 #[tauri::command]
 pub async fn run_quick_checks(app: S<'_>) -> R<QuickChecks> {
-    Ok(app.run_quick_checks().await)
+    let core = app.inner().clone();
+    let task = tokio::spawn(async move { core.run_quick_checks().await });
+    match tokio::time::timeout(std::time::Duration::from_secs(45), task).await {
+        Ok(Ok(q)) => Ok(q),
+        Ok(Err(_)) => {
+            app.log_ui("error", "backend", "run_quick_checks panicked");
+            Err("The scan hit an unexpected problem. Please try again.".into())
+        }
+        Err(_) => {
+            app.log_ui("error", "backend", "run_quick_checks timed out after 45 s");
+            Err("The scan is taking too long. Please try again.".into())
+        }
+    }
+}
+
+/// UI -> log: errors the screens caught land in `%APPDATA%\SetupCoach\logs\ui.log`
+/// (and so in the self-test zip).
+#[tauri::command]
+pub async fn log_ui(app: S<'_>, level: String, source: String, message: String) -> R<()> {
+    app.log_ui(&level, &source, &message);
+    Ok(())
 }
 
 #[tauri::command]

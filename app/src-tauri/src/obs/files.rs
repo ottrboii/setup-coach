@@ -108,6 +108,25 @@ pub fn advanced_stream_encoder(obs_dir: &Path) -> Option<Value> {
     serde_json::from_str(&read(&profile.join("streamEncoder.json"))?).ok()
 }
 
+/// Path of the current profile's `streamEncoder.json` (Advanced output mode).
+pub fn stream_encoder_path(obs_dir: &Path) -> Option<PathBuf> {
+    current_profile_and_collection(obs_dir).map(|(profile, _)| profile.join("streamEncoder.json"))
+}
+
+/// Set one field in the Advanced-mode `streamEncoder.json` (e.g. `keyint_sec`,
+/// `rate_control`). OBS reads this file when a stream starts, so it also works
+/// while OBS is open. The file must already exist (OBS writes it when the user
+/// has ever applied Advanced output settings).
+pub fn set_stream_encoder_field(obs_dir: &Path, key: &str, value: Value) -> Result<(), String> {
+    let p = stream_encoder_path(obs_dir).ok_or("Couldn't find OBS's profile.")?;
+    let text = read(&p).ok_or("Couldn't find OBS's encoder settings file.")?;
+    let mut v: Value = serde_json::from_str(&text).map_err(|e| format!("Couldn't read OBS's encoder settings ({e})."))?;
+    let obj = v.as_object_mut().ok_or("OBS's encoder settings file has an unexpected shape.")?;
+    obj.insert(key.to_string(), value);
+    backup(&p)?;
+    std::fs::write(&p, serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
 /// Turn on "Downmix to Mono" for a source. OBS must be closed.
 pub fn set_force_mono(obs_dir: &Path, source: &str, on: bool) -> Result<(), String> {
     let (_, scenes) = current_profile_and_collection(obs_dir).ok_or("Couldn't find OBS's scene collection.")?;

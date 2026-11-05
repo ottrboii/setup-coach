@@ -6,15 +6,37 @@ const tauri = typeof window !== 'undefined' ? window.__TAURI__ : undefined;
 export const isMock = !tauri || !tauri.core;
 const mock = isMock ? createMock() : null;
 
+// Commands that must answer quickly: if the backend never replies (a hung or
+// crashed task) the user gets a plain error with a retry, not an endless wait.
+const LIMITS_MS = { get_environment: 60000, connect_obs: 30000, run_quick_checks: 60000, apply_actions: 120000 };
+
+/** Write a line to the app log (%APPDATA%\SetupCoach\logs\ui.log). Never throws. */
+export function logUi(level, source, message) {
+  try {
+    const text = String(message ?? '').slice(0, 2000);
+    if (typeof console !== 'undefined') console[level === 'error' ? 'error' : 'warn'](`[${source}] ${text}`);
+    if (isMock) return mock.invoke('log_ui', { level, source, message: text }).catch(() => {});
+    return tauri.core.invoke('log_ui', { level, source, message: text }).catch(() => {});
+  } catch (_) { /* logging must never break the UI */ }
+  return undefined;
+}
+
 /** Call a backend command. Rejects with a plain-language message. */
 export async function call(cmd, args = {}) {
   try {
-    if (isMock) return await mock.invoke(cmd, args);
-    return await tauri.core.invoke(cmd, args);
+    const run = isMock ? mock.invoke(cmd, args) : tauri.core.invoke(cmd, args);
+    const limit = LIMITS_MS[cmd];
+    if (!limit) return await run;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('This is taking longer than it should. Please try again.')), limit);
+    });
+    try { return await Promise.race([run, timeout]); } finally { clearTimeout(timer); }
   } catch (e) {
     // Most commands reject with a plain string; A/B commands reject with { code, message }.
     const err = new Error(typeof e === 'string' ? e : (e && e.message) || 'Something went wrong.');
     if (e && typeof e === 'object' && typeof e.code === 'string') err.code = e.code;
+    logUi('error', `backend:${cmd}`, err.message);
     throw err;
   }
 }
@@ -30,6 +52,7 @@ export const api = {
   getEnvironment: () => call('get_environment'),
   connectObs: (password) => call('connect_obs', password ? { password } : {}),
   runQuickChecks: () => call('run_quick_checks'),
+  logUi,
   applyActions: (actionIds) => call('apply_actions', { actionIds }),
   micContext: (deviceId, answers) => call('mic_context', { deviceId, answers }),
   startMicTest: (deviceId) => call('start_mic_test', { deviceId }),

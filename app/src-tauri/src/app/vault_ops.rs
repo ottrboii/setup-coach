@@ -62,7 +62,12 @@ impl AppCore {
             Action::SetObsAudioBitrate { .. } => vec![p("SimpleOutput", "ABitrate"), p("AdvOut", "Track1Bitrate")],
             Action::SetObsRecordingFormat { .. } => vec![p("SimpleOutput", "RecFormat2"), p("AdvOut", "RecFormat2")],
             Action::SetObsOutputResolution { .. } => vec![Target::ObsVideo],
-            Action::SetObsRateControl { .. } | Action::SetObsKeyframeInterval { .. } => Vec::new(),
+            Action::SetObsRateControl { .. } | Action::SetObsKeyframeInterval { .. } => self
+                .obs_dir()
+                .and_then(|d| files::stream_encoder_path(&d))
+                .filter(|p| p.exists())
+                .map(|p| vec![Target::ObsFile(p)])
+                .unwrap_or_default(),
             other => WinKey::for_action(other).map(|k| vec![Target::Windows(k)]).unwrap_or_default(),
         }
     }

@@ -1,16 +1,22 @@
 // 2. Quick checks — the free scan of Windows + OBS settings.
 import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, loading, errorBanner, toast, advanced } from '../components.js';
-import { state } from '../state.js';
+import { state, selectedMic } from '../state.js';
 
 const AREA_LABEL = { mic: 'Mic settings', system: 'Windows', camera: 'Camera', stream: 'Stream' };
+// Findings fixed by hand in Windows Sound settings when we lack the rights to do it.
+const SOUND_SETTINGS_FOR = new Set([
+  'system.exclusive_mode_allowed', 'system.listen_to_device_on', 'system.audio_enhancements_on', 'system.voice_clarity_on', 'system.sample_rate_mismatch', 'system.mic_boost_on',
+]);
 
 export async function render(root, { go, refreshNav }) {
+  const mic = selectedMic();
   root.append(html(`
     <section class="stack-lg">
       <div class="spread">
         <div class="stack" style="gap:6px"><span class="eyebrow">Free quick scan</span><h1>Your settings check-up</h1>
-        <p class="lead">We looked through Windows and OBS for the settings mix-ups that trip up most streamers.</p></div>
+        <p class="lead">We looked through Windows and OBS for the settings mix-ups that trip up most streamers.</p>
+        ${mic ? `<p class="muted" id="yourmic">Your mic: <b>${esc(mic.name)}</b> · <a href="#/welcome">Change</a></p>` : '<p class="muted">No mic picked yet · <a href="#/welcome">Pick your mic</a></p>'}</div>
         <button class="btn sm" id="rescan">Scan again</button>
       </div>
       <div id="body"></div>
@@ -32,7 +38,14 @@ export async function render(root, { go, refreshNav }) {
       }
       refreshNav();
     }
-    draw();
+    try {
+      draw();
+    } catch (e) {
+      // Unexpected data from the backend: say so plainly, log it, offer a retry.
+      api.logUi('error', 'scan.draw', e && e.stack ? e.stack : e);
+      body.innerHTML = '';
+      body.append(errorBanner(new Error("We got the scan results but couldn't show them."), () => { state.quick = null; run(true); }));
+    }
   }
 
   function draw() {
@@ -67,9 +80,15 @@ export async function render(root, { go, refreshNav }) {
 
     if (state.applied) {
       const r = state.applied;
-      body.append(html(`<div class="banner good" style="margin-top:16px"><div class="stack" style="gap:4px"><b>Done — fixed ${r.applied.length} thing${r.applied.length === 1 ? '' : 's'} for you.</b>
-        ${r.failed.map((f) => `<span>• ${esc(f.error)}</span>`).join('')}</div></div>`));
-      if (r.restart_obs_needed) body.append(html('<div class="banner warn" style="margin-top:12px"><span><b>Restart OBS</b> to finish applying the changes. We\'ll reconnect automatically.</span></div>'));
+      const labelOf = (id) => q.actions.find((a) => a.id === id)?.label || 'That fix';
+      const n = r.applied.length;
+      const fails = r.failed.map((f) => `<li><b>${esc(labelOf(f.id))}</b> — we couldn't do this automatically. ${esc(f.error)}</li>`).join('');
+      const head = n && !r.failed.length ? `Done — fixed ${n} thing${n === 1 ? '' : 's'} for you.`
+        : n ? `Fixed ${n} thing${n === 1 ? '' : 's'}. The rest need a hand from you.`
+          : "We couldn't change anything automatically.";
+      body.append(html(`<div class="banner ${r.failed.length ? 'warn' : 'good'}" style="margin-top:16px"><div class="stack" style="gap:4px"><b>${esc(head)}</b>
+        ${fails ? `<ul class="plain">${fails}</ul><span class="subtle">They stay on your list below. Use "Open Sound settings" where it's offered, or press the fix button to try again.</span>` : ''}</div></div>`));
+      if (r.restart_obs_needed && n) body.append(html('<div class="banner warn" style="margin-top:12px"><span><b>Restart OBS</b> to finish applying the changes. We\'ll reconnect automatically.</span></div>'));
     }
 
     const selected = new Set(q.actions.filter((a) => !state.applied?.applied.includes(a.id)).map((a) => a.id));
@@ -84,6 +103,22 @@ export async function render(root, { go, refreshNav }) {
         checked: acts.every((a) => selected.has(a.id)),
         onToggle: (on) => acts.forEach((a) => (on ? selected.add(a.id) : selected.delete(a.id))) || updateBtn(),
       }));
+      // Steps the user does in Windows: give them a one-click way to the right page.
+      const help = !acts.length && !isFixed && f.severity !== 'info' && SOUND_SETTINGS_FOR.has(f.id);
+      if (help) {
+        const card = list.lastElementChild;
+        const b = html('<button class="btn sm primary">Open Sound settings</button>');
+        b.addEventListener('click', async () => {
+          try {
+            await api.openForUser({ kind: 'windows_settings', uri_or_app: 'ms-settings:sound', label: 'Sound settings', steps: [] });
+          } catch (e) {
+            toast("Couldn't open Sound settings", 'Open the Windows Start menu, type "Sound settings" and press Enter.', 'bad');
+          }
+        });
+        const row = html('<div class="actions"></div>');
+        row.append(b);
+        card.querySelector('.body').append(row);
+      }
     }
 
     const bar = html(`<div class="card stack" style="margin-top:20px">
@@ -99,11 +134,15 @@ export async function render(root, { go, refreshNav }) {
       fixBtn.disabled = true;
       fixBtn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Fixing…';
       try {
-        state.applied = await api.applyActions([...selected]);
-        toast('Settings updated', `${state.applied.applied.length} fixed`, 'good');
+        const res = await api.applyActions([...selected]);
+        state.applied = res;
+        // Exactly one toast, and never a success toast when nothing was fixed.
+        if (res.applied.length && !res.failed.length) toast('All done', 'Your settings are updated. You can undo any of it from Backups.', 'good');
+        else if (res.applied.length) toast('Partly done', 'Some fixes need a hand from you. See the list.', '');
+        else toast("Nothing was changed", "We couldn't do these automatically. The list shows what to do instead.", 'bad');
         draw();
       } catch (e) {
-        toast("That didn't work", e.message, 'bad');
+        toast("That didn't work", `${e.message} Nothing was changed. Press the button to try again.`, 'bad');
         updateBtn();
       }
     });
