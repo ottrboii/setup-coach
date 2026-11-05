@@ -82,6 +82,35 @@ impl VaultItem {
         }
     }
 
+    /// Stable kind id (see `BackupItem.kind`).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            VaultItem::ObsFilters { .. } => "obs_filters",
+            VaultItem::ObsInputSettings { .. } => "obs_source_settings",
+            VaultItem::ObsInputMute { .. } => "obs_mute",
+            VaultItem::ObsMonitoring { .. } => "obs_monitoring",
+            VaultItem::ObsProfileParam { .. } => "obs_setting",
+            VaultItem::ObsVideoSettings { .. } => "obs_video",
+            VaultItem::ObsFile { path, .. } => {
+                if Path::new(path).file_name().is_some_and(|f| f.to_string_lossy().eq_ignore_ascii_case("basic.ini")) {
+                    "obs_profile_file"
+                } else {
+                    "obs_scene_file"
+                }
+            }
+            VaultItem::ObsWebsocketEnabled { .. } => "obs_websocket",
+            VaultItem::Windows { .. } => "windows_setting",
+            VaultItem::EndpointGain { .. } => "mic_level",
+            VaultItem::Camera { .. } => "camera",
+            VaultItem::ChainJson { .. } => "voice_chain",
+            VaultItem::GoXlr { .. } => "goxlr",
+        }
+    }
+
+    pub fn backup_item(&self) -> BackupItem {
+        BackupItem { kind: self.kind().into(), label: self.label() }
+    }
+
     /// Plain words for the backup list.
     pub fn label(&self) -> String {
         match self {
@@ -162,7 +191,19 @@ pub struct BackupInfo {
     pub id: String,
     pub created_at: String,
     pub label: String,
-    pub items: Vec<String>,
+    pub items: Vec<BackupItem>,
+}
+
+/// One saved setting in a backup: what kind of thing it is (stable id, for
+/// the UI to word in its own plain language) and a plain English fallback name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BackupItem {
+    /// One of: `obs_filters`, `obs_source_settings`, `obs_mute`, `obs_monitoring`,
+    /// `obs_setting`, `obs_video`, `obs_scene_file`, `obs_profile_file`,
+    /// `obs_websocket`, `windows_setting`, `mic_level`, `camera`, `voice_chain`,
+    /// `goxlr`.
+    pub kind: String,
+    pub label: String,
 }
 
 pub struct Vault {
@@ -277,7 +318,7 @@ impl Vault {
 
     /// `original` first, then per-change snapshots newest first.
     pub fn list(&self) -> Vec<BackupInfo> {
-        let info = |s: Snapshot| BackupInfo { id: s.id, created_at: s.created_at, label: s.label, items: s.items.iter().map(VaultItem::label).collect() };
+        let info = |s: Snapshot| BackupInfo { id: s.id, created_at: s.created_at, label: s.label, items: s.items.iter().map(VaultItem::backup_item).collect() };
         let mut out = Vec::new();
         if let Ok((s, _)) = self.load(ORIGINAL) {
             out.push(info(s));

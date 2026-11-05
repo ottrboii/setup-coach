@@ -349,3 +349,159 @@ async fn a_minus_6_db_take_is_matched_within_half_a_db() {
     assert!(diff.abs() < 0.5, "matched diff {diff}, ab {ab:?}");
     assert!(ab.matched_gain_db < -1.0, "{ab:?}");
 }
+
+// ---- Contract gaps closed 2026-11-05 ----
+
+#[tokio::test]
+async fn backup_items_carry_a_kind_each() {
+    let dir = tempfile::tempdir().unwrap();
+    let w = world_in(&dir.path().join("data"), |_| {}).await;
+    let q = w.core.run_quick_checks().await;
+    let all: Vec<String> = q.actions.iter().map(|a| a.id.clone()).collect();
+    w.core.apply_actions(&all).await;
+    let list = w.core.list_backups();
+    let kinds: Vec<&str> = list[0].items.iter().map(|i| i.kind.as_str()).collect();
+    assert!(kinds.contains(&"obs_filters") && kinds.contains(&"windows_setting"), "{kinds:?}");
+    assert!(list[0].items.iter().all(|i| !i.label.is_empty()));
+    // Wire shape: items are { kind, label }.
+    let v = serde_json::to_value(&list[0]).unwrap();
+    assert!(v["items"][0]["kind"].is_string() && v["items"][0]["label"].is_string(), "{v}");
+    // Scene files vs profile files are told apart.
+    let f = |p: &str| VaultItem::ObsFile { path: p.into(), file: None, sha256: None }.kind();
+    assert_eq!(f("C:/obs/basic/scenes/Stream.json"), "obs_scene_file");
+    assert_eq!(f("C:/obs/basic/profiles/Main/basic.ini"), "obs_profile_file");
+    assert_eq!(VaultItem::ChainJson { content: None }.kind(), "voice_chain");
+    assert_eq!(VaultItem::EndpointGain { endpoint: "x".into(), db: 1.0 }.kind(), "mic_level");
+}
+
+#[tokio::test]
+async fn obs_running_reflects_the_platform() {
+    let dir = tempfile::tempdir().unwrap();
+    let w = world_in(&dir.path().join("data"), |_| {}).await;
+    assert!(w.core.obs_running());
+    *w.mock.system.obs_running.lock().unwrap() = false;
+    assert!(!w.core.obs_running());
+}
+
+#[tokio::test]
+async fn restore_preview_lists_changes_and_skips_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let w = world_in(&data, |_| {}).await;
+    let obs_dir = fake_obs_dir(dir.path());
+    *w.mock.system.obs_dir.lock().unwrap() = Some(obs_dir.clone());
+    *w.mock.system.obs_running.lock().unwrap() = false;
+    record(&w, &build(&Scenario { left_only: true, ..Default::default() }));
+    let rep = w.core.finish_mic_test(Default::default(), vec![]).unwrap();
+    w.core.apply_mic_chain(rep.chain, "Mic/Aux").await;
+    let q = w.core.run_quick_checks().await;
+    let all: Vec<String> = q.actions.iter().map(|a| a.id.clone()).collect();
+    w.core.apply_actions(&all).await;
+
+    let backups_before = w.core.list_backups().len();
+    let filters_before = filters(&w.obs, "Mic/Aux");
+    let p = w.core.preview_restore(ORIGINAL).await.unwrap();
+    assert_eq!(p.id, ORIGINAL);
+    assert!(!p.obs_running);
+    assert!(p.items.iter().any(|i| i.kind == "obs_filters" && i.action == "change" && i.note.is_none()), "{p:?}");
+    assert!(p.items.iter().any(|i| i.kind == "obs_scene_file" && i.action == "change"), "{p:?}");
+    assert!(p.items.iter().any(|i| i.kind == "voice_chain" && i.action == "change"), "{p:?}");
+    // A dry run writes nothing: no new backup, OBS untouched.
+    assert_eq!(w.core.list_backups().len(), backups_before);
+    assert_eq!(filters(&w.obs, "Mic/Aux"), filters_before);
+
+    // OBS program running: its files need it closed.
+    *w.mock.system.obs_running.lock().unwrap() = true;
+    let p = w.core.preview_restore(ORIGINAL).await.unwrap();
+    assert!(p.obs_running);
+    let f = p.items.iter().find(|i| i.kind == "obs_scene_file").unwrap();
+    assert_eq!(f.action, "needs_obs_closed");
+    assert!(f.note.as_deref().unwrap().contains("closed"));
+
+    // Not connected to OBS: live items are skipped with a plain note.
+    let no_obs = AppCore::new(w.mock.platform(), data.clone(), Arc::new(CollectingEmitter::default()));
+    let p = no_obs.preview_restore(ORIGINAL).await.unwrap();
+    let live = p.items.iter().find(|i| i.kind == "obs_filters").unwrap();
+    assert_eq!((live.action.as_str(), live.note.as_deref().map(|n| n.contains("OBS is closed"))), ("skip", Some(true)), "{p:?}");
+
+    // Unknown backup: plain error.
+    assert!(w.core.preview_restore("nope").await.is_err());
+}
+
+#[tokio::test]
+async fn restore_preview_matches_what_restore_does_for_missing_devices() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let w = world_in(&data, |_| {}).await;
+    w.core.start_camera_test("mock-c920").await.unwrap();
+    w.core.capture_camera_step(coach_core::video::TestStep::Neutral, 1.0).await.unwrap();
+    let rep = w.core.finish_camera_test(vec![]).unwrap();
+    w.core.apply_camera_settings("mock-c920", rep.settings).await;
+    let w2 = world_in(&data, |m| {
+        Arc::get_mut(&mut m.camera).unwrap().devices.clear();
+    })
+    .await;
+    let p = w2.core.preview_restore(ORIGINAL).await.unwrap();
+    let cam = p.items.iter().find(|i| i.kind == "camera").unwrap();
+    assert_eq!(cam.action, "skip");
+    let r = w2.core.restore_backup(ORIGINAL).await;
+    assert!(r.skipped.iter().any(|s| s.id == cam.key), "{r:?}");
+}
+
+#[tokio::test]
+async fn ab_carries_open_findings_of_the_final_take() {
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let w = world_in(&data, |_| {}).await;
+    let id = mic_id(&w);
+    let take = build(&Scenario { rt60_s: 0.9, reverb_wet_db: -4.0, ..Default::default() });
+    record(&w, &take);
+    let rep = w.core.finish_mic_test(Default::default(), vec![]).unwrap();
+    assert!(w.core.get_ab(&id).unwrap().findings.is_empty(), "no final take: no findings");
+    w.core.apply_mic_chain(rep.chain, "Mic/Aux").await;
+    let read = take.segments.iter().find(|s| s.kind == SegmentKind::Read).unwrap();
+    record(&w, &MicTest { audio: take.audio.clone(), segments: vec![*read] });
+    let ab = w.core.record_final(&id, Default::default(), vec![]).unwrap();
+    assert!(!ab.findings.is_empty(), "a roomy voice still has something to fix after processing alone");
+    assert!(ab.findings.iter().all(|f| f.severity >= coach_core::Severity::Minor), "{:?}", ab.findings);
+    // Saved with the take: a later get_ab (even in a new session) returns the same.
+    let w2 = world_in(&data, |_| {}).await;
+    assert_eq!(w2.core.get_ab(&id).unwrap().findings, ab.findings);
+    // And on the wire.
+    assert!(serde_json::to_value(&ab).unwrap()["findings"].is_array());
+}
+
+#[tokio::test]
+async fn ab_errors_have_stable_codes() {
+    use setup_coach_app::types::AbErrorCode::*;
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let w = world_in(&data, |_| {}).await;
+    let id = mic_id(&w);
+    assert_eq!(w.core.get_ab("not-a-mic").unwrap_err().code, MicMissing);
+    let e = w.core.get_ab(&id).unwrap_err();
+    assert_eq!(e.code, NoFirstTest);
+    assert!(!e.message.is_empty());
+    assert_eq!(w.core.record_final(&id, Default::default(), vec![]).unwrap_err().code, NoRecording);
+
+    let take = build(&Scenario::default());
+    record(&w, &take);
+    w.core.finish_mic_test(Default::default(), vec![]).unwrap();
+    assert_eq!(w.core.export_ab(&id).unwrap_err().code, NoFinalTake);
+    // Read again but nothing applied yet.
+    let read = take.segments.iter().find(|s| s.kind == SegmentKind::Read).unwrap();
+    record(&w, &MicTest { audio: take.audio.clone(), segments: vec![*read] });
+    assert_eq!(w.core.record_final(&id, Default::default(), vec![]).unwrap_err().code, NoAppliedChain);
+    // No reading step marked.
+    record(&w, &MicTest { audio: take.audio.clone(), segments: vec![] });
+    assert_eq!(w.core.record_final(&id, Default::default(), vec![]).unwrap_err().code, NoReadStep);
+
+    // A damaged recording is told apart from a missing one.
+    let rec_dir = data.join("recordings").join("microphone-yeti-stereo-microphone");
+    std::fs::write(rec_dir.join("original.json"), "{ nope").unwrap();
+    assert_eq!(w.core.get_ab(&id).unwrap_err().code, Unreadable);
+
+    // Wire shape: { code, message } with a snake_case code.
+    let v = serde_json::to_value(setup_coach_app::types::AbError::new(NoFinalTake, "x")).unwrap();
+    assert_eq!(v, serde_json::json!({ "code": "no_final_take", "message": "x" }));
+}

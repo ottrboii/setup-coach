@@ -4,7 +4,7 @@ use super::{AppCore, R};
 use crate::goxlr;
 use crate::obs::{self, files};
 use crate::platform::WinKey;
-use crate::types::ApplyResult;
+use crate::types::{ApplyResult, RestorePreview, RestorePreviewItem};
 use crate::vault::{BackupInfo, Capture, FilterSnap, Vault, VaultItem, ORIGINAL};
 use coach_core::system::Action;
 use coach_core::video::UvcSettings;
@@ -194,6 +194,73 @@ impl AppCore {
         }
         res.restart_obs_needed = res.applied.iter().any(|k| k.starts_with("obs_file:") || k == "obs_websocket");
         res
+    }
+
+    /// Is the OBS program running right now? (Restore of OBS's own files needs
+    /// it closed; live OBS items need it open.)
+    pub fn obs_running(&self) -> bool {
+        self.platform.system.obs_running()
+    }
+
+    /// Dry run of `restore_backup`: what would be put back and what would be
+    /// left alone, without writing anything. Mirrors the checks in
+    /// `restore_item`, in the same (newest first) order.
+    pub async fn preview_restore(&self, id: &str) -> R<RestorePreview> {
+        let (snap, _) = self.vault().load(id)?;
+        let obs_running = self.obs_running();
+        let obs = self.obs().await;
+        let mic_here = |ep: &String| self.platform.audio.list_inputs().iter().any(|d| &d.id == ep);
+        let mut items = Vec::new();
+        for item in snap.items.iter().rev() {
+            let b = item.backup_item();
+            let live_obs_gone = || Some("OBS is closed, so your OBS settings won't be touched. Open OBS and press Restore again.".to_string());
+            let skip: Option<String> = match item {
+                VaultItem::ObsFilters { input, .. } => match obs.as_ref() {
+                    None => live_obs_gone(),
+                    Some(o) => o.request("GetSourceFilterList", json!({ "sourceName": input })).await.is_err().then(|| format!("OBS doesn't have \"{input}\" any more, so it will be left alone.")),
+                },
+                VaultItem::ObsInputSettings { input, .. } | VaultItem::ObsInputMute { input, .. } | VaultItem::ObsMonitoring { input, .. } => match obs.as_ref() {
+                    None => live_obs_gone(),
+                    Some(o) => o.request("GetInputSettings", json!({ "inputName": input })).await.is_err().then(|| format!("OBS doesn't have \"{input}\" any more, so it will be left alone.")),
+                },
+                VaultItem::ObsProfileParam { .. } | VaultItem::ObsVideoSettings { .. } => obs.is_none().then(live_obs_gone).flatten(),
+                VaultItem::ObsFile { .. } | VaultItem::ObsWebsocketEnabled { .. } => {
+                    if obs_running {
+                        items.push(RestorePreviewItem { key: item.key(), kind: b.kind, label: b.label, action: "needs_obs_closed".into(), note: Some("OBS has to be closed before this can be put back.".into()) });
+                        continue;
+                    }
+                    match item {
+                        VaultItem::ObsWebsocketEnabled { path, .. } if !std::path::Path::new(path).exists() => Some("OBS's WebSocket settings file is gone, so it will be left alone.".to_string()),
+                        _ => None,
+                    }
+                }
+                VaultItem::Windows { value } => {
+                    let ep = match &value.key {
+                        WinKey::Ducking | WinKey::UsbSelectiveSuspend => None,
+                        WinKey::EndpointVolume { endpoint }
+                        | WinKey::Enhancements { endpoint }
+                        | WinKey::VoiceClarity { endpoint }
+                        | WinKey::Listen { endpoint }
+                        | WinKey::ExclusiveMode { endpoint }
+                        | WinKey::MicBoost { endpoint } => Some(endpoint),
+                    };
+                    ep.filter(|e| !mic_here(e)).map(|_| "That microphone isn't connected, so its Windows settings will be left alone.".to_string())
+                }
+                VaultItem::EndpointGain { endpoint, .. } => (!mic_here(endpoint)).then(|| "That microphone isn't connected, so its level will be left alone.".to_string()),
+                VaultItem::Camera { camera_id, camera_name, .. } => (!self.platform.camera.list().iter().any(|c| &c.id == camera_id)).then(|| format!("{camera_name} isn't connected, so its settings will be left alone.")),
+                VaultItem::ChainJson { .. } => None,
+                VaultItem::GoXlr { serial, .. } => match self.goxlr().await {
+                    None => Some("GoXLR Utility isn't running, so the GoXLR will be left alone.".to_string()),
+                    Some(api) => (!api.devices().await.map(|d| d.iter().any(|x| &x.serial == serial)).unwrap_or(false)).then(|| "That GoXLR isn't connected, so it will be left alone.".to_string()),
+                },
+            };
+            let (action, note) = match skip {
+                Some(n) => ("skip", Some(n)),
+                None => ("change", None),
+            };
+            items.push(RestorePreviewItem { key: item.key(), kind: b.kind, label: b.label, action: action.into(), note });
+        }
+        Ok(RestorePreview { id: snap.id, label: snap.label, items, obs_running })
     }
 
     async fn restore_item(&self, item: &VaultItem, dir: &std::path::Path) -> R<Restored> {

@@ -1,6 +1,7 @@
 // 9. Backups: everything Setup Coach changed was saved first. Put it back, plain and safe.
 import { api } from '../api.js';
 import { esc, html, icons, toast, loading, errorBanner } from '../components.js';
+import { itemWords, itemDetail } from '../backupcopy.js';
 
 function when(iso) {
   const t = new Date(iso).getTime();
@@ -12,6 +13,8 @@ function when(iso) {
   if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
   return new Date(t).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
+
+const detail = (i) => (itemDetail(i) ? ` <span class="subtle">${esc(itemDetail(i))}</span>` : '');
 
 export async function render(root, { go }) {
   const page = html('<section class="stack-lg"></section>');
@@ -27,6 +30,8 @@ export async function render(root, { go }) {
   page.append(ab);
 
   let openId = null;
+  let poll = null;
+  const stopPoll = () => { clearInterval(poll); poll = null; };
   await load();
 
   async function load() {
@@ -64,24 +69,61 @@ export async function render(root, { go }) {
           <span class="subtle">${isOriginal ? 'Saved the first time Setup Coach changed anything' : esc(when(b.created_at))}</span></div>
         <button class="btn ${isOriginal ? 'primary' : ''}" data-act="ask">${isOriginal ? 'Undo everything' : 'Go back to this'}</button>
       </div>
-      <ul class="explain" style="margin:0;padding:0">${b.items.map((i) => `<li><span class="ico">${icons.check}</span><span>${esc(i)}</span></li>`).join('')}</ul>
+      <ul class="explain" style="margin:0;padding:0">${b.items.map((i) => `<li><span class="ico">${icons.check}</span><span>${esc(itemWords(i))}${detail(i) ? `<br/>${detail(i)}` : ''}</span></li>`).join('')}</ul>
       <div class="slot"></div></div>`);
     el.querySelector('[data-act="ask"]').addEventListener('click', () => confirm(el, b, isOriginal));
     if (openId === b.id) confirm(el, b, isOriginal);
     return el;
   }
 
-  function confirm(el, b, isOriginal) {
+  // Ask what would happen first (preview_restore), so the question is specific.
+  async function confirm(el, b, isOriginal) {
     openId = b.id;
+    stopPoll();
     const slot = el.querySelector('.slot');
     slot.innerHTML = '';
+    slot.append(loading('Checking what would change…'));
+    let pv;
+    try {
+      pv = await api.previewRestore(b.id);
+    } catch (e) {
+      slot.innerHTML = '';
+      slot.append(errorBanner(e, () => confirm(el, b, isOriginal)));
+      return;
+    }
+    if (openId !== b.id) return;
+    slot.innerHTML = '';
+    const change = pv.items.filter((i) => i.action === 'change');
+    const files = pv.items.filter((i) => i.action === 'needs_obs_closed');
+    const skip = pv.items.filter((i) => i.action === 'skip');
+    const waitingForObs = files.length > 0 && pv.obs_running;
+    const list = (title, items, row) => `<div class="stack" style="gap:2px"><b>${title}</b><ul class="plain" style="margin:0;padding-left:18px">${items.map(row).join('')}</ul></div>`;
+    const sections = [];
+    if (change.length) sections.push(list('Will be put back', change, (i) => `<li>${esc(itemWords(i))}${detail(i)}</li>`));
+    if (files.length) sections.push(list(waitingForObs ? 'Will be put back once OBS is closed' : 'Will be put back', files, (i) => `<li>${esc(itemWords(i))}${detail(i)}</li>`));
+    if (skip.length) sections.push(list('Will be left as it is', skip, (i) => `<li>${esc(itemWords(i))}${i.note ? `: ${esc(i.note)}` : ''}</li>`));
+    if (!sections.length) sections.push('<span>Nothing in this backup can be put back right now.</span>');
+    const nothing = change.length + files.length === 0;
     const box = html(`<div class="banner warn"><div class="stack" style="gap:10px">
       <b>${isOriginal ? 'Put everything back how it was before Setup Coach?' : 'Go back to how things were at this moment?'}</b>
-      <span>The settings above are put back. Anything you changed since then in those places will be replaced. We save your current settings first, so you can undo this too.</span>
-      <div class="row"><button class="btn primary" data-go>Yes, put it back</button><button class="btn ghost" data-no>Keep things as they are</button></div></div></div>`);
-    box.querySelector('[data-no]').addEventListener('click', () => { openId = null; slot.innerHTML = ''; });
-    box.querySelector('[data-go]').addEventListener('click', (ev) => restore(el, b, ev.currentTarget));
+      ${sections.join('')}
+      <span>Anything you changed since then in those places will be replaced. We save your current settings first, so you can undo this too.</span>
+      ${waitingForObs ? `<div class="row" style="gap:8px"><span class="spinner tiny"></span><span>OBS is still open. Close it and this carries on by itself, or put back the rest now and leave OBS's files for later.</span></div>` : ''}
+      <div class="row"><button class="btn primary" data-go ${nothing ? 'disabled' : ''}>${waitingForObs ? 'Put back the rest' : 'Yes, put it back'}</button><button class="btn ghost" data-no>Keep things as they are</button></div></div></div>`);
+    box.querySelector('[data-no]').addEventListener('click', () => { openId = null; stopPoll(); slot.innerHTML = ''; });
+    box.querySelector('[data-go]').addEventListener('click', (ev) => { stopPoll(); restore(el, b, ev.currentTarget); });
     slot.append(box);
+    // Waiting for OBS to be closed: look every couple of seconds, then ask again.
+    if (waitingForObs) {
+      poll = setInterval(async () => {
+        try {
+          if (!(await api.obsRunning())) {
+            stopPoll();
+            if (openId === b.id) confirm(el, b, isOriginal);
+          }
+        } catch { /* try again next time */ }
+      }, 2000);
+    }
   }
 
   async function restore(el, b, btn) {
@@ -97,6 +139,8 @@ export async function render(root, { go }) {
     }
   }
 
+  // The up-front OBS check should make "failed" OBS files rare; this stays as the safety net
+  // (OBS opened again in between).
   function showResult(slot, b, r) {
     slot.innerHTML = '';
     const needObs = (r.failed || []).filter((f) => /^obs_(file|websocket)/.test(f.id));
@@ -131,4 +175,6 @@ export async function render(root, { go }) {
     });
     slot.append(box);
   }
+
+  return () => stopPoll();
 }

@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { esc, html, errorBanner } from '../components.js';
 import { state } from '../state.js';
 import { SCRIPT } from './mictest.js';
+import { abErrorWords } from '../backupcopy.js';
 
 const SECS = 11;
 
@@ -52,7 +53,14 @@ export async function render(root, { go }) {
       go('ab');
     } catch (e) {
       stage.innerHTML = '';
-      stage.append(errorBanner(e, intro));
+      const w = abErrorWords(e);
+      stage.append(e && e.code ? html(`<div class="banner bad"><div class="stack" style="gap:4px"><b>${esc(w.title)}</b><span>${esc(w.text)}</span></div></div>`) : errorBanner(e, intro));
+      if (e && e.code) {
+        const goElsewhere = w.action && w.action !== 'ab-record';
+        const retry = html(`<button class="btn primary" style="margin-top:8px">${goElsewhere ? esc(w.actionLabel) : 'Try again'}</button>`);
+        retry.addEventListener('click', goElsewhere ? () => go(w.action) : intro);
+        stage.append(retry);
+      }
       const skip = html('<button class="btn ghost" style="margin-top:8px">I can\'t do this right now</button>');
       skip.addEventListener('click', () => go('ab'));
       stage.append(skip);

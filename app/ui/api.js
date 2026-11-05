@@ -12,7 +12,10 @@ export async function call(cmd, args = {}) {
     if (isMock) return await mock.invoke(cmd, args);
     return await tauri.core.invoke(cmd, args);
   } catch (e) {
-    throw new Error(typeof e === 'string' ? e : (e && e.message) || 'Something went wrong.');
+    // Most commands reject with a plain string; A/B commands reject with { code, message }.
+    const err = new Error(typeof e === 'string' ? e : (e && e.message) || 'Something went wrong.');
+    if (e && typeof e === 'object' && typeof e.code === 'string') err.code = e.code;
+    throw err;
   }
 }
 
@@ -49,6 +52,8 @@ export const api = {
   // Settings vault and A/B recordings
   listBackups: () => call('list_backups'),
   restoreBackup: (id) => call('restore_backup', { id }),
+  previewRestore: (id) => call('preview_restore', { id }),
+  obsRunning: () => call('obs_running'),
   recordFinal: (deviceId, context, constraints) => call('record_final', { deviceId, context, constraints }),
   getAb: (deviceId) => call('get_ab', { deviceId }),
   exportAb: (deviceId) => call('export_ab', { deviceId }),
