@@ -234,7 +234,7 @@ function helpBlock(h) {
   if (!h || (!h.what && !h.where && !(h.positions || []).length)) return null;
   const safeUrl = /^https:\/\//.test(h.manual_url || '') ? h.manual_url : null;
   const safeImg = /^[\w./-]+$/.test(h.image || '') && !(h.image || '').includes('..') ? h.image : null;
-  const diagram = switchDiagramHtml(h.positions);
+  const diagram = switchDiagramHtml(h.positions, h.diagram);
   const pos = diagram ? '' : (h.positions || []).map((p) => `<li><b>${esc(p.label)}</b>: ${esc(p.meaning)}</li>`).join('');
   const d = html(`
     <details class="q-help">

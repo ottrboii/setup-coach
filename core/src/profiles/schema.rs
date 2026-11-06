@@ -247,6 +247,10 @@ pub struct Help {
     /// Image path under app/ui/ (only licensed or self-drawn art).
     #[serde(default)]
     pub image: Option<String>,
+    /// Name of a self-drawn, model-specific diagram the UI knows (e.g. "re20_bass_tilt").
+    /// Absent or unknown = the generic slider drawing.
+    #[serde(default)]
+    pub diagram: Option<String>,
     /// Official manual / data sheet page.
     #[serde(default)]
     pub manual_url: Option<String>,
