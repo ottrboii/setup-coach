@@ -139,6 +139,18 @@ impl AppCore {
     /// Write one device's answer into `setup.json`, keeping everything else.
     /// (Also what restoring a vault item does.)
     pub(super) fn put_mic_choice(&self, device_id: &str, choice: Option<MicBehind>) -> R<()> {
+        self.edit_setup(|p| match choice {
+            Some(c) => {
+                p.mic_behind.insert(device_id.to_string(), c);
+            }
+            None => {
+                p.mic_behind.remove(device_id);
+            }
+        })
+    }
+
+    /// Read `setup.json` (blank if missing, set aside if unreadable), change it, write it back atomically.
+    pub(super) fn edit_setup(&self, f: impl FnOnce(&mut SavedProfile)) -> R<()> {
         let path = self.setup_path();
         let mut p = match std::fs::read_to_string(&path) {
             Ok(text) => match serde_json::from_str::<SavedProfile>(&text) {
@@ -152,14 +164,7 @@ impl AppCore {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => blank_setup(),
             Err(e) => return Err(format!("Couldn't read your saved setup ({e}).")),
         };
-        match choice {
-            Some(c) => {
-                p.mic_behind.insert(device_id.to_string(), c);
-            }
-            None => {
-                p.mic_behind.remove(device_id);
-            }
-        }
+        f(&mut p);
         std::fs::create_dir_all(&self.data_dir).map_err(|e| format!("Couldn't save ({e})."))?;
         let text = serde_json::to_string_pretty(&p).map_err(|e| e.to_string())?;
         crate::wav::write_atomic(&path, text.as_bytes()).map_err(|e| format!("Couldn't save ({e})."))
@@ -176,6 +181,8 @@ fn blank_setup() -> SavedProfile {
         camera_settings: None,
         camera_id: None,
         obs_input: None,
+        active_profile: Default::default(),
+        mic_setups: Default::default(),
     }
 }
 

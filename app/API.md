@@ -249,7 +249,7 @@ SavedProfile = { name: string, saved_at: string, mic_chain: ProcessingChain | nu
 ```
 Stored in `%APPDATA%\SetupCoach\setup.json`. `save_setup` keeps `mic_behind`. A `setup.json` that only holds mic answers has `name: ""`, `saved_at: ""` and is not reported as `saved_profile`.
 
-## Setup profiles (added 2026-11-06: core done, backend + UI not built yet)
+## Setup profiles (added 2026-11-06: core and backend done, UI not built yet)
 
 The user picks what this session is for, once, at the start: **Streaming**, **Recording / voiceover** or
 **Call / meeting**. A profile moves the **pass bars** (when a target is met / close, when a finding fires
@@ -291,7 +291,7 @@ Pass bars (evidence in `core/src/setup_profile.rs`, `cargo run --release --examp
 | Room echo met / finding / major | ≤ 0.35 / > 0.45 / > 0.7 s | ≤ 0.27 / > 0.35 / > 0.5 | ≤ 0.5 / > 0.65 / > 0.75 |
 | Mic distance | profile range, out of the camera's view | closer half of the range, pop filter | profile range; headset 1–3 cm |
 
-Backend + UI (to build in the next piece; names are the proposal, coordinator approves):
+Backend (built as proposed; the UI is still to do):
 
 | Command | Args | Returns |
 |---|---|---|
@@ -320,6 +320,12 @@ StoredMicSetup = { profile: SetupProfile, device_id: string, saved_at: string,
   so "go back" works. Hardware gain and mic position are not stored as settings: after a switch the UI
   shows `placement` and offers a short re-check (SetGain, FindDistance) instead of claiming it is done.
 - `reapply_saved_setup` (startup, re-plug) applies the active profile's setup for that device.
+- Backend details: `score` in `StoredMicSetup` is the 0-100 number (`MicReport.score.value`); it is first stored
+  from the mic test report at apply time and replaced by the re-measured one after `verify_mic`. An old
+  `setup.json` has no device id, so its `mic_chain` counts as the streaming setup for whichever mic is current
+  (with `score` 0 and empty `targets`). Under voiceover/call `reapply_saved_setup` does not fall back to it.
+  `set_setup_profile` also sets the in-session constraints to the stored ones (none when not stored) and
+  re-stamps the last `MicContext`.
 - Plain language in the picker and coaching; `targets`, `distance_cm` and dB numbers only in Advanced.
 
 ## Live coaching (added 2026-11-02)

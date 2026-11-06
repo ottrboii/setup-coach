@@ -162,7 +162,7 @@ impl AppCore {
         self.platform.audio.list_inputs().into_iter().find(|d| d.id == id).map(|d| d.name)
     }
 
-    fn coach_mic_device(&self) -> Option<String> {
+    pub(super) fn coach_mic_device(&self) -> Option<String> {
         let last = self.inner.lock().unwrap().last_device.clone();
         let inputs = self.platform.audio.list_inputs();
         last.filter(|id| inputs.iter().any(|d| &d.id == id)).or_else(|| inputs.iter().find(|d| d.is_default).or(inputs.first()).map(|d| d.id.clone()))
@@ -241,8 +241,9 @@ impl AppCore {
     async fn mic_plan(&self) -> R<Vec<CoachStep>> {
         let (report, ctx, snap) = {
             let i = self.inner.lock().unwrap();
-            (i.last_report.clone(), i.last_context.clone().unwrap_or_default(), i.last_snapshot.clone())
+            (i.last_report.clone(), i.last_context.clone(), i.last_snapshot.clone())
         };
+        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), ..Default::default() });
         let device = self.coach_mic_device();
         let mut out: Vec<CoachStep> = Vec::new();
         let push = |s: CoachStep, out: &mut Vec<CoachStep>| {
@@ -538,8 +539,9 @@ impl AppCore {
         let device = self.coach_mic_device().ok_or("Plug in your mic first.")?;
         let (ctx, metrics) = {
             let i = self.inner.lock().unwrap();
-            (i.last_context.clone().unwrap_or_default(), i.last_report.as_ref().map(|r| r.metrics.clone()))
+            (i.last_context.clone(), i.last_report.as_ref().map(|r| r.metrics.clone()))
         };
+        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), ..Default::default() });
         let source = if step.task == T::SetGain { self.gain_source(&device).await } else { None };
         let auto = source.is_some();
         // Audio thread → shared buffer (peak-preserving mono: a left-only
