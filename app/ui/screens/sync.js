@@ -29,7 +29,6 @@ export async function render(root, { go, refreshNav }) {
     return;
   }
 
-  if (state.autoStart === 'sync') { state.autoStart = null; start(); } else drawIntro();
 
   function head(title, lead) {
     return html(`<div class="stack" style="gap:6px"><span class="eyebrow">Lip sync</span><h1>${esc(title)}</h1><p class="lead">${esc(lead)}</p></div>`);
@@ -56,7 +55,17 @@ export async function render(root, { go, refreshNav }) {
     page.append(card);
   }
 
-  async function start() {
+  // One clap round. Default: the clap test. The drift check passes its own begin/finish/stop/done.
+  const SYNC_ROUND = {
+    begin: () => api.startSyncTest(state.micId, state.cameraId),
+    finish: () => api.finishSyncTest(),
+    stop: () => api.stopSyncTest(),
+    done: (report) => { state.syncReport = report; refreshNav(); drawResult(report); },
+  };
+  let round = SYNC_ROUND;
+
+  async function start(r) {
+    round = r && r.begin ? r : SYNC_ROUND;
     page.innerHTML = '';
     page.append(head('Clap in front of the camera', 'Keep your hands where you see them in the picture.'));
     const view = html(`
@@ -72,7 +81,7 @@ export async function render(root, { go, refreshNav }) {
       </div>`);
     page.append(view);
     const $ = (s) => view.querySelector(s);
-    const stop = async () => { cancelled = true; teardown(); try { await api.stopSyncTest(); } catch (_) { /* nothing running */ } };
+    const stop = async () => { cancelled = true; teardown(); try { await round.stop(); } catch (_) { /* nothing running */ } };
     $('#cancel').addEventListener('click', async () => { await stop(); cancelled = false; drawIntro(); });
     $('#cant').addEventListener('click', async () => { await stop(); cancelled = false; drawManual(); });
     cancelled = false;
@@ -102,7 +111,7 @@ export async function render(root, { go, refreshNav }) {
           $('#title').textContent = claps >= CLAPS_WANTED ? 'Got it. Hold still for a moment…' : 'Nice. Keep clapping.';
         }
       }));
-      await api.startSyncTest(state.micId, state.cameraId);
+      await round.begin();
       running = true;
       $('#title').textContent = 'Clap now';
       $('#text').textContent = 'Four firm claps, with a short pause in the middle. Not a steady beat.';
@@ -115,16 +124,14 @@ export async function render(root, { go, refreshNav }) {
       });
       if (cancelled) return;
       $('#title').innerHTML = '<span class="spinner tiny"></span> Working it out…';
-      const report = await api.finishSyncTest();
+      const report = await round.finish();
       running = false;
       teardown();
-      state.syncReport = report;
-      refreshNav();
-      drawResult(report);
+      round.done(report);
     } catch (e) {
       running = false;
       teardown();
-      try { await api.stopSyncTest(); } catch (_) { /* nothing running */ }
+      try { await round.stop(); } catch (_) { /* nothing running */ }
       if (cancelled) return;
       drawError(e);
     }
@@ -220,6 +227,7 @@ export async function render(root, { go, refreshNav }) {
       }
       page.append(row);
     }
+    if (r.offset_ms != null && !inDrift) page.append(driftOffer());
     if (r.offset_ms != null) {
       page.append(advanced('Advanced: the numbers', kvTable([
         ['Sound after picture', fmt(r.offset_ms, 0, ' ms') + (r.offset_ms < 0 ? ' (negative: sound first)' : '')],
@@ -229,6 +237,131 @@ export async function render(root, { go, refreshNav }) {
         ['Pictures per second', fmt(r.frames_per_s, 1)],
       ])));
     }
+  }
+
+  // ---- Drift check: clap now, again after a wait, and see if the gap holds ----
+  let inDrift = false;
+  let driftWait = null;
+  const driftRound = (first, intervalS) => ({
+    begin: () => (first ? api.startDriftCheck(state.micId, state.cameraId, intervalS) : api.startDriftClap()),
+    finish: () => api.finishDriftClap(),
+    stop: () => api.stopDriftCheck(),
+    done: (s) => drawDrift(s),
+  });
+  const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  function driftOffer() {
+    const card = html(`<div class="card stack"><h3>Will it stay this way?</h3>
+      <p class="muted">On some setups the gap slowly grows during a stream, and then a fixed delay stops working. We can clap now and again later to check. Leave the app open and stream or play as usual in between.</p>
+      <div class="row" role="group" aria-label="Check again after">
+        <button class="btn" data-min="10">After 10 minutes</button><button class="btn primary" data-min="30">After 30 minutes</button><button class="btn" data-min="60">After 1 hour</button>
+      </div></div>`);
+    card.querySelectorAll('button[data-min]').forEach((b) => b.addEventListener('click', () => {
+      inDrift = true;
+      start(driftRound(true, Number(b.dataset.min) * 60));
+    }));
+    return card;
+  }
+
+  function stopDriftWait() {
+    clearInterval(driftWait);
+    driftWait = null;
+  }
+
+  async function endDrift(to) {
+    stopDriftWait();
+    inDrift = false;
+    try { await api.stopDriftCheck(); } catch (_) { /* not running */ }
+    to();
+  }
+
+  function drawDrift(s) {
+    inDrift = true;
+    stopDriftWait();
+    page.innerHTML = '';
+    const rep = s.report;
+    const last = s.last;
+    if (last && last.offset_ms == null) {
+      // The last clap round gave no number: just clap again, the wait already happened.
+      page.append(head("We couldn't hear that one clearly", last.hint || 'Please clap once more.'));
+      const row = html('<div class="row"><button class="btn primary lg" id="clap">Clap again</button><button class="btn ghost" id="stop">Stop the check</button></div>');
+      row.querySelector('#clap').addEventListener('click', () => start(driftRound(false)));
+      row.querySelector('#stop').addEventListener('click', () => endDrift(drawIntro));
+      page.append(row);
+    } else if (rep.verdict === 'drifting') {
+      const f = rep.finding;
+      page.append(head(f ? f.title : 'Your sound and picture slowly drift apart', rep.message));
+      const card = html(`<div class="card stack"><h3>Put your sound on one clock</h3>
+        <ol class="steps-list">${rep.steps.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+        <div class="row"><button class="btn primary lg" id="again">Check again</button><button class="btn ghost" id="cant">I can't do this</button></div></div>`);
+      card.querySelector('#again').addEventListener('click', async () => {
+        const interval = s.interval_s;
+        stopDriftWait();
+        try { await api.stopDriftCheck(); } catch (_) { /* not running */ }
+        start(driftRound(true, interval));
+      });
+      card.querySelector('#cant').addEventListener('click', () => endDrift(drawDriftCant));
+      page.append(card);
+    } else if (rep.verdict === 'steady') {
+      page.append(head('The gap holds', rep.message));
+      page.append(html('<div class="banner good"><b>Steady</b></div>'));
+      const row = html('<div class="row"></div>');
+      if (last && last.fix) {
+        const b = html('<button class="btn primary lg">Show me the fix</button>');
+        // The backend kept the fix of the latest round, so "Set it in OBS for me" works from here.
+        b.addEventListener('click', () => { stopDriftWait(); inDrift = false; api.stopDriftCheck().catch(() => {}).then(() => { state.syncReport = last; drawResult(last); }); });
+        row.append(b);
+      }
+      const home = html(`<button class="btn ${last && last.fix ? '' : 'primary'}">Back to home</button>`);
+      home.addEventListener('click', () => endDrift(() => go('home')));
+      row.append(home);
+      page.append(row);
+    } else {
+      // Waiting for the next clap round.
+      page.append(head('Stream or play as usual', rep.message));
+      const card = html(`<div class="card stack"><div class="spread" style="align-items:center">
+          <div class="stack" style="gap:4px"><b id="wtitle">Next clap check in</b><span class="muted">Keep this app open. Change nothing in your setup until then.</span></div>
+          <div class="countdown" id="left" aria-live="polite"></div></div>
+        <div class="row"><button class="btn primary lg" id="clap" disabled>Clap now</button><button class="btn ghost" id="stop">Stop the check</button></div></div>`);
+      page.append(card);
+      const left = card.querySelector('#left');
+      const clap = card.querySelector('#clap');
+      const dueAt = performance.now() + (s.next_due_in_s || 0) * 1000;
+      const tick = () => {
+        const sec = Math.max(0, (dueAt - performance.now()) / 1000);
+        left.textContent = mmss(sec);
+        if (sec <= 0 && clap.disabled) {
+          clap.disabled = false;
+          card.querySelector('#wtitle').textContent = 'Time for the next clap check';
+          toast('Time to clap', 'Come back to Setup Coach and clap four times.', 'info');
+        }
+      };
+      tick();
+      driftWait = setInterval(tick, 500);
+      clap.addEventListener('click', () => { stopDriftWait(); start(driftRound(false)); });
+      card.querySelector('#stop').addEventListener('click', () => endDrift(drawIntro));
+    }
+    if (s.points.length) {
+      const rows = s.points.map((p, i) => [`Check ${i + 1} at ${fmt(p.t_s / 60, 1, ' min')}`, fmt(p.offset_ms, 0, ' ms')]);
+      if (rep.points >= 2) {
+        rows.push(['Change per 10 minutes', fmt(rep.slope_ms_per_10min, 1, ' ms')], ['Change over the check', fmt(rep.change_ms, 0, ' ms')], ['Length of the check', fmt(rep.span_min, 1, ' min')]);
+        if (rep.spread_ms != null) rows.push(['Scatter between checks', fmt(rep.spread_ms, 0, ' ms')]);
+      }
+      page.append(advanced('Advanced: the numbers', kvTable(rows)));
+    }
+  }
+
+  function drawDriftCant() {
+    page.innerHTML = '';
+    page.append(head("That's OK", 'You can still stream with it. The gap will creep, so check it now and then.'));
+    const card = html(`<div class="card stack"><ol class="steps-list">
+      <li>Before each stream, run the clap test and set the delay it suggests.</li>
+      <li>On long streams, run it again every hour or so and adjust.</li>
+      <li>Restarting OBS also resets the gap for a while.</li>
+    </ol><div class="row"><button class="btn primary" id="home">Back to home</button><button class="btn ghost" id="test">Run the clap test</button></div></div>`);
+    card.querySelector('#home').addEventListener('click', () => go('home'));
+    card.querySelector('#test').addEventListener('click', () => start());
+    page.append(card);
   }
 
   function drawManual() {
@@ -252,9 +385,18 @@ export async function render(root, { go, refreshNav }) {
     unlisten = [];
   }
 
+  // A drift check keeps running while the user streams or uses other screens; come back to it.
+  let driftOn = null;
+  try { driftOn = await api.driftStatus(); } catch (_) { /* older backend */ }
+  if (driftOn && !driftOn.clap_open) drawDrift(driftOn);
+  else if (driftOn) { await api.stopDriftCheck().catch(() => {}); drawIntro(); }
+  else if (state.autoStart === 'sync') { state.autoStart = null; start(); } else drawIntro();
+
   return () => {
     cancelled = true;
     teardown();
-    if (running) api.stopSyncTest().catch(() => {});
+    stopDriftWait();
+    // A clap round in progress is cancelled; a drift check that is only waiting keeps running.
+    if (running) round.stop().catch(() => {});
   };
 }

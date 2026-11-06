@@ -584,6 +584,51 @@ The result is `in_sync` once it is inside the usual limits (sound ahead 45 ms, b
 (too few claps, hands not seen), never a guessed number. The Sync Offset change is not in the settings vault yet (only the
 in-session `undo_sync_fix`).
 
+### Drift check (added 2026-11-06)
+
+Is the offset fixed (a Sync Offset / Render Delay fixes it) or does it creep (two clocks; only one clock fixes it)? The clap test is
+repeated on **one continuous mic recording**: the mic stays open for the whole check and its own sample count is the audio timeline
+(as in OBS), pictures are stamped with the PC clock. Between clap rounds only a sample counter runs; nothing is recorded or processed.
+
+| Command | Args | Returns |
+|---|---|---|
+| `start_drift_check` | `{ deviceId: string, cameraId: string, intervalS: number }` | `DriftStatus` (rejects with `CameraError` like `start_sync_test`) – opens the mic for the check and opens the first clap round; emits `sync-progress` and `camera-preview` during rounds. `intervalS` is clamped to 1 s – 3 h (UI offers 10 / 30 / 60 min) |
+| `start_drift_clap` | – | `()` – opens the next clap round. Error "Start the drift check first." |
+| `finish_drift_clap` | – | `DriftStatus` – closes the round, measures it (`coach_core::avsync::measure_offset`), adds it to the series. Errors "Start the drift check first." / "Press Clap now first." |
+| `drift_status` | – | `DriftStatus \| null` – null when no drift check runs (the UI uses it to come back to a running check) |
+| `stop_drift_check` | – | `()` – cancel / "I can't do this" / done; safe any time, also twice. `start_sync_test` also ends a drift check |
+
+```ts
+DriftStatus = { interval_s: number, elapsed_s: number,
+                next_due_in_s: number | null,  // until the next round; null while a round is open or before the first point
+                clap_open: boolean,
+                points: { t_s: number, offset_ms: number }[],  // t_s on the mic clock; offset without OBS' own Sync Offset
+                last: SyncReport | null,       // latest round (hint when unclear; fix.can_auto only when the offset holds)
+                report: DriftReport }
+DriftReport = { verdict: "steady" | "drifting" | "unclear",
+                reason: "too_few" | "noisy" | "too_short" | null,   // when unclear
+                message: string,               // plain English
+                steps: string[],               // drifting: one clock, 48 kHz, one capture path, re-measure; unclear: how to get an answer
+                fixed_offset_ok: boolean,      // steady: a fixed Sync Offset / Render Delay will hold
+                short: boolean,                // steady over less than 20 min (message says a longer check is surer)
+                finding: Finding | null,       // id "sync.av_drift" when drifting
+                // Advanced only:
+                slope_ms_per_10min: number, change_ms: number, span_min: number, points: number, spread_ms: number | null }
+```
+Event `drift-due`: `{ points }`, once when the wait after the latest good round is over (not sent once drifting).
+
+Verdict (`coach_core::avsync::estimate_drift`, least-squares line; starting values): `drifting` when |slope| ≥ 10 ms per 10 min and the
+offset moved ≥ 20 ms; `steady` when |slope| < 10 ms per 10 min; `unclear` with fewer than two rounds, a scatter above 30 ms (three or
+more rounds), or a fast slope that moved less than 20 ms (`too_short`). `sync.av_drift` is major from 15 ms per 10 min.
+`apply_sync_fix` only works after a drift round when the verdict is `steady` (the backend keeps the latest round's fix then);
+otherwise it says to run the clap test first.
+
+Flow (in the clap-test screen): any clap result with a number offers "Will it stay this way?" with 10 / 30 / 60 min →
+`start_drift_check` → clap round → `finish_drift_clap` → wait screen with countdown ("Clap now" enabled when due; the user streams
+as usual and the check keeps running if they leave the screen) → `start_drift_clap` → … `steady`: "The gap holds" + "Show me the
+fix" (the clap result, with "Set it in OBS for me" when possible). `drifting`: title/why from the finding, `steps`, "Check again"
+(new check after a change) and "I can't do this" (re-check before each stream). Numbers only under Advanced.
+
 **Camera runtime warning.** `QuickChecks` gained `runtime_warnings: RuntimeWarning[]` (`#[serde(default)]`):
 `RuntimeWarning = { camera: string, typical_min: number, connected_min: number, minutes_left: number, message: string /* plain English */ }`.
 A camera appears once its recorded run times show a pattern (`typical_runtime_minutes`) and the current run has used 80 % of it

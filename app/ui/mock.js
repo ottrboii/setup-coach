@@ -351,6 +351,33 @@ export function createMock() {
   let syncTimes = [];
   let syncOffset = 0;      // the OBS Sync Offset of the mock mic (ms)
   let syncPrev = 0;
+  let drift = null;        // running mock drift check
+  // Same rules as coach_core::avsync::estimate_drift (two-point version is enough for the mock).
+  const driftStatus = () => {
+    const p = drift.points;
+    const n = p.length;
+    const base = { slope_ms_per_10min: 0, change_ms: 0, span_min: 0, points: n, spread_ms: null, short: false, finding: null };
+    let report;
+    if (n < 2) {
+      report = { ...base, verdict: 'unclear', reason: 'too_few', fixed_offset_ok: false, message: 'One more clap check after the wait tells us if the gap holds.', steps: ['Leave everything as it is and clap again when we ask.'] };
+    } else {
+      const span = p[n - 1].t_s - p[0].t_s;
+      const change = p[n - 1].offset_ms - p[0].offset_ms;
+      const slope = change / span * 600;
+      const stats = { ...base, slope_ms_per_10min: Math.round(slope * 10) / 10, change_ms: Math.round(change), span_min: span / 60 };
+      if (Math.abs(slope) >= 10 && Math.abs(change) >= 20) {
+        report = { ...stats, verdict: 'drifting', reason: null, fixed_offset_ok: false,
+          finding: finding('sync.av_drift', 'mic', 'major', 'Your sound and picture slowly drift apart', 'Your sound and your picture run on different clocks that tick at slightly different speeds, so the gap between them keeps growing during the stream. A fixed Sync Offset would be right now and wrong again later.', '', 'guided'),
+          message: "The gap between your sound and picture keeps changing, so a fixed Sync Offset won't hold: it would be right now and wrong later in the stream.",
+          steps: ['Bring your mic and your game sound into one device (a mixer or audio interface), so they share one clock.', 'Set every audio device and OBS to 48 kHz: Windows Sound settings > your device > Properties > Advanced, and OBS Settings > Audio.', 'If your game sound comes in through the capture card and also through another cable or app, turn one of them off in OBS.', 'After you change something, press Check again to measure it again.'] };
+      } else {
+        report = { ...stats, verdict: 'steady', reason: null, fixed_offset_ok: true, short: span / 60 < 20, steps: [],
+          message: 'Your sound and picture stay the same distance apart, so a fixed Sync Offset will hold.' + (span / 60 < 20 ? ' This was a short check; one over 30 minutes or more is surer.' : '') };
+      }
+    }
+    const due = !drift.open && drift.lastAt ? Math.max(0, drift.interval_s - (Date.now() - drift.lastAt) / 1000) : null;
+    return { interval_s: drift.interval_s, elapsed_s: (Date.now() - drift.started) / 1000, next_due_in_s: due, clap_open: drift.open, points: p.slice(), last: drift.last, report };
+  };
   const camBusy = () => !!mockBusy && !camFreed && !(mockBusy === 'other' && busyPolls > 3);
   const noPicture = () => Object.assign(new Error("We can't see your camera: the picture is black. Another app is probably using it."), { code: 'no_picture', reason: 'black' });
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
@@ -581,6 +608,34 @@ export function createMock() {
       return { ok: true, input: 'Mic/Aux', previous_ms: syncPrev, applied_ms: syncOffset, message: `Done: the Sync Offset of Mic/Aux in OBS is now ${syncOffset} ms. Press Check again to confirm it worked.` };
     },
     async undo_sync_fix() { await wait(300); syncOffset = syncPrev; return { ok: true, input: 'Mic/Aux', previous_ms: null, applied_ms: syncOffset, message: `Put back to ${syncOffset} ms.` }; },
+    // Drift check. ?mock_drift=drift (default: steady). The mock waits seconds where the app waits minutes.
+    async start_drift_check(_a) {
+      if (camBusy()) throw noPicture();
+      drift = { interval_s: 4, started: Date.now(), points: [], open: true, last: null, lastAt: null, dueTimer: null };
+      await handlers.start_sync_test();
+      return driftStatus();
+    },
+    async start_drift_clap() { if (!drift) throw new Error('Start the drift check first.'); drift.open = true; await handlers.start_sync_test(); return null; },
+    async finish_drift_clap() {
+      if (!drift) throw new Error('Start the drift check first.');
+      if (!drift.open) throw new Error('Press Clap now first.');
+      drift.open = false;
+      const last = await handlers.finish_sync_test();
+      const drifting = (() => { try { return new URLSearchParams(location.search).get('mock_drift') === 'drift'; } catch { return false; } })();
+      const t = drift.points.length * 600;
+      if (last.offset_ms != null) {
+        drift.points.push({ t_s: t, offset_ms: last.offset_ms - syncOffset + (drifting ? drift.points.length * 40 : drift.points.length % 2) });
+        drift.lastAt = Date.now();
+        clearTimeout(drift.dueTimer);
+        drift.dueTimer = setTimeout(() => emit('drift-due', { points: drift && drift.points.length }), drift.interval_s * 1000);
+      }
+      const s = driftStatus();
+      if (!s.report.fixed_offset_ok && last.fix) last.fix.can_auto = false;
+      drift.last = last;
+      return { ...s, last };
+    },
+    async drift_status() { return drift ? driftStatus() : null; },
+    async stop_drift_check() { if (drift) clearTimeout(drift.dueTimer); drift = null; clearInterval(syncTimer); return null; },
     async camera_picture_status() {
       await wait(300); busyPolls++;
       const users = mockBusy === 'obs' ? [{ name: 'OBS Studio', confirmed: true }] : mockBusy === 'other' ? [{ name: 'Zoom', confirmed: true }] : [];
