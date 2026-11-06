@@ -277,12 +277,20 @@ impl AppCore {
         let me = self.clone();
         let id = camera_id.to_string();
         tokio::spawn(async move {
+            let mut last_preview = Instant::now() - Duration::from_secs(1);
             while running.load(Ordering::SeqCst) {
                 let t0 = started.elapsed().as_secs_f64();
                 match me.grab_checked(&id, source.as_deref()).await {
                     Ok(f) => {
                         // The picture belongs to the middle of the time the grab took.
                         let t = (t0 + started.elapsed().as_secs_f64()) / 2.0;
+                        // Show the user their own picture (about 4 a second) so they can put their hands in view.
+                        if last_preview.elapsed() >= Duration::from_millis(250) {
+                            last_preview = Instant::now();
+                            if let Some(url) = camera::jpeg_data_url(&camera::downscale(&f, 480)) {
+                                me.emitter.emit(crate::types::events::CAMERA_PREVIEW, json!({ "image": url }));
+                            }
+                        }
                         let mut small = camera::downscale(&f, FRAME_WIDTH);
                         small.timestamp_s = t;
                         let mut fr = frames.lock().unwrap();

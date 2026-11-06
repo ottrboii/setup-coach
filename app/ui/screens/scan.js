@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, loading, errorBanner, toast, advanced } from '../components.js';
 import { state, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
-import { guidedFailures, plainFailures, guidedFixCard } from '../guided.js';
+import { guidedFailures, plainFailures, guidedFixCard, runtimeWarningBanners } from '../guided.js';
 
 const AREA_LABEL = { mic: 'Mic settings', system: 'Windows', camera: 'Camera', stream: 'Stream' };
 // Findings fixed by hand in Windows Sound settings when we lack the rights to do it.
@@ -87,6 +87,7 @@ export async function render(root, { go, refreshNav }) {
       areas.append(a);
     }
     body.append(summary);
+    for (const b of runtimeWarningBanners(q)) body.append(b);
 
     if (state.applied) {
       const r = state.applied;

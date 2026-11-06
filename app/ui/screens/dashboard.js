@@ -2,7 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, toast, loading } from '../components.js';
 import { state } from '../state.js';
-import { guidedFailures, plainFailures, guidedFixCard } from '../guided.js';
+import { guidedFailures, plainFailures, guidedFixCard, runtimeWarningBanners } from '../guided.js';
 
 export async function render(root, { go, refreshNav }) {
   const sys = state.quick?.score?.find((s) => s.area === 'system');
@@ -18,7 +18,7 @@ export async function render(root, { go, refreshNav }) {
       <p class="lead">Everything in one place. Run a quick re-check before you go live — it takes a few seconds.</p></div>
       <button class="btn primary lg" id="recheck">Re-check before stream</button></div>
       <div class="grid-4" id="tiles"></div>
-      <div id="recheck-box"></div>
+      <div id="recheck-box" class="stack"></div>
       <div id="guided-box" class="stack"></div>
       <div class="grid-2">
         <div class="card stack"><h3>Save this setup</h3><p class="muted">We'll remember your mic and camera settings and put them back automatically when Windows or a replug resets them.</p>
@@ -29,6 +29,12 @@ export async function render(root, { go, refreshNav }) {
       </div>
     </section>`);
   root.append(page);
+  for (const b of runtimeWarningBanners(state.quick)) page.querySelector('#recheck-box').append(b);
+  const sync = html('<div class="banner info"><div class="stack" style="gap:4px"><b>Does your voice match your picture?</b><span>A 15-second clap test tells you if viewers hear you before or after they see you.</span></div></div>');
+  const syncBtn = html('<button class="btn sm" style="margin-left:auto">Run the clap test</button>');
+  syncBtn.addEventListener('click', () => go('sync'));
+  sync.append(syncBtn);
+  page.querySelector('#recheck-box').after(sync);
 
   const grid = page.querySelector('#tiles');
   for (const t of tiles) {
@@ -49,7 +55,11 @@ export async function render(root, { go, refreshNav }) {
       refreshNav();
       const open = state.quick.findings.filter((f) => f.severity !== 'info');
       box.innerHTML = '';
-      if (!open.length) {
+      const warns = runtimeWarningBanners(state.quick);
+      for (const b of warns) box.append(b);
+      if (!open.length && warns.length) {
+        box.append(html('<div class="banner info"><span>Everything else looks fine. Sort out the camera warning above before you go live.</span></div>'));
+      } else if (!open.length) {
         box.append(html('<div class="banner good"><b>All good — you\'re ready to go live.</b></div>'));
       } else {
         box.append(html(`<div class="banner warn"><div class="stack" style="gap:4px"><b>${open.length} thing${open.length === 1 ? '' : 's'} changed since last time.</b><span>Fix them on the quick scan page.</span></div></div>`));

@@ -78,7 +78,7 @@ export async function render(root, { go, refreshNav }) {
     const img = view.querySelector('#img');
     view.querySelector('#cancel').addEventListener('click', () => { cancelled = true; teardown(); drawIntro(); cancelled = false; });
     try {
-      unlisten = await on('camera-preview', (src) => { img.src = src; });
+      unlisten = await on('camera-preview', (p) => { img.src = typeof p === 'string' ? p : p.image; });
       unlistenPicture = await on('camera-picture', (p) => {
         const badge = view.querySelector('#badge');
         if (badge) { badge.textContent = p.live ? 'Live' : 'No picture'; badge.classList.toggle('bad', !p.live); }

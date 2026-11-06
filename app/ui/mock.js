@@ -160,6 +160,7 @@ const QUICK = {
     { id: 'a3', label: 'Remove the AI noise filter in OBS', resolves: ['mic.ai_noise_suppression'], needs_admin: false, needs_obs_closed: false, action: { type: 'remove_obs_filter', input: 'Mic/Aux', filter: 'Noise Suppression' } },
     { id: 'a4', label: "Set Windows ducking to 'Do nothing'", resolves: ['system.windows_ducking_on'], needs_admin: false, needs_obs_closed: false, action: { type: 'set_windows_ducking', preference: 'do_nothing' } },
   ],
+  runtime_warnings: /[?&]mock_runtime=0\b/.test(typeof location !== 'undefined' ? location.search : '') ? [] : [{ camera: 'Sony a6000', typical_min: 28, connected_min: 24, minutes_left: 4, message: 'Your Sony a6000 usually switches off after about 28 minutes and has been on for 24. Expect it to cut out in about 4 minutes: switch it off and on again before you go live, or fix the heat or power problem first.' }],
   score: [
     { area: 'system', value: 76, issues: 3 },
     { area: 'mic', value: 63, issues: 2 },
@@ -344,6 +345,12 @@ export function createMock() {
   let busyPolls = 0;
   let mainsOverride = null;
   let camFreed = false;
+  let syncTimer = null;
+  let syncT = 0;
+  let syncClaps = 0;
+  let syncTimes = [];
+  let syncOffset = 0;      // the OBS Sync Offset of the mock mic (ms)
+  let syncPrev = 0;
   const camBusy = () => !!mockBusy && !camFreed && !(mockBusy === 'other' && busyPolls > 3);
   const noPicture = () => Object.assign(new Error("We can't see your camera: the picture is black. Another app is probably using it."), { code: 'no_picture', reason: 'black' });
   const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString();
@@ -527,6 +534,53 @@ export function createMock() {
       await wait(200);
       return null;
     },
+    // Lip-sync clap test. ?mock_sync=late (voice after picture) | early (default: picture after voice) | ok | unclear
+    async start_sync_test() {
+      if (camBusy()) throw noPicture();
+      clearInterval(syncTimer);
+      syncT = 0; syncClaps = 0; syncTimes = [0.6, 1.5, 2.1, 3.2];
+      const sync = (k) => { try { return new URLSearchParams(location.search).get('mock_sync') === k; } catch { return false; } };
+      if (sync('unclear')) syncTimes = [0.6];
+      syncTimer = setInterval(() => {
+        syncT += 0.1;
+        let clap = false;
+        while (syncTimes.length && syncT >= syncTimes[0]) { syncTimes.shift(); syncClaps++; clap = true; }
+        emit('sync-progress', { t_s: Math.round(syncT * 10) / 10, level_db: clap ? -14 : -50 + Math.random() * 4, claps: syncClaps, clap, frames: Math.round(syncT * 6) });
+        if (Math.round(syncT * 10) % 3 === 0) emit('camera-preview', { image: frame() });
+      }, 100);
+      await wait(250);
+      return null;
+    },
+    async stop_sync_test() { clearInterval(syncTimer); return null; },
+    async finish_sync_test() {
+      clearInterval(syncTimer);
+      await wait(900);
+      const q = (k) => { try { return new URLSearchParams(location.search).get('mock_sync') === k; } catch { return false; } };
+      const base = { score: 0.82, claps: syncClaps || 4, frames_per_s: 9.6, coarse: false, finding: null, fix: null, hint: null, obs_sync_offset_ms: syncOffset };
+      if (q('unclear')) return { ...base, verdict: 'unclear', offset_ms: null, score: 0, hint: 'We only heard 1 clap. Clap four times, not too fast, with your hands where the camera can see them.' };
+      const raw = q('late') ? 180 : q('ok') ? 10 : -160;
+      const o = raw + syncOffset;
+      if (Math.abs(o) < 45) return { ...base, verdict: 'in_sync', offset_ms: o };
+      const f = (id, title, why) => ({ id, area: 'mic', severity: 'minor', title, why, fix: '', fix_kind: 'guided', evidence: {}, steps: [] });
+      if (o > 0) {
+        const ms = Math.round(o / 10) * 10;
+        return { ...base, verdict: 'sound_late', offset_ms: o, finding: f('sync.av_offset', 'Your voice arrives after your picture', 'Viewers hear you a moment after they see your mouth move. A capture card adds a short delay to the picture, which is normal.'),
+          fix: { side: 'delay_camera', ms, change_ms: ms, can_auto: false, obs_input: null, camera_source: 'Cam Link',
+            steps: ['In OBS, right-click your camera in the Sources list and choose Filters.', `Under Effect Filters press the + button, choose Render Delay, and set it to ${ms} ms.`, 'Close the window, come back here and press Check again.'] } };
+      }
+      const ms = Math.round(-o / 10) * 10 + Math.max(0, syncOffset);
+      return { ...base, verdict: 'sound_early', offset_ms: o, finding: f('sync.av_offset', 'Your picture arrives after your voice', 'Viewers hear you before they see your mouth move. A capture card adds a short delay to the picture, which is normal.'),
+        fix: { side: 'delay_sound', ms, change_ms: ms - Math.max(0, syncOffset), can_auto: true, obs_input: 'Mic/Aux', camera_source: null,
+          steps: ['In OBS, find your mic in the Audio Mixer, click the gear icon next to it and choose Advanced Audio Properties.', `Set the Sync Offset of your mic to ${ms} ms.`, 'Close the window, come back here and press Check again.'] } };
+    },
+    async apply_sync_fix() {
+      await wait(500);
+      syncPrev = syncOffset;
+      // The mock "applies" what the last result asked for: the picture delay in the mock is 160 ms.
+      syncOffset = Math.max(0, 160);
+      return { ok: true, input: 'Mic/Aux', previous_ms: syncPrev, applied_ms: syncOffset, message: `Done: the Sync Offset of Mic/Aux in OBS is now ${syncOffset} ms. Press Check again to confirm it worked.` };
+    },
+    async undo_sync_fix() { await wait(300); syncOffset = syncPrev; return { ok: true, input: 'Mic/Aux', previous_ms: null, applied_ms: syncOffset, message: `Put back to ${syncOffset} ms.` }; },
     async camera_picture_status() {
       await wait(300); busyPolls++;
       const users = mockBusy === 'obs' ? [{ name: 'OBS Studio', confirmed: true }] : mockBusy === 'other' ? [{ name: 'Zoom', confirmed: true }] : [];
