@@ -101,6 +101,12 @@ pub fn run() {
             commands::stop_sync_test,
             commands::apply_sync_fix,
             commands::undo_sync_fix,
+            commands::start_drift_check,
+            commands::start_drift_clap,
+            commands::finish_drift_clap,
+            commands::cancel_drift_clap,
+            commands::drift_status,
+            commands::stop_drift_check,
             commands::get_mains,
             commands::set_mains,
             commands::apply_camera_settings,
@@ -123,6 +129,14 @@ pub fn run() {
             commands::get_ab,
             commands::export_ab,
         ])
-        .run(context)
-        .expect("error while running Setup Coach");
+        .build(context)
+        .expect("error while running Setup Coach")
+        .run(|app, event| {
+            // Let go of the mic a drift check holds when the app closes.
+            if let tauri::RunEvent::Exit = event {
+                if let Some(core) = app.try_state::<Arc<AppCore>>() {
+                    core.stop_drift_check();
+                }
+            }
+        });
 }

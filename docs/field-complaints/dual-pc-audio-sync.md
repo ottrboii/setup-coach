@@ -1,0 +1,57 @@
+# Dual-PC audio: drift, sync, capture-card audio (extends dual-PC.md)
+
+Date: 2026-11-06. Extends `docs/field-complaints/dual-pc.md` rows 4, 5, 8, 9, 13 (not repeated). Labels: **CONFIRMED** = primary source (OBS/NDI/Elgato/Microsoft docs, source, issue tracker) read or seen in search snippet this session; **CONFIRMED-MEM** = I know it from the OBS source/docs but did not re-read it today, verify before shipping thresholds; **FORUM**; **OPINION**. OBS version in reports is mostly unknown; threads cited in dual-pc.md are 2015-2020 (OBS 19-27).
+
+## Prioritized gap list (checked against core/src, grep of finding ids)
+Already covered (do not rebuild): `sync.av_offset` (clap vs camera, single measurement, avsync.rs), `mic.capture_card_audio_and_mic` (capture.rs: card's embedded audio + mic = echo, drift mentioned in text), `camera.hdmi_*`, `camera.fps_family` (CAM_FPS_FAMILY), `connection.capture_card_on_slow_port / behind_hub / shares_controller`, `system.sample_rate_mismatch`, `system.listen_to_device_on`, `mic.monitoring_doubled`, `mic.monitoring_delayed`, `mic.app_audio_captured_twice`, `system.usb_selective_suspend_on`, `connection.device_dropouts`.
+
+Gaps, highest value first:
+1. **Drift slope measurement.** `avsync::measure_offset` gives one offset; nothing repeats it. Add "measure now, again after N min, report ms per 10 min" and only suggest a fixed offset when slope is about 0. Stream PC alone. (Sections 1, 3.)
+2. **Game-audio path audit (OBS scene JSON/websocket).** Detect: game audio arriving through the capture card's embedded audio vs a separate input; both enabled (partly covered for mic only); monitoring set to "monitor and output" on a source that also reaches the stream (verify exact coverage of `mic.monitoring_doubled`, it is mic-framed). Stream PC alone.
+3. **Per-source sync offset sanity.** Read each OBS source's sync offset (`GetInputAudioSyncOffset`); flag large values (>300 ms) or offsets on both mic and game that cancel; no finding reads this today (grep: no `sync_offset` id in ids.rs; confirm in obs_audio.rs).
+4. **Endpoint clock/format audit for ALL endpoints used by OBS** (not only the mic): capture-card line-in, Cam Link audio, GoXR/USB interface, onboard; flag mixed 44.1/48 kHz and `Listen` on a capture endpoint. `system.sample_rate_mismatch` scope (mic vs default only?) needs a read; likely gap for capture endpoints.
+5. **Cam Link audio endpoint presence:** detect the "Cam Link 4K" audio capture endpoint and whether OBS uses it (a6000 has no HDMI audio of use). Partially in `capture.rs`; the endpoint-level view is not.
+6. **NDI audit (low):** NDI source Sync mode + offset from scene JSON; only once drift measurement exists. Needs both PCs for cross-PC drift.
+7. **USB power/bandwidth -> desync:** dropouts are detected, but no link from "dropouts happened" to "re-measure sync; a dropout can shift audio vs video" (OPINION, no source).
+
+## 1. Root causes of drift
+| Cause | Claim | Label | Source |
+|---|---|---|---|
+| Independent clocks | Two sample clocks never run at exactly the same rate; small mismatch accumulates and audio drifts over time. NDI SDK states this for sender vs receiver and ships frame-sync to track clocks. | CONFIRMED (NDI docs, current) | https://docs.ndi.video/docs/advanced-sdk/ndi-sdk-review/video-formats/frame-synchronization |
+| NDI timestamps | AV-sync API pairs audio and video using timestamps; defaults to system time unless the sender fills them in; audio arriving late forces video to run behind. | CONFIRMED | https://docs.ndi.video/docs/advanced-sdk-1/av-sync/guidelines |
+| NDI audio timestamp unreliable | An obs-ndi developer reported NDI audio timestamp/timecode did not step by the received sample count; sample counts may be more reliable. One report. | FORUM (GitHub issue) | https://www.github.com/obs-ndi/obs-ndi/issues/959 |
+| NDI sync modes in OBS (Network / Source Timing / Internal) | OBS plugin offers modes; which one prevents drift is not documented by NDI or DistroAV in anything I found. Users say Source Timing is the newer default. | FORUM | dual-PC.md row 5 |
+| OBS audio is sample-clock driven per source | Each WASAPI device is read on its own clock and timestamped; OBS does not lock two devices together. Async (capture-card/video-device) audio is timestamp-matched to video with a smoothing threshold (about 70 ms) and a large-jump reset (about 2 s); small steady drift below the threshold is not corrected by a resampler, so it shows as slow creep then a snap. | CONFIRMED-MEM (libobs `obs-source.c`, OBS 27-30). Not re-read today | https://github.com/obsproject/obs-studio/blob/master/libobs/obs-source.c |
+| Sync Offset only shifts one source's audio by a constant | It is a fixed delay (ms) per source (Advanced Audio Properties). It cannot fix video-early and cannot fix a moving offset. | CONFIRMED (OBS docs API `obs_source_set_sync_offset`; UI text) | https://docs.obsproject.com/reference-sources |
+| Windows resampling | WASAPI shared mode runs the audio engine at one mix format; a device at another rate is resampled by Windows (sample-rate converter). Rate mismatch alone gives a constant extra latency and quality loss, not true drift; drift comes from the device's own crystal. | CONFIRMED-MEM (Microsoft WASAPI shared-mode docs) / the "mismatch alone = drift" claim is OPINION | https://learn.microsoft.com/windows/win32/coreaudio/audio-endpoint-devices |
+| Cam Link video vs audio | Cam Link exposes video (UVC) and audio (USB Audio) as separate devices; the audio runs on the card's own clock, video on frame arrival. No Elgato document I found states audio/video are clock-locked or not. | UNVERIFIED (forum: drift of 1-3 h on HD60-class cards, dual-PC.md row 4) |
+| Different capture paths | USB mic (own crystal), onboard codec (own crystal), capture-card audio (HDMI source's clock via card). Three or more clocks in one OBS mix. | OPINION, consistent with all above |
+
+## 2. Capture-card audio issues
+- **Embedded HDMI audio vs line-in:** HDMI audio rides the game PC's GPU/HDMI audio clock, is carried through the card and arrives on the card's USB audio clock. A separate line-in/mixer path uses the mixer's clock. Neither is documented as drift-free. FORUM/OPINION (dual-PC.md rows 4, 8).
+- **Double audio:** two copies reach the stream: (a) card's embedded audio plus a separate game input; (b) OBS monitoring ("Monitor and Output") plus a Windows endpoint that is itself captured; (c) Windows "Listen to this device" on a capture endpoint sends capture audio to the speakers, which OBS (desktop audio) or a mic then re-captures = loop/echo. Listen mechanism: CONFIRMED (Windows Sound > Recording > Properties > Listen; registry via endpoint properties); loop/echo consequence: FORUM/OPINION. Already: `system.listen_to_device_on`, `mic.monitoring_doubled`, `mic.capture_card_audio_and_mic`.
+- **Capture device audio delay:** card adds fixed video latency (tens to ~150 ms for UVC-class devices); the mic is on the stream PC so it ends up early relative to picture. Fixed, measurable, fixable with sync offset. OPINION on size; measurement already in `sync.av_offset` (text notes the card delay is normal). A "recommended 650 ms" figure in one thread is UNVERIFIED and should not be used.
+- **USB power/bandwidth dropouts:** a bus reset or overflow drops a stretch of samples/frames; video device and audio device recover differently, so offset can change after a dropout. Cam Link needs a USB 3.0 port, no hubs: CONFIRMED (Elgato Cam Link 4K system requirements, https://help.elgato.com/hc/en-us/articles/360028241671). Dropouts-then-desync link: OPINION/FORUM.
+
+## 3. Detection, measurement, fix order
+Detection on the stream PC alone unless noted.
+| Issue | Detect | Measure | Fix order |
+|---|---|---|---|
+| Multi-clock drift (card vs mic vs USB) | OBS scene JSON/websocket: list audio inputs and their devices; group by device family; count distinct clock domains (`GetInputList`, `GetInputSettings`). Registry/MMDevices for endpoint list and formats. | Repeat clap/beep: offset at t0 and at t0+10/30 min; slope = (o2-o1)/dt, report ms per 10 min. Beep out of speaker into mic in one PC covers only a local loop; cross-PC (game PC clap/beep) needs the app on both PCs or the user playing a click on the game PC into the capture path. Threshold suggestion (OPINION): >10 ms/10 min is noticeable within an hour. | 1 Physical: take mic and game audio into ONE device (mixer/interface) so one clock. 2 Setting: sample rate 48 kHz on all endpoints, disable embedded audio of the capture device in OBS. 3 Re-measure slope. Fixed offset only if slope about 0. |
+| 44.1/48 kHz mismatch | `system.sample_rate_mismatch` exists; extend to every endpoint OBS uses (registry `FxProperties`/`Properties`, WASAPI `GetMixFormat`). OBS sample rate from `GetAudioSettings`-equivalent / `basic.ini` `SampleRate`. | None needed (constant). | Set same rate in Windows device (Advanced tab) and OBS (Settings > Audio). Re-open OBS. Re-measure offset. |
+| OBS sync offset wrong/stale | Websocket `GetInputAudioSyncOffset` per input; scene JSON `sync` field (ns). | Clap test gives needed offset. | Setting only: apply measured offset to the early source, re-measure. |
+| Double audio / loop | `capture.rs` pattern; extend with `monitor_type` per input from scene JSON (`monitoring_type`), Listen flag on capture endpoints, and apps with loopback. | Cross-correlate mix with itself at lag 20-200 ms to find an echo (no AI: plain autocorrelation); stream PC alone. | Physical: headphones, remove loopback cable. Setting: monitoring "Monitor Off" or Listen off; keep one audio path. Re-measure echo. |
+| Capture device delay | Device name match (exists); `sync.av_offset` finding. | Existing clap measurement. | Setting: sync offset on mic (not on video). Re-measure. |
+| USB dropouts -> desync | `connection.device_dropouts`, hub/controller findings exist; add PnP/USB event log counts (Kernel-PnP, `usbhub`/`USBXHCI` events) in last session. | Re-run slope test after a dropout is logged. | Physical: direct USB 3 port on separate controller, no hub, short cable. Setting: disable selective suspend (exists). Re-measure. |
+| NDI drift | Scene JSON NDI source settings (sync mode, offsets). Link speed needs both NICs (dual-PC.md row 6). | Beep test across PCs; needs both PCs. | Physical: wired GbE. Setting: Source Timing, one audio route. Re-measure slope. |
+Needs the app on both PCs: cross-PC sample-rate/clock comparison, NDI sender-side CPU, beep sent from the game PC.
+
+## Open points
+- No Cam Link audio/video clock statement from Elgato found; test on Otto's hardware (record 60 min of beep + flash track, compute slope) is the real answer.
+- OBS timestamp smoothing figures (70 ms / 2 s) are from memory; read `libobs/obs-source.c` before relying on them.
+- DistroAV Sync-mode semantics undocumented; read its source (`ndi-source.cpp`).
+- Windows resampling-as-drift vs constant latency is OPINION.
+- Reddit not reachable; threads unseen beyond snippets.
+
+## Sources
+https://docs.ndi.video/docs/advanced-sdk/ndi-sdk-review/video-formats/frame-synchronization ; https://docs.ndi.video/docs/advanced-sdk-1/av-sync/guidelines ; https://www.github.com/obs-ndi/obs-ndi/issues/959 ; https://docs.obsproject.com/reference-sources ; https://help.elgato.com/hc/en-us/articles/360028241671-Cam-Link-4K-System-Requirements ; core/src/avsync.rs:1-12,200 ; core/src/system/capture.rs:35-100 ; core/src/system/ids.rs:5-88

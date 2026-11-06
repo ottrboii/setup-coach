@@ -25,6 +25,8 @@ mod ab;
 mod avsync_ops;
 pub use avsync_ops::{SyncApplyResult, SyncReport};
 mod camera_busy;
+mod drift_ops;
+pub use drift_ops::{DriftPoint, DriftReport, DriftStatus, DriftVerdictView};
 mod coaching;
 mod micchoice;
 mod vault_ops;
@@ -123,6 +125,8 @@ struct Inner {
     sync_fix: Option<avsync_ops::SyncFix>,
     /// OBS input and Sync Offset (ms) from before we changed it.
     sync_prev: Option<(String, i64)>,
+    /// Running drift check (clap test repeated on one mic recording).
+    drift: Option<drift_ops::DriftSession>,
 }
 
 pub struct AppCore {

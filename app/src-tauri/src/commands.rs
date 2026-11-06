@@ -170,6 +170,37 @@ pub async fn undo_sync_fix(app: S<'_>) -> R<crate::app::SyncApplyResult> {
 }
 
 #[tauri::command]
+pub async fn start_drift_check(app: S<'_>, device_id: String, camera_id: String, interval_s: f64) -> Result<crate::app::DriftStatus, CameraError> {
+    app.inner().start_drift_check(&device_id, &camera_id, interval_s).await
+}
+
+#[tauri::command]
+pub async fn start_drift_clap(app: S<'_>) -> R<()> {
+    app.inner().start_drift_clap()
+}
+
+#[tauri::command]
+pub async fn finish_drift_clap(app: S<'_>) -> R<crate::app::DriftStatus> {
+    app.inner().finish_drift_clap().await
+}
+
+#[tauri::command]
+pub async fn cancel_drift_clap(app: S<'_>) -> R<crate::app::DriftStatus> {
+    app.cancel_drift_clap()
+}
+
+#[tauri::command]
+pub async fn drift_status(app: S<'_>) -> R<Option<crate::app::DriftStatus>> {
+    Ok(app.drift_status())
+}
+
+#[tauri::command]
+pub async fn stop_drift_check(app: S<'_>) -> R<()> {
+    app.stop_drift_check();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_mains(app: S<'_>) -> R<MainsInfo> {
     Ok(app.mains_info())
 }
