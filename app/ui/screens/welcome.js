@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { esc, html, icons, loading, errorBanner } from '../components.js';
 import { state, selectedMic } from '../state.js';
+import { switchDiagramHtml } from '../switchdiagram.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
 
 const CONFIDENCE = {
@@ -233,19 +234,34 @@ function helpBlock(h) {
   if (!h || (!h.what && !h.where && !(h.positions || []).length)) return null;
   const safeUrl = /^https:\/\//.test(h.manual_url || '') ? h.manual_url : null;
   const safeImg = /^[\w./-]+$/.test(h.image || '') && !(h.image || '').includes('..') ? h.image : null;
-  const pos = (h.positions || []).map((p) => `<li><b>${esc(p.label)}</b>: ${esc(p.meaning)}</li>`).join('');
+  const diagram = switchDiagramHtml(h.positions);
+  const pos = diagram ? '' : (h.positions || []).map((p) => `<li><b>${esc(p.label)}</b>: ${esc(p.meaning)}</li>`).join('');
   const d = html(`
     <details class="q-help">
       <summary>Where is it? What does this mean?</summary>
       <div class="stack" style="gap:8px;margin-top:8px">
         ${h.what ? `<p>${esc(h.what)}</p>` : ''}
         ${h.where ? `<p><b>Where to find it:</b> ${esc(h.where)}</p>` : ''}
-        ${safeImg ? `<img src="${esc(safeImg)}" alt="" style="max-width:100%;border-radius:8px">` : ''}
+        ${safeImg ? `<img src="${esc(safeImg)}" alt="${esc(h.what || 'Picture of the switch')}" style="max-width:100%;border-radius:8px">` : ''}
+        ${diagram}
         ${pos ? `<ul class="q-help-pos">${pos}</ul>` : ''}
-        ${safeUrl ? `<p><a href="${esc(safeUrl)}" target="_blank" rel="noopener noreferrer" class="q-help-link">Open the maker's page for this mic</a></p>` : ''}
+        ${safeUrl ? `<div class="q-help-url"><span class="subtle">Want the maker's own page? Copy its address and open it in your browser:</span>
+          <button type="button" class="btn sm q-help-copy">Copy address</button>
+          <code>${esc(safeUrl)}</code><span class="subtle q-help-copied" aria-live="polite"></span></div>` : ''}
       </div>
     </details>`);
+  // Links do nothing inside the app window, so offer a copy button instead of a dead link.
+  d.querySelector('.q-help-copy')?.addEventListener('click', async () => {
+    const msg = d.querySelector('.q-help-copied');
+    try { await navigator.clipboard.writeText(safeUrl); msg.textContent = 'Copied.'; }
+    catch { msg.textContent = 'Select the address and copy it.'; }
+  });
   return d;
+}
+
+// Highlight the diagram that matches the user's current answer.
+function markPicked(card, cur) {
+  card.querySelectorAll('.sd-fig').forEach((f) => f.classList.toggle('on', !!cur && f.dataset.label === cur));
 }
 
 function questionCard(q) {
@@ -261,6 +277,7 @@ function questionCard(q) {
   const draw = () => {
     box.innerHTML = '';
     const cur = state.answers[qKey(q)];
+    markPicked(card, cur);
     for (const o of opts) {
       const on = cur === o;
       const b = html(`<button class="choice ${on ? 'selected' : ''}" role="radio" aria-checked="${on}">${esc(o)}</button>`);
