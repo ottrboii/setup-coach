@@ -228,6 +228,21 @@ fn quiet_room_rumble_then_quiet() {
     assert!(u.iter().any(|x| x.phase == Phase::Done), "{:?}", u.iter().map(|x| (x.phase, x.value)).collect::<Vec<_>>());
 }
 
+#[test]
+fn quiet_room_target_follows_the_setup_profile() {
+    // A -54 dBFS room: not quiet enough to stream (-60) but fine for a call (-50).
+    let done = |p: crate::SetupProfile| {
+        let ctx = MicContext { profile: p, ..Default::default() };
+        let mut c = LiveMicCoach::new(CoachTaskKind::QuietRoom, SR, &ctx, None);
+        let u = feed(&mut c, &noise(5.0, -54.0, 9, None));
+        assert_eq!(last(&u).target.as_ref().unwrap().max, p.targets().noise_floor.met);
+        u.iter().any(|x| x.phase == Phase::Done)
+    };
+    assert!(!done(crate::SetupProfile::Streaming));
+    assert!(!done(crate::SetupProfile::Voiceover));
+    assert!(done(crate::SetupProfile::Call));
+}
+
 fn typing(secs: f64, click_db: f64, seed: u64) -> Vec<f32> {
     let mut out = noise(secs, -78.0, seed, None);
     let mut rng = Rng::new(seed ^ 77);

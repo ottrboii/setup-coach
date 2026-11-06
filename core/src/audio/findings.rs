@@ -1,7 +1,7 @@
 //! Measurements → plain-language mic findings, physical fix first.
 
 use super::analyze::{AudioMetrics, NoiseCharacter};
-use crate::{Area, Constraint, Finding, FixKind, Severity};
+use crate::{Area, Constraint, Finding, FixKind, SetupProfile, Severity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,10 +52,17 @@ pub struct MicContext {
     pub onboard_auto_level: Option<bool>,
     /// Ideal distance range from the profile (cm).
     pub distance_cm: Option<(f64, f64)>,
+    /// What this session is set up for; moves the pass bars and the placement
+    /// advice, never the processing. Old saved contexts load as streaming.
+    #[serde(default)]
+    pub profile: SetupProfile,
 }
 
 impl MicContext {
-    fn distance_text(&self) -> String {
+    pub(crate) fn distance_text(&self) -> String {
+        if self.profile != SetupProfile::Streaming {
+            return self.profile.distance_text(self);
+        }
         match (self.distance_cm, self.capsule) {
             (Some((a, b)), _) => format!("{a:.0}–{b:.0} cm"),
             (None, Some(Capsule::Dynamic)) => "3–10 cm (about a fist away)".into(),
@@ -198,8 +205,10 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
     }
 
     // Noise --------------------------------------------------------------------------
-    if m.snr_db < 40.0 || m.noise_floor_dbfs > -50.0 {
-        let sev = if m.snr_db < 30.0 || m.noise_floor_dbfs > -45.0 { Severity::Major } else { Severity::Minor };
+    let bars = ctx.profile.targets();
+    let (nf, snr) = (bars.noise_floor, bars.snr);
+    if m.snr_db < snr.close || m.noise_floor_dbfs > nf.flag {
+        let sev = if m.snr_db < snr.major || m.noise_floor_dbfs > nf.major { Severity::Major } else { Severity::Minor };
         let (title, why, fix) = match m.noise_character {
             NoiseCharacter::Hiss => (
                 "There's a hiss behind your voice",
@@ -263,13 +272,17 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
     }
 
     // Room ---------------------------------------------------------------------------------
-    let roomy = m.reverb_decay_s.map(|r| r > 0.45).unwrap_or(false);
+    let room = bars.room_decay;
+    let roomy = m.reverb_decay_s.map(|r| r > room.flag).unwrap_or(false);
+    // Echo under streaming's bar only counts against the stricter voiceover
+    // profile: say it is mild, not "bathroom", and keep it Minor.
+    let mild = m.reverb_decay_s.is_some_and(|r| r <= SetupProfile::Streaming.targets().room_decay.flag);
     let far = roomy && (m.speech_peak_dbfs < -20.0 || m.tone.body_db < -4.0);
     if far {
         out.push(
             f(
                 "mic.too_far",
-                Severity::Major,
+                if mild { Severity::Minor } else { Severity::Major },
                 "You sound far away",
                 "The mic hears a lot of room echo compared to your voice, which happens when it's too far from your mouth.",
                 &format!("Bring the mic to {} and point it at your mouth. This is the single biggest improvement for most setups.", ctx.distance_text()),
@@ -280,13 +293,24 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
         );
     } else if roomy {
         let r = m.reverb_decay_s.unwrap_or(0.0);
+        let (title, fix) = if mild {
+            (
+                "Your room is a little echoey for a voiceover",
+                "Talk closer to the mic and record in the softest spot you have: curtains, a rug, a closet full of clothes. Settings can't remove echo.",
+            )
+        } else {
+            (
+                "You sound like you're in a bathroom",
+                "Talk closer to the mic. Add soft things: a rug, curtains, a blanket behind your monitor or on the wall you face.",
+            )
+        };
         out.push(
             f(
                 "mic.roomy",
-                if r > 0.7 { Severity::Major } else { Severity::Minor },
-                "You sound like you're in a bathroom",
+                if r > room.major { Severity::Major } else { Severity::Minor },
+                title,
                 "Hard walls and an empty room bounce your voice back into the mic. Settings can't remove echo.",
-                "Talk closer to the mic. Add soft things: a rug, curtains, a blanket behind your monitor or on the wall you face.",
+                fix,
                 FixKind::Manual,
             )
             .with_evidence("reverb_decay_s", r)
