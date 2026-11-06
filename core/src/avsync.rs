@@ -229,6 +229,219 @@ pub fn finding(m: &SyncMeasurement, capture_card: bool) -> Option<Finding> {
     Some(f)
 }
 
+// ---------------------------------------------------------------------------
+// Drift check: is the offset fixed, or does it creep?
+//
+// The clap test is repeated on one continuous recording (the mic stays open
+// between claps, so its own sample clock is the audio timeline). A fixed
+// offset gives the same number every time; two clocks that run at slightly
+// different rates give a number that changes steadily. Only a fixed offset
+// can be fixed with OBS' Sync Offset.
+// ---------------------------------------------------------------------------
+
+pub const AV_DRIFT: &str = "sync.av_drift";
+
+/// Starting value (OPINION, docs/field-complaints/dual-pc-audio-sync.md):
+/// more than 10 ms per 10 minutes is noticeable within an hour of streaming.
+pub const DRIFT_LIMIT_MS_PER_10MIN: f64 = 10.0;
+/// The offset has to move at least this much before we call it drift: one
+/// clap measurement is good to about +-10 ms (5 ms grid, frame timing).
+pub const DRIFT_MIN_CHANGE_MS: f64 = 20.0;
+/// Scatter around the line (three or more checks) above this: the clap
+/// checks disagree too much to say anything.
+pub const DRIFT_MAX_SPREAD_MS: f64 = 30.0;
+/// Shorter than this, a "steady" answer is marked short (a longer check is surer).
+pub const DRIFT_SURE_SPAN_MIN: f64 = 20.0;
+/// Major once the drift would pass the annoying limit (~90 ms) within an hour.
+pub const DRIFT_MAJOR_MS_PER_10MIN: f64 = 15.0;
+
+/// One clap check: when (seconds from the start of the drift check) and the
+/// offset it measured (ms, + = sound after picture).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct OffsetSample {
+    pub t_s: f64,
+    pub offset_ms: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriftVerdict {
+    /// The offset holds: a fixed Sync Offset / Render Delay is a valid fix.
+    Steady,
+    /// The offset moves: a fixed offset will not hold; fix the clocks.
+    Drifting,
+    /// Can't tell yet.
+    Unclear(DriftUnclear),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriftUnclear {
+    /// Fewer than two checks, or no time between them.
+    TooFewPoints,
+    /// The checks disagree with each other more than with any straight line.
+    Noisy,
+    /// It moved a little, but not more than one check can be off: wait longer.
+    TooShort,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct DriftEstimate {
+    pub verdict: DriftVerdict,
+    /// Least-squares slope, ms of offset change per 10 minutes (+ = sound falls further behind).
+    pub slope_ms_per_10min: f64,
+    /// Change over the whole check along the line (ms).
+    pub change_ms: f64,
+    /// Time from first to last check (minutes).
+    pub span_min: f64,
+    pub points: usize,
+    /// Scatter of the checks around the line (ms); `None` with two points.
+    pub spread_ms: Option<f64>,
+    /// "Steady" over less than `DRIFT_SURE_SPAN_MIN`: say a longer check is surer.
+    pub short: bool,
+}
+
+/// Fit a straight line through the clap checks and decide whether the offset
+/// holds. Thresholds are starting values (see the constants).
+pub fn estimate_drift(samples: &[OffsetSample]) -> DriftEstimate {
+    let pts: Vec<OffsetSample> = samples.iter().copied().filter(|s| s.t_s.is_finite() && s.offset_ms.is_finite()).collect();
+    let n = pts.len();
+    let span_s = if n > 0 {
+        let lo = pts.iter().map(|s| s.t_s).fold(f64::INFINITY, f64::min);
+        let hi = pts.iter().map(|s| s.t_s).fold(f64::NEG_INFINITY, f64::max);
+        hi - lo
+    } else {
+        0.0
+    };
+    let mut e = DriftEstimate {
+        verdict: DriftVerdict::Unclear(DriftUnclear::TooFewPoints),
+        slope_ms_per_10min: 0.0,
+        change_ms: 0.0,
+        span_min: span_s / 60.0,
+        points: n,
+        spread_ms: None,
+        short: false,
+    };
+    if n < 2 || span_s <= 0.0 {
+        return e;
+    }
+    let mt = pts.iter().map(|s| s.t_s).sum::<f64>() / n as f64;
+    let mo = pts.iter().map(|s| s.offset_ms).sum::<f64>() / n as f64;
+    let sxx: f64 = pts.iter().map(|s| (s.t_s - mt).powi(2)).sum();
+    let sxy: f64 = pts.iter().map(|s| (s.t_s - mt) * (s.offset_ms - mo)).sum();
+    let slope_per_s = sxy / sxx;
+    e.slope_ms_per_10min = slope_per_s * 600.0;
+    e.change_ms = slope_per_s * span_s;
+    if n >= 3 {
+        let rss: f64 = pts.iter().map(|s| (s.offset_ms - (mo + slope_per_s * (s.t_s - mt))).powi(2)).sum();
+        let spread = (rss / (n - 2) as f64).sqrt();
+        e.spread_ms = Some(spread);
+        if spread > DRIFT_MAX_SPREAD_MS {
+            e.verdict = DriftVerdict::Unclear(DriftUnclear::Noisy);
+            return e;
+        }
+    }
+    let fast = e.slope_ms_per_10min.abs() >= DRIFT_LIMIT_MS_PER_10MIN;
+    e.verdict = if !fast {
+        e.short = e.span_min < DRIFT_SURE_SPAN_MIN;
+        DriftVerdict::Steady
+    } else if e.change_ms.abs() >= DRIFT_MIN_CHANGE_MS {
+        DriftVerdict::Drifting
+    } else {
+        DriftVerdict::Unclear(DriftUnclear::TooShort)
+    };
+    e
+}
+
+/// A finding when the offset drifts. `capture_card` adds the capture-card
+/// audio cause. No finding for steady or unclear (the clap finding covers a
+/// fixed offset).
+pub fn drift_finding(e: &DriftEstimate, capture_card: bool) -> Option<Finding> {
+    if e.verdict != DriftVerdict::Drifting {
+        return None;
+    }
+    let card = if capture_card {
+        " If your game sound comes in through the capture card and also through another cable or app, turn one of them off in OBS so there is only one way in."
+    } else {
+        ""
+    };
+    let why = "Your sound and your picture run on different clocks that tick at slightly different speeds, so the gap between them keeps growing during the stream. A fixed Sync Offset would be right now and wrong again later.";
+    let fix = format!(
+        "Bring your mic and your game sound into one device (a mixer or audio interface), so they share one clock. Set every audio device and OBS to 48 kHz (Windows Sound settings > device > Advanced, and OBS Settings > Audio).{card} Then run the drift check again."
+    );
+    let sev = if e.slope_ms_per_10min.abs() >= DRIFT_MAJOR_MS_PER_10MIN { Severity::Major } else { Severity::Minor };
+    let mut f = Finding::new(AV_DRIFT, Area::Mic, sev, "Your sound and picture slowly drift apart", why, &fix, FixKind::Guided);
+    f.evidence.insert("slope_ms_per_10min".into(), (e.slope_ms_per_10min * 10.0).round() / 10.0);
+    f.evidence.insert("change_ms".into(), e.change_ms.round());
+    f.evidence.insert("span_min".into(), (e.span_min * 10.0).round() / 10.0);
+    f.evidence.insert("checks".into(), e.points as f64);
+    if let Some(s) = e.spread_ms {
+        f.evidence.insert("spread_ms".into(), s.round());
+    }
+    Some(f)
+}
+
+#[cfg(test)]
+mod drift_tests {
+    use super::*;
+
+    fn series(points: &[(f64, f64)]) -> Vec<OffsetSample> {
+        points.iter().map(|&(min, o)| OffsetSample { t_s: min * 60.0, offset_ms: o }).collect()
+    }
+
+    #[test]
+    fn zero_slope_is_steady() {
+        let e = estimate_drift(&series(&[(0.0, -120.0), (30.0, -118.0), (60.0, -121.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Steady, "{e:?}");
+        assert!(e.slope_ms_per_10min.abs() < 1.0 && !e.short);
+        assert!(drift_finding(&e, true).is_none());
+        // Two checks ten minutes apart: steady, but marked short.
+        let e = estimate_drift(&series(&[(0.0, 50.0), (10.0, 54.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Steady);
+        assert!(e.short);
+    }
+
+    #[test]
+    fn steady_drift_is_found_and_explained() {
+        // 20 ms per 10 min, over an hour: 120 ms.
+        let pts: Vec<(f64, f64)> = (0..=6).map(|k| (k as f64 * 10.0, -100.0 + k as f64 * 20.0)).collect();
+        let e = estimate_drift(&series(&pts));
+        assert_eq!(e.verdict, DriftVerdict::Drifting, "{e:?}");
+        assert!((e.slope_ms_per_10min - 20.0).abs() < 0.01);
+        assert!((e.change_ms - 120.0).abs() < 0.1);
+        let f = drift_finding(&e, true).unwrap();
+        assert_eq!(f.id, AV_DRIFT);
+        assert_eq!(f.severity, Severity::Major);
+        assert!(f.fix.contains("one device") && f.fix.contains("48 kHz") && f.fix.contains("capture card"));
+        assert!(!f.why.contains("ms"), "numbers only in evidence: {}", f.why);
+        // Drift the other way (sound gets ahead), slower: still drift, minor.
+        let e = estimate_drift(&series(&[(0.0, 0.0), (30.0, -36.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Drifting);
+        assert_eq!(drift_finding(&e, false).unwrap().severity, Severity::Minor);
+    }
+
+    #[test]
+    fn noisy_checks_are_unclear() {
+        let e = estimate_drift(&series(&[(0.0, 0.0), (10.0, 90.0), (20.0, -60.0), (30.0, 40.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Unclear(DriftUnclear::Noisy), "{e:?}");
+        assert!(drift_finding(&e, false).is_none());
+        // Small noise on a real drift still reads as drift.
+        let e = estimate_drift(&series(&[(0.0, 0.0), (10.0, 18.0), (20.0, 33.0), (30.0, 64.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Drifting, "{e:?}");
+    }
+
+    #[test]
+    fn too_few_points_or_too_short_is_unclear() {
+        assert_eq!(estimate_drift(&[]).verdict, DriftVerdict::Unclear(DriftUnclear::TooFewPoints));
+        assert_eq!(estimate_drift(&series(&[(0.0, 10.0)])).verdict, DriftVerdict::Unclear(DriftUnclear::TooFewPoints));
+        // Same moment twice.
+        assert_eq!(estimate_drift(&series(&[(5.0, 10.0), (5.0, 40.0)])).verdict, DriftVerdict::Unclear(DriftUnclear::TooFewPoints));
+        // Non-finite values are dropped.
+        assert_eq!(estimate_drift(&series(&[(0.0, f64::NAN), (10.0, 1.0)])).points, 1);
+        // Fast slope but only 15 ms moved (inside one check's error): wait longer.
+        let e = estimate_drift(&series(&[(0.0, 0.0), (5.0, 15.0)]));
+        assert_eq!(e.verdict, DriftVerdict::Unclear(DriftUnclear::TooShort), "{e:?}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

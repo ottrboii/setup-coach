@@ -587,6 +587,8 @@ pub mod events {
     pub const CAMERA_PICTURE: &str = "camera-picture";
     /// `{ t_s, level_db, claps, clap: bool, frames }`, ~10/s during the lip-sync clap test.
     pub const SYNC_PROGRESS: &str = "sync-progress";
+    /// Drift check: the wait is over, time for the next clap check. `{ points }`.
+    pub const DRIFT_DUE: &str = "drift-due";
     pub const HEALTH_ALERT: &str = "health-alert";
     pub const HEALTH_SAMPLE: &str = "health-sample";
 }

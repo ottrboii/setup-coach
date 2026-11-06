@@ -35,15 +35,56 @@ pub(super) struct SyncSession {
 
 /// Mic samples plus the live clap detector that feeds the on-screen meter.
 #[derive(Default)]
-struct SyncRec {
+pub(super) struct SyncRec {
     rate: u32,
-    mono: Vec<f32>,
+    pub(super) mono: Vec<f32>,
     win_sq: f64,
     win_n: usize,
     floor: f64,
-    claps: usize,
+    pub(super) claps: usize,
     last_clap_s: f64,
     windows: usize,
+}
+
+impl SyncRec {
+    /// Add mic samples (peak across channels), run the live clap detector and
+    /// send `sync-progress` about ten times a second.
+    pub(super) fn push(&mut self, data: &[f32], ch: u16, sr: u32, emitter: &Arc<dyn Emitter>, frames: &Mutex<Vec<Frame>>) {
+        let ch = ch.max(1) as usize;
+        self.rate = sr;
+        let win = (sr / 100).max(1) as usize;
+        for frame in data.chunks(ch) {
+            let v = frame.iter().fold(0.0f32, |a, x| a.max(x.abs()));
+            self.mono.push(v);
+            self.win_sq += f64::from(v) * f64::from(v);
+            self.win_n += 1;
+            if self.win_n < win {
+                continue;
+            }
+            let rms = (self.win_sq / self.win_n as f64).sqrt();
+            self.win_sq = 0.0;
+            self.win_n = 0;
+            self.windows += 1;
+            let t = self.mono.len() as f64 / f64::from(sr);
+            if self.floor == 0.0 {
+                self.floor = rms.max(1e-5);
+            }
+            let clap = rms > (self.floor * 4.0).max(0.02) && t - self.last_clap_s > 0.25;
+            if clap {
+                self.claps += 1;
+                self.last_clap_s = t;
+            } else if rms < self.floor * 2.0 {
+                self.floor = (self.floor * 0.98 + rms * 0.02).max(1e-5);
+            }
+            if clap || self.windows % 5 == 0 {
+                let n_frames = frames.lock().map(|f| f.len()).unwrap_or(0);
+                emitter.emit(
+                    crate::types::events::SYNC_PROGRESS,
+                    json!({ "t_s": (t * 10.0).round() / 10.0, "level_db": (20.0 * rms.max(1e-9).log10() * 10.0).round() / 10.0, "claps": self.claps, "clap": clap, "frames": n_frames }),
+                );
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,6 +247,7 @@ impl AppCore {
     /// a `CameraError` when there is no usable picture (same as the camera test).
     pub async fn start_sync_test(self: &Arc<Self>, device_id: &str, camera_id: &str) -> Result<(), CameraError> {
         self.stop_sync_session();
+        self.stop_drift_check();
         self.stop_camera_preview();
         let source = self.camera_obs_source(camera_id).await;
         let class = self.camera_class(camera_id);
@@ -221,41 +263,7 @@ impl AppCore {
         let sink_frames = frames.clone();
         let emitter = self.emitter.clone();
         let sink = Box::new(move |data: &[f32], ch: u16, sr: u32| {
-            let ch = ch.max(1) as usize;
-            let mut r = sink_rec.lock().unwrap();
-            r.rate = sr;
-            let win = (sr / 100).max(1) as usize;
-            for frame in data.chunks(ch) {
-                let v = frame.iter().fold(0.0f32, |a, x| a.max(x.abs()));
-                r.mono.push(v);
-                r.win_sq += f64::from(v) * f64::from(v);
-                r.win_n += 1;
-                if r.win_n < win {
-                    continue;
-                }
-                let rms = (r.win_sq / r.win_n as f64).sqrt();
-                r.win_sq = 0.0;
-                r.win_n = 0;
-                r.windows += 1;
-                let t = r.mono.len() as f64 / f64::from(sr);
-                if r.floor == 0.0 {
-                    r.floor = rms.max(1e-5);
-                }
-                let clap = rms > (r.floor * 4.0).max(0.02) && t - r.last_clap_s > 0.25;
-                if clap {
-                    r.claps += 1;
-                    r.last_clap_s = t;
-                } else if rms < r.floor * 2.0 {
-                    r.floor = (r.floor * 0.98 + rms * 0.02).max(1e-5);
-                }
-                if clap || r.windows % 5 == 0 {
-                    let n_frames = sink_frames.lock().map(|f| f.len()).unwrap_or(0);
-                    emitter.emit(
-                        crate::types::events::SYNC_PROGRESS,
-                        json!({ "t_s": (t * 10.0).round() / 10.0, "level_db": (20.0 * rms.max(1e-9).log10() * 10.0).round() / 10.0, "claps": r.claps, "clap": clap, "frames": n_frames }),
-                    );
-                }
-            }
+            sink_rec.lock().unwrap().push(data, ch, sr, &emitter, &sink_frames);
         });
         let handle = self.platform.audio.start_capture(device_id, sink).map_err(CameraError::from)?;
         let started = Instant::now();
@@ -274,6 +282,13 @@ impl AppCore {
                 started,
             });
         }
+        self.spawn_frame_grabber(camera_id, source, started, running, frames);
+        Ok(())
+    }
+
+    /// Grab camera pictures as fast as possible while `running`, stamped in
+    /// seconds since `started`, and show about four a second as a preview.
+    pub(super) fn spawn_frame_grabber(self: &Arc<Self>, camera_id: &str, source: Option<String>, started: Instant, running: Arc<AtomicBool>, frames: Arc<Mutex<Vec<Frame>>>) {
         let me = self.clone();
         let id = camera_id.to_string();
         tokio::spawn(async move {
@@ -303,7 +318,27 @@ impl AppCore {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
         });
-        Ok(())
+    }
+
+    /// What OBS adds around the clap test: (mic input, its Sync Offset ms,
+    /// Render Delay on the camera ms, camera source, OBS connected).
+    pub(super) async fn sync_obs_context(&self, camera_id: &str) -> (Option<String>, i64, u32, Option<String>, bool) {
+        let (mut obs_input, mut sync_ms, mut render_delay, mut camera_source, mut connected) = (None, 0i64, 0u32, None, false);
+        if let Some(o) = self.obs().await {
+            connected = true;
+            let input = self.resolve_obs_input("").await;
+            if let Ok(r) = o.request("GetInputAudioSyncOffset", json!({ "inputName": input })).await {
+                sync_ms = r["inputAudioSyncOffset"].as_i64().unwrap_or(0);
+                obs_input = Some(input);
+            }
+            camera_source = self.camera_obs_source(camera_id).await;
+            if let Some(src) = &camera_source {
+                if let Ok(fl) = obs::filters_of(o.as_ref(), src).await {
+                    render_delay = fl.iter().filter(|f| f.kind == "gpu_delay" && f.enabled).map(|f| f.settings["delay_ms"].as_u64().unwrap_or(0) as u32).sum();
+                }
+            }
+        }
+        (obs_input, sync_ms, render_delay, camera_source, connected)
     }
 
     /// Stop recording and drop it (used by "I can't do this" and when leaving the screen).
@@ -332,22 +367,7 @@ impl AppCore {
         let frames = s.frames.lock().unwrap().clone();
         let _ = s.started;
         let capture_card = self.camera_class(&s.camera_id) == CameraClass::CaptureCard;
-
-        let (mut obs_input, mut sync_ms, mut render_delay, mut camera_source, mut connected) = (None, 0i64, 0u32, None, false);
-        if let Some(o) = self.obs().await {
-            connected = true;
-            let input = self.resolve_obs_input("").await;
-            if let Ok(r) = o.request("GetInputAudioSyncOffset", json!({ "inputName": input })).await {
-                sync_ms = r["inputAudioSyncOffset"].as_i64().unwrap_or(0);
-                obs_input = Some(input);
-            }
-            camera_source = self.camera_obs_source(&s.camera_id).await;
-            if let Some(src) = &camera_source {
-                if let Ok(fl) = obs::filters_of(o.as_ref(), src).await {
-                    render_delay = fl.iter().filter(|f| f.kind == "gpu_delay" && f.enabled).map(|f| f.settings["delay_ms"].as_u64().unwrap_or(0) as u32).sum();
-                }
-            }
-        }
+        let (obs_input, sync_ms, render_delay, camera_source, connected) = self.sync_obs_context(&s.camera_id).await;
         let _ = &s.device_id;
         let report = build_report(&mic, rate, &frames, claps, sync_ms, render_delay, capture_card, obs_input, camera_source, connected);
         self.inner.lock().unwrap().sync_fix = report.fix.clone();
@@ -404,14 +424,14 @@ impl AppCore {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
     const RATE: u32 = 48_000;
 
     /// Mic with claps at `claps` (seconds) and frames where the hands "move"
     /// at the same times plus `lag_s` (positive: picture later than sound).
-    fn scene(claps: &[f64], lag_s: f64) -> (Vec<f32>, Vec<Frame>) {
+    pub(crate) fn scene(claps: &[f64], lag_s: f64) -> (Vec<f32>, Vec<Frame>) {
         let secs = claps.last().unwrap() + 1.5;
         let mut mic = vec![0.0f32; (secs * f64::from(RATE)) as usize];
         for &c in claps {
@@ -434,7 +454,7 @@ mod tests {
         (mic, frames)
     }
 
-    const CLAPS: [f64; 5] = [0.8, 1.7, 2.3, 3.6, 4.5];
+    pub(crate) const CLAPS: [f64; 5] = [0.8, 1.7, 2.3, 3.6, 4.5];
 
     #[test]
     fn late_picture_means_delay_the_sound_and_offers_auto() {
