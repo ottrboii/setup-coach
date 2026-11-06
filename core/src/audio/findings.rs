@@ -32,6 +32,75 @@ pub enum Connection {
     BuiltIn,
 }
 
+/// What can lower (or raise) this mic's level at the source. Decides whether
+/// advice may say "turn your gain down" at all: a mic with no gain control
+/// must never be told to.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GainAccess {
+    /// We can't tell (unknown gear): say it as "if it has one".
+    #[default]
+    Unknown,
+    /// A knob on the mic or on its interface/mixer that the user turns.
+    Knob,
+    /// Gain that lives in software: the Windows slider when it is the real
+    /// gain, GoXLR Utility, or a vendor app. See `MicContext::gain_where`.
+    Software,
+    /// This path has no gain control to turn (headset boom, built-in mic,
+    /// a USB mic without a knob). Level changes happen in software or by distance.
+    None,
+}
+
+/// How an interface in the path is gained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InterfaceGain {
+    /// A preamp gain knob on the box (Scarlett, Wave XLR, mixers).
+    Preamp,
+    /// Gain is set in the vendor's software (GoXLR), named here.
+    VendorApp(String),
+}
+
+/// Facts about a mic path that decide [`GainAccess`] (from the device profile
+/// and what the app detected).
+#[derive(Debug, Clone, Default)]
+pub struct GainFacts<'a> {
+    pub connection: Option<Connection>,
+    /// `hardware_controls` of the mic profile (e.g. "Gain knob", "Mute").
+    pub hardware_controls: &'a [String],
+    /// `windows_slider_is_hw_gain` of the mic profile.
+    pub windows_slider_is_hw_gain: Option<bool>,
+    /// The mic's profile is verified on real hardware (so a missing gain control is a fact).
+    pub profile_verified: bool,
+    /// An audio interface / mixer sits between the mic and the PC.
+    pub interface: Option<InterfaceGain>,
+}
+
+impl GainAccess {
+    /// Conservative: `None` only when we are sure (headset, built-in,
+    /// Bluetooth, or a verified profile whose Windows slider is not the real
+    /// gain and which lists no gain control). `hardware_controls` is
+    /// incomplete in the profile data, so missing data stays `Unknown`.
+    /// Returns the access and, for software gain, where it lives.
+    pub fn resolve(f: &GainFacts) -> (GainAccess, Option<String>) {
+        match &f.interface {
+            Some(InterfaceGain::Preamp) => return (GainAccess::Knob, None),
+            Some(InterfaceGain::VendorApp(name)) => return (GainAccess::Software, Some(name.clone())),
+            None => {}
+        }
+        if f.hardware_controls.iter().any(|c| c.to_ascii_lowercase().contains("gain")) {
+            return (GainAccess::Knob, None);
+        }
+        if f.windows_slider_is_hw_gain == Some(true) {
+            return (GainAccess::Software, Some("Windows sound settings".into()));
+        }
+        let no_knob_by_design = matches!(f.connection, Some(Connection::Headset | Connection::Bluetooth | Connection::BuiltIn));
+        if no_knob_by_design || (f.profile_verified && f.windows_slider_is_hw_gain == Some(false)) {
+            return (GainAccess::None, None);
+        }
+        (GainAccess::Unknown, None)
+    }
+}
+
 /// What we know about the mic from its profile and the user's answers.
 /// Everything is optional: unknown gear still gets a full scan.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -56,9 +125,39 @@ pub struct MicContext {
     /// advice, never the processing. Old saved contexts load as streaming.
     #[serde(default)]
     pub profile: SetupProfile,
+    /// Whether anything on this mic path can lower the level at the source.
+    #[serde(default)]
+    pub gain: GainAccess,
+    /// For `GainAccess::Software`: where the gain lives ("GoXLR Utility", "Windows sound settings").
+    #[serde(default)]
+    pub gain_where: Option<String>,
 }
 
 impl MicContext {
+    /// "Turn it down" in words that match what this path can do. `amount` is
+    /// "a little" or "a touch". Never says "gain" for a mic that has none;
+    /// offers distance, angle, the source (mixer/interface), a pad, and our
+    /// software trim instead.
+    pub(crate) fn turn_down(&self, amount: &str) -> String {
+        let mic = self.mic();
+        match self.gain {
+            GainAccess::Knob => format!("Turn the gain knob down {amount}."),
+            GainAccess::Software => format!("Lower the mic gain {amount} in {}.", self.gain_where.as_deref().unwrap_or("the mic's own app")),
+            GainAccess::Unknown => format!("If {mic} has a gain control, turn it down {amount}; if not, move the mic a bit farther away or angle it off to the side of your mouth."),
+            GainAccess::None => format!(
+                "{} has no gain control to turn down. Move the mic a bit farther from your mouth or angle it off to the side so you talk past it. If it goes through a mixer or interface, lower the level there; an inline pad (attenuator) also works. We'll trim the rest in software.",
+                capitalise(&mic)
+            ),
+        }
+    }
+    /// The short clause used inside other sentences ("... and lower the gain").
+    /// `None` when there is nothing to lower; callers then drop the clause.
+    pub(crate) fn lower_gain_clause(&self) -> Option<&'static str> {
+        match self.gain {
+            GainAccess::None => None,
+            _ => Some("lower the gain"),
+        }
+    }
     pub(crate) fn distance_text(&self) -> String {
         if self.profile != SetupProfile::Streaming {
             return self.profile.distance_text(self);
@@ -79,6 +178,11 @@ impl MicContext {
             _ => None,
         }
     }
+}
+
+fn capitalise(s: &str) -> String {
+    let mut c = s.chars();
+    c.next().map(|h| h.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default()
 }
 
 fn f(id: &str, sev: Severity, title: &str, why: &str, fix: &str, kind: FixKind) -> Finding {
@@ -138,10 +242,12 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
     let shortfall = ctx.gain_shortfall_db();
     if m.speech_peak_dbfs < -24.0 {
         let sev = if m.speech_peak_dbfs < -32.0 { Severity::Critical } else { Severity::Major };
-        let fix = if ctx.gain_at_max == Some(true) || shortfall.map(|s| s > 0.0).unwrap_or(false) {
+        let fix = if ctx.gain == GainAccess::None {
+            format!("Move closer ({}). {} has no gain control, so we'll add the missing level in software.", ctx.distance_text(), capitalise(&ctx.mic()))
+        } else if ctx.gain_at_max == Some(true) || shortfall.map(|s| s > 0.0).unwrap_or(false) {
             format!("Move closer ({}) first. Your gain is already near max, so we'll add clean digital gain and suggest a fix for the missing power.", ctx.distance_text())
         } else {
-            format!("Move closer ({}), then turn the gain knob up until the meter hits the green zone while you talk.", ctx.distance_text())
+            format!("Move closer ({}), then turn the gain up until the meter hits the green zone while you talk.", ctx.distance_text())
         };
         out.push(
             f("mic.too_quiet", sev, "You're too quiet — viewers have to turn you up", "Your voice is reaching the computer at a low level.", &fix, FixKind::Manual)
@@ -154,7 +260,7 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
                 Severity::Major,
                 "Your normal talking is too loud for the mic",
                 "There's no room left for laughs and shouts, so those will distort.",
-                "Turn the gain knob down a little until normal talking sits in the middle of the green zone.",
+                &format!("{} Aim for normal talking in the middle of the green zone.", ctx.turn_down("a little")),
                 FixKind::Guided,
             )
             .with_evidence("speech_peak_dbfs", m.speech_peak_dbfs),
@@ -167,7 +273,7 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
                 Severity::Major,
                 "You crackle and distort when you get loud",
                 "Loud moments hit the mic's maximum level and get cut off (clipping). This can't be fixed afterwards.",
-                "Turn the gain down until your loudest laugh stays out of the red. We'll add a limiter as a safety net.",
+                &format!("{} Then test again: your loudest laugh should stay out of the red. We'll add a limiter as a safety net.", ctx.turn_down("a good bit")),
                 FixKind::Guided,
             )
             .with_evidence("clipped_fraction", m.clipped_fraction),
@@ -179,7 +285,7 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
                 Severity::Minor,
                 "Your loudest moments are close to distorting",
                 "Your laugh/shout gets within a hair of the maximum level.",
-                "Turn the gain down a touch. The limiter we add will catch the rest.",
+                &format!("{} The limiter we add will catch the rest.", ctx.turn_down("a touch")),
                 FixKind::Guided,
             )
             .with_evidence("loud_peak_dbfs", m.loud_peak_dbfs.unwrap_or(0.0)),
@@ -212,18 +318,29 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
         let (title, why, fix) = match m.noise_character {
             NoiseCharacter::Hiss => (
                 "There's a hiss behind your voice",
-                "That's usually the mic gain turned up very high to make up for distance or a quiet mic.",
-                format!("Move closer ({}) and lower the gain. We'll add a gentle expander so the hiss disappears between sentences.", ctx.distance_text()),
+                if ctx.gain == GainAccess::None {
+                    "That's usually a quiet mic or too much distance: the mic's own electronics hiss more the farther you are."
+                } else {
+                    "That's usually the mic gain turned up very high to make up for distance or a quiet mic."
+                },
+                format!("Move closer ({}){}. We'll add a gentle expander so the hiss disappears between sentences.", ctx.distance_text(), ctx.lower_gain_clause().map(|c| format!(" and {c}")).unwrap_or_default()),
             ),
             NoiseCharacter::Rumble => (
                 "There's a rumble/whoosh behind your voice",
                 "A fan, PC or air conditioner is being picked up.",
-                "Point the back of the mic at the noise, move the mic away from the PC, and talk closer so you can lower the gain. We'll filter the low rumble and quiet the gaps.".to_string(),
+                format!(
+                    "Point the back of the mic at the noise, move the mic away from the PC, and talk closer{}. We'll filter the low rumble and quiet the gaps.",
+                    if ctx.lower_gain_clause().is_some() { " so you can lower the gain" } else { " so your voice is louder than the noise" }
+                ),
             ),
             NoiseCharacter::Broadband => (
                 "Background noise is loud compared to your voice",
                 "The mic hears the room almost as much as you.",
-                format!("Move closer ({}), lower the gain, and turn off or move noisy things. We'll quiet the gaps between sentences.", ctx.distance_text()),
+                format!(
+                    "Move closer ({}), {}turn off or move noisy things. We'll quiet the gaps between sentences.",
+                    ctx.distance_text(),
+                    ctx.lower_gain_clause().map(|c| format!("{c}, and ")).unwrap_or_else(|| "and ".into())
+                ),
             ),
         };
         out.push(
@@ -318,17 +435,26 @@ pub fn mic_findings(m: &AudioMetrics, ctx: &MicContext) -> Vec<Finding> {
         );
     }
     if let Some(r) = m.reflection {
+        // What is measured: the delay of the echo, so the EXTRA distance the
+        // sound travels (mouth to surface to mic, minus mouth to mic). The
+        // surface is about half of that from the mic when the mic sits
+        // roughly midway; that is an estimate, so we round it to 5 cm and
+        // say "roughly". What the surface is (desk, monitor, wall) is a guess.
+        let surface_cm = r.path_cm / 2.0;
+        let said_cm = ((surface_cm / 5.0).round() * 5.0).max(5.0);
         out.push(
             f(
                 "mic.reflection",
                 if r.ripple_db > 8.0 { Severity::Major } else { Severity::Minor },
-                "You sound hollow or phasey",
-                &format!("Your voice bounces off a hard surface about {:.0} cm away (often the desk or monitor) and mixes back in.", r.path_cm / 2.0),
-                "Lift the mic off the desk on a boom arm or stand and angle it so the desk is behind it. Put a towel or mouse pad under it to test. EQ can't fix this one.",
+                "Your voice sounds hollow, like you're in a tube",
+                &format!("Your voice is bouncing off something hard and arriving back at the mic a split second late, which makes it sound hollow. We measured this in your recording: something hard roughly {said_cm:.0} cm from the mic reflects your voice. What it is (usually the desk, a monitor or a wall) is our guess."),
+                "Quick test: put a towel or mouse pad on the desk between you and the mic (or in front of the monitor), or move the mic a hand's width, then test again. If the hollow sound goes away, that was it. For good, get the mic off the desk on a boom arm. EQ can't fix this one.",
                 FixKind::Manual,
             )
             .with_evidence("delay_ms", r.delay_ms)
             .with_evidence("ripple_db", r.ripple_db)
+            .with_evidence("extra_path_cm", r.path_cm.round())
+            .with_evidence("surface_distance_cm_estimate", surface_cm.round())
             .suggesting("boom_arm"),
         );
     }

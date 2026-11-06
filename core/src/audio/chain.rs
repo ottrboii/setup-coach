@@ -4,7 +4,7 @@
 
 use super::analyze::{AudioMetrics, NoiseCharacter};
 use super::dsp::BAND_CENTERS;
-use super::findings::MicContext;
+use super::findings::{GainAccess, MicContext};
 use crate::Constraint;
 use serde::{Deserialize, Serialize};
 
@@ -105,7 +105,17 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
         wanted = wanted.min(-6.0);
     }
     let hw_headroom_known = ctx.gain_at_max == Some(true) || has(Constraint::CantAddCleanGain);
-    let (hardware_gain_change_db, input_gain_db) = if wanted > 0.0 && hw_headroom_known {
+    let (hardware_gain_change_db, input_gain_db) = if ctx.gain == GainAccess::None && wanted.abs() >= 1.5 {
+        // Nothing to turn: the change goes into our software gain stage (cuts
+        // as well as boosts). It cannot undo clipping that already happened.
+        let db = wanted.clamp(-24.0, 24.0);
+        notes.push(format!(
+            "Your mic has no gain control, so we {} the level by {:.0} dB in software.",
+            if db < 0.0 { "turn down" } else { "turn up" },
+            db.abs()
+        ));
+        (0.0, db)
+    } else if wanted > 0.0 && hw_headroom_known {
         notes.push("Your hardware gain is maxed, so the missing level is added digitally.".into());
         (0.0, wanted.min(24.0))
     } else if wanted.abs() < 1.5 {

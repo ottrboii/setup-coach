@@ -31,8 +31,35 @@
 //! Talking level and loudest-moment bars are the same in every profile: the
 //! raw capture needs the same headroom whatever it is used for, and we have no
 //! evidence to move them.
+//!
+//! # Which findings a profile hides
+//!
+//! A profile also decides which findings are worth showing at all. Hiding is
+//! conservative: only things that cannot affect that use are dropped, and
+//! nothing about the voice itself (every `mic.*` level, noise, room, tone,
+//! hum, clipping, plosive finding, Windows enhancements, other apps holding
+//! the mic) is ever hidden except the two listed below. It is applied in core
+//! (`audio::scan` for the mic report) and by the app to the quick scan and
+//! the camera report, so hidden items cost no score. The same table is sent to
+//! the UI as `ProfileInfo::irrelevant`.
+//!
+//! | Finding id / group                                 | Streaming | Voiceover | Call   | Why |
+//! |----------------------------------------------------|-----------|-----------|--------|-----|
+//! | everything in area `camera` (`camera.*`, camera-side `connection.*`, capture-card links, HDMI) | shown | hidden | shown* | nobody sees a voiceover; calls do use the camera |
+//! | everything in area `stream` (`stream.*`: encoder, bitrate, keyframes, upload, health) | shown | hidden | hidden | no live encode in a recording or a call |
+//! | `stream.recording_plain_mp4` (OBS recording format) | shown    | shown     | hidden | a voiceover may be recorded in OBS |
+//! | `stream.on_wifi`                                    | shown     | hidden    | shown  | Wi-Fi drops are heard on a call, not in a local recording |
+//! | `mic.keyboard` (typing next to the mic)             | shown     | hidden    | shown  | you are not typing during a take; you do type on calls |
+//! | `mic.capture_card_audio_and_mic`                    | shown     | hidden    | hidden | capture-card audio is stream gear |
+//! | `system.obs_websocket_off`, `system.obs_outdated`   | shown     | shown     | hidden | OBS is not part of a call |
+//! | `camera.hdmi_*`, `connection.capture_card_*`        | shown     | hidden    | hidden | HDMI capture is stream gear (*the rest of camera stays on calls) |
+//!
+//! Anything not in the table is shown in every profile. A mic-side USB hub
+//! finding (`connection.behind_hub` on a mic) stays everywhere: it is in area
+//! `mic`, not `camera`.
 
 use crate::audio::findings::{Capsule, Connection, MicContext};
+use crate::finding::{Area, Finding};
 use serde::{Deserialize, Serialize};
 
 /// What this session is set up for. Chosen at the start; defaults to streaming.
@@ -96,9 +123,71 @@ pub struct ProfileInfo {
     pub room_advice: String,
     pub distance_cm: Option<(f64, f64)>,
     pub targets: ProfileTargets,
+    /// Findings this profile never shows (additive field).
+    #[serde(default)]
+    pub irrelevant: IrrelevantFindings,
+}
+
+/// Which findings do not apply to a profile: whole areas (minus `keep`) and
+/// single ids. The app and UI hide these; core applies it in `audio::scan`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IrrelevantFindings {
+    /// Every finding in these areas is hidden, except the ids in `keep`.
+    pub areas: Vec<Area>,
+    /// Exceptions to `areas`.
+    pub keep: Vec<String>,
+    /// Single finding ids that are hidden, whatever their area.
+    pub ids: Vec<String>,
+}
+
+impl IrrelevantFindings {
+    /// True when the finding does not apply.
+    pub fn hides(&self, f: &Finding) -> bool {
+        self.ids.iter().any(|i| i == &f.id) || (self.areas.contains(&f.area) && !self.keep.iter().any(|k| k == &f.id))
+    }
 }
 
 impl SetupProfile {
+    /// The findings this profile never shows. Table in the module docs.
+    pub fn irrelevant(self) -> IrrelevantFindings {
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        match self {
+            SetupProfile::Streaming => IrrelevantFindings::default(),
+            SetupProfile::Voiceover => IrrelevantFindings {
+                areas: vec![Area::Camera, Area::Stream],
+                keep: s(&["stream.recording_plain_mp4"]),
+                ids: s(&["mic.keyboard", "mic.capture_card_audio_and_mic"]),
+            },
+            SetupProfile::Call => IrrelevantFindings {
+                areas: vec![Area::Stream],
+                keep: s(&["stream.on_wifi"]),
+                ids: s(&[
+                    "system.obs_websocket_off",
+                    "system.obs_outdated",
+                    "mic.capture_card_audio_and_mic",
+                    "camera.hdmi_interlaced",
+                    "camera.hdmi_no_signal",
+                    "camera.hdmi_overlay",
+                    "connection.capture_card_on_slow_port",
+                    "connection.capture_card_behind_hub",
+                    "connection.capture_card_shares_controller",
+                ]),
+            },
+        }
+    }
+
+    /// Does this finding matter for what the user is setting up?
+    pub fn is_relevant(self, f: &Finding) -> bool {
+        !self.irrelevant().hides(f)
+    }
+
+    /// Drop the findings that do not apply. Call before ranking and scoring so
+    /// hidden items cost nothing.
+    pub fn filter_findings(self, findings: &mut Vec<Finding>) {
+        let irrelevant = self.irrelevant();
+        findings.retain(|f| !irrelevant.hides(f));
+    }
+
     pub const ALL: [SetupProfile; 3] = [SetupProfile::Streaming, SetupProfile::Voiceover, SetupProfile::Call];
 
     /// Stable id used in `setup.json` and the API (same as the serde name).
@@ -211,6 +300,7 @@ impl SetupProfile {
             room_advice: self.room_advice().into(),
             distance_cm: self.distance_cm(ctx),
             targets: self.targets(),
+            irrelevant: self.irrelevant(),
         }
     }
 
