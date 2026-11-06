@@ -193,6 +193,11 @@ pub struct ObsVideoCapture {
     /// `MJPEG`, `YUY2`, `NV12`, `Any`, ...
     pub video_format: String,
     pub color_range: ColorRange,
+    /// The source itself outputs sound (OBS "Audio Output Mode" is not
+    /// "Capture audio only"), i.e. the device's own audio is in the mix.
+    pub own_audio: bool,
+    /// "Use custom audio device" is ticked: the name OBS shows for it.
+    pub audio_device: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

@@ -537,6 +537,14 @@ No contract change. \QuickChecks.findings\ now also carries ids \connection.usb3
 No contract change. New finding ids, all plain-text with numbers only in `evidence`: `connection.camera_body_not_webcam` (QuickChecks, guided; names the maker tool that is running), `connection.camera_switches_off_after_a_while` (QuickChecks, manual; evidence `typical_run_minutes`, `runs`), `camera.hdmi_overlay` (camera test report, capture-card cameras only), `sync.av_offset` (area mic; evidence `offset_ms`, `score`, `claps`; produced by `coach_core::avsync`, now returned by the clap test, see "Lip-sync clap test"). `CameraError` for a capture-card camera with black/flat frames now carries the HDMI checklist in `message` (same `code`/`reason`). `near_runtime_limit` now drives `QuickChecks.runtime_warnings` (see "Lip-sync clap test and camera runtime warning").
 
 
+## Capture-card checks (dual-PC, single stream PC, 2026-11-06)
+No command change; new finding ids, plain text, numbers only in `evidence`, all `can_decline: true` ("I can't do this" → recalibration) and cleared by the next scan once the cause is gone (re-measure, no "did you do it?"):
+- QuickChecks (area camera, guided): `connection.capture_card_on_slow_port` (evidence `speed_mbps`), `connection.capture_card_behind_hub` (`hub_bus_powered`), `connection.capture_card_shares_controller` (`devices_on_controller`). They replace the generic `usb3_on_usb2_port` / `behind_hub` / `cameras_share_controller` for capture cards, never both.
+- QuickChecks (area camera, guided, needs OBS): `camera.capture_fps_mismatch` (`source_fps`, `stream_fps`): the card's source is set to a fixed 25/50 rate while the stream is 24/30/60 (or the reverse). "Device Default" sources are never accused.
+- QuickChecks (area mic, guided, needs OBS): `mic.capture_card_audio_and_mic` (`mic_monitored`): the card's own HDMI sound (source "Audio Output Mode" is not capture-only, a custom audio device, or the card's endpoint as an input) is live together with a separate unmuted mic.
+- Camera test report (capture-card cameras only): `camera.hdmi_interlaced`, from comb artefacts on moving edges (`coach_core::video::hdmi::interlaced_combing`).
+Data: `UsbLink.capture_card` (bool, from the profile class or a well-known name), `ObsVideoCapture.own_audio` / `.audio_device` (from the OBS `dshow_input` settings `audio_output_mode`, `use_custom_audio_device`, `audio_device_id`). The Cam Link 4K profile now has the `requires_usb3` quirk.
+
 ## Lip-sync clap test and camera runtime warning (added 2026-11-06)
 
 | Command | Args | Returns |

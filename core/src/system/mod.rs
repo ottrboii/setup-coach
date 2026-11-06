@@ -6,6 +6,7 @@
 
 pub mod actions;
 pub mod camera;
+mod capture;
 pub mod connection;
 pub mod diff;
 pub mod encoder;
@@ -35,6 +36,7 @@ pub fn audit(snapshot: &SystemSnapshot, constraints: &[Constraint]) -> Vec<Findi
     obs_audio::check(snapshot, &mut out);
     camera::check(snapshot, &mut out);
     connection::check(snapshot, &mut out);
+    capture::check(snapshot, &mut out);
     encoder::check(snapshot, constraints, &mut out);
 
     if constraints.contains(&Constraint::CantAddCleanGain) {

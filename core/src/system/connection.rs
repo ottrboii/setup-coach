@@ -1,4 +1,4 @@
-//! Connection health: USB link speed and topology, devices that keep
+﻿//! Connection health: USB link speed and topology, devices that keep
 //! dropping out, and apps that are holding the camera or mic.
 //!
 //! Input is [`ConnectionState`], collected by the Windows app. Everything is
@@ -63,6 +63,37 @@ pub struct UsbLink {
     /// Minutes the device has been connected in its current run (since Windows
     /// last started it), when Windows says.
     pub connected_min: Option<u32>,
+    /// The device is a video capture card / HDMI dongle (from its profile).
+    /// [`is_capture_card`] also recognises well-known names when this is false.
+    pub capture_card: bool,
+}
+
+/// Well-known USB capture cards by Windows name, for when no profile matched.
+const CAPTURE_NAMES: [&str; 8] = ["cam link", "hd60", "game capture", "live gamer", "avermedia", "hdmi capture", "usb3.0 video", "usb video"];
+
+/// True for a capture card / HDMI capture dongle.
+pub fn is_capture_card(l: &UsbLink) -> bool {
+    if l.capture_card {
+        return true;
+    }
+    l.role == UsbRole::Camera && capture_card_name(&l.name)
+}
+
+/// True when a device name (video or audio) is a well-known capture card.
+pub fn capture_card_name(name: &str) -> bool {
+    let n = name.to_lowercase();
+    CAPTURE_NAMES.iter().any(|p| n.contains(p))
+}
+
+/// Cards known to need a USB 3 port (uncompressed video is far above USB 2's
+/// 480 Mbit/s). Source: Elgato's Cam Link 4K help pages (USB 3.0 required).
+/// Cheap MS2109 dongles send MJPEG and run on USB 2, so they are never accused.
+fn needs_usb3(l: &UsbLink) -> bool {
+    if l.superspeed_capable {
+        return true;
+    }
+    let n = l.name.to_lowercase();
+    ["cam link", "hd60", "game capture", "4k60"].iter().any(|p| n.contains(p))
 }
 
 /// Which device an app is holding.
@@ -102,11 +133,15 @@ fn is_expected_holder(app: &str) -> bool {
 pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
     let Some(c) = &s.connection else { return };
 
+    capture_card_checks(c, out);
+
     for l in &c.links {
         let what = if l.role == UsbRole::Camera { "camera" } else { "mic" };
+        // Capture cards get their own, more specific findings above.
+        let card = l.role == UsbRole::Camera && is_capture_card(l);
 
         // USB 3 device running at USB 2 speed.
-        if l.role == UsbRole::Camera && l.superspeed_capable && l.speed != UsbSpeed::Unknown && l.speed < UsbSpeed::Super {
+        if !card && l.role == UsbRole::Camera && l.superspeed_capable && l.speed != UsbSpeed::Unknown && l.speed < UsbSpeed::Super {
             let mut f = Finding::new(
                 ids::CONN_SLOW_PORT,
                 Area::Camera,
@@ -121,7 +156,7 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
         }
 
         // Behind a hub.
-        if l.behind_hub {
+        if l.behind_hub && !card {
             let hub = l.hub_name.as_deref().unwrap_or("a USB hub");
             if l.hub_bus_powered {
                 out.push(Finding::new(
@@ -173,7 +208,7 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
     // Two cameras / capture cards on one controller.
     let video: Vec<&UsbLink> = c.links.iter().filter(|l| l.role == UsbRole::Camera && !l.controller.is_empty()).collect();
     for (i, a) in video.iter().enumerate() {
-        if let Some(b) = video.iter().skip(i + 1).find(|b| b.controller == a.controller && b.name != a.name) {
+        if let Some(b) = video.iter().skip(i + 1).find(|b| b.controller == a.controller && b.name != a.name && !is_capture_card(a) && !is_capture_card(b)) {
             let mut f = Finding::new(
                 ids::CONN_SHARED_CONTROLLER,
                 Area::Camera,
@@ -204,6 +239,60 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
             &format!("Close {} (check the system tray near the clock too), then we'll check again.", h.app),
             FixKind::Guided,
         ));
+    }
+}
+
+/// Capture card (Cam Link, HD60, HDMI dongle) USB path: fast port, no hub,
+/// not sharing a controller with another camera. Physical fixes only; the
+/// next scan clears the finding once the card runs on a better path.
+fn capture_card_checks(c: &ConnectionState, out: &mut Vec<Finding>) {
+    for l in c.links.iter().filter(|l| l.role == UsbRole::Camera && is_capture_card(l)) {
+        if needs_usb3(l) && l.speed != UsbSpeed::Unknown && l.speed < UsbSpeed::Super {
+            let mut f = Finding::new(
+                ids::CONN_CAPTURE_SLOW_PORT,
+                Area::Camera,
+                Severity::Major,
+                &format!("Your {} is in a slow USB port", l.name),
+                "This capture card sends uncompressed video and only has room for it on a fast USB 3 port. On a slow one the picture stutters, drops to a lower quality or disappears.",
+                "Plug it straight into a blue (USB 3) port on the back of your PC, using the cable that came with it. Not a front port, a hub or an extension cable. We'll check again as soon as you move it.",
+                FixKind::Guided,
+            );
+            f.evidence.insert("speed_mbps".into(), speed_mbps(l.speed));
+            f.can_decline = true;
+            out.push(f);
+        }
+        if l.behind_hub {
+            let hub = l.hub_name.as_deref().unwrap_or("a USB hub");
+            let mut f = Finding::new(
+                ids::CONN_CAPTURE_HUB,
+                Area::Camera,
+                Severity::Major,
+                &format!("Your {} is plugged in through a hub", l.name),
+                &format!("{hub} splits one connection between everything plugged into it, and a capture card needs nearly all of it. Expect dropped frames, freezes or a black picture."),
+                "Plug the capture card straight into a USB 3 port on the back of your PC. If it must go through a hub, it needs a powered USB 3 hub with nothing else heavy on it. We'll check again as soon as you move it.",
+                FixKind::Guided,
+            );
+            f.can_decline = true;
+            f.evidence.insert("hub_bus_powered".into(), if l.hub_bus_powered { 1.0 } else { 0.0 });
+            out.push(f);
+        }
+        if !l.controller.is_empty() {
+            let other = c.links.iter().find(|o| o.role == UsbRole::Camera && o.name != l.name && o.controller == l.controller);
+            if let Some(o) = other {
+                let mut f = Finding::new(
+                    ids::CONN_CAPTURE_SHARED,
+                    Area::Camera,
+                    Severity::Major,
+                    &format!("Your {} shares its USB connection with {}", l.name, o.name),
+                    "Both hang off the same USB controller inside the PC, so they split its speed. A capture card needs most of it, so one of them can freeze or go black when both run.",
+                    "Move one of them to a port on a different part of the PC (the other side of the back panel is usually a different controller). We'll check again as soon as you move it.",
+                    FixKind::Guided,
+                );
+                f.evidence.insert("devices_on_controller".into(), 2.0);
+                f.can_decline = true;
+                out.push(f);
+            }
+        }
     }
 }
 
@@ -395,11 +484,51 @@ mod tests {
 
     #[test]
     fn two_cameras_on_one_controller() {
-        let ids = ids_of(&snap(vec![cam("Cam Link 4K", UsbSpeed::Super, true), cam("C922", UsbSpeed::High, false)], vec![]));
+        let ids = ids_of(&snap(vec![cam("Brio", UsbSpeed::Super, true), cam("C922", UsbSpeed::High, false)], vec![]));
         assert!(ids.contains(&ids::CONN_SHARED_CONTROLLER.to_string()));
         let mut other = cam("C922", UsbSpeed::High, false);
         other.controller = "PCI(2)".into();
-        assert!(!ids_of(&snap(vec![cam("Cam Link 4K", UsbSpeed::Super, true), other], vec![])).contains(&ids::CONN_SHARED_CONTROLLER.to_string()));
+        assert!(!ids_of(&snap(vec![cam("Brio", UsbSpeed::Super, true), other], vec![])).contains(&ids::CONN_SHARED_CONTROLLER.to_string()));
+    }
+
+    fn card(speed: UsbSpeed) -> UsbLink {
+        UsbLink { name: "Cam Link 4K".into(), role: UsbRole::Camera, speed, controller: "PCI(1)".into(), ..Default::default() }
+    }
+
+    #[test]
+    fn capture_card_on_usb2_is_flagged_once_with_its_own_wording() {
+        let f = audit(&snap(vec![card(UsbSpeed::High)], vec![]), &[]);
+        let ids: Vec<_> = f.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(ids, vec![ids::CONN_CAPTURE_SLOW_PORT], "no duplicate generic finding");
+        assert_eq!(f[0].evidence["speed_mbps"], 480.0);
+        assert!(f[0].can_decline && f[0].fix_kind == FixKind::Guided);
+        // On USB 3, or speed not known: quiet. Cheap MJPEG dongles run on USB 2.
+        assert!(ids_of(&snap(vec![card(UsbSpeed::Super)], vec![])).is_empty());
+        assert!(ids_of(&snap(vec![card(UsbSpeed::Unknown)], vec![])).is_empty());
+        let dongle = UsbLink { name: "USB Video".into(), role: UsbRole::Camera, speed: UsbSpeed::High, ..Default::default() };
+        assert!(is_capture_card(&dongle));
+        assert!(ids_of(&snap(vec![dongle], vec![])).is_empty());
+    }
+
+    #[test]
+    fn capture_card_behind_any_hub_is_major() {
+        let mut l = card(UsbSpeed::Super);
+        l.behind_hub = true;
+        l.hub_name = Some("Generic USB Hub".into());
+        let f = audit(&snap(vec![l], vec![]), &[]);
+        assert_eq!(f.len(), 1);
+        assert_eq!((f[0].id.as_str(), f[0].severity), (ids::CONN_CAPTURE_HUB, Severity::Major));
+        assert!(f[0].why.contains("Generic USB Hub"));
+    }
+
+    #[test]
+    fn capture_card_sharing_a_controller_with_a_camera_is_flagged() {
+        let f = audit(&snap(vec![card(UsbSpeed::Super), cam("C922", UsbSpeed::High, false)], vec![]), &[]);
+        let ids: Vec<_> = f.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(ids, vec![ids::CONN_CAPTURE_SHARED]);
+        // A mic on the same controller is not a bandwidth problem.
+        let mic = UsbLink { name: "Yeti".into(), role: UsbRole::Audio, controller: "PCI(1)".into(), ..Default::default() };
+        assert!(ids_of(&snap(vec![card(UsbSpeed::Super), mic], vec![])).is_empty());
     }
 
     #[test]

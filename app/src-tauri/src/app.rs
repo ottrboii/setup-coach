@@ -337,9 +337,10 @@ impl AppCore {
     fn connection_with_profiles(&self, mut c: coach_core::system::ConnectionState) -> coach_core::system::ConnectionState {
         use coach_core::profiles::CameraQuirk;
         use coach_core::system::UsbRole;
-        for l in c.links.iter_mut().filter(|l| l.role == UsbRole::Camera && !l.superspeed_capable) {
+        for l in c.links.iter_mut().filter(|l| l.role == UsbRole::Camera) {
             if let Some(m) = self.profiles.match_camera(&Self::identity(&l.name, Some((l.vid, l.pid)))) {
-                l.superspeed_capable = m.profile.quirks.contains(&CameraQuirk::RequiresUsb3);
+                l.superspeed_capable |= m.profile.quirks.contains(&CameraQuirk::RequiresUsb3);
+                l.capture_card |= m.profile.class == coach_core::profiles::CameraClass::CaptureCard;
             }
         }
         c

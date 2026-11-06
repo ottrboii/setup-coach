@@ -13,6 +13,7 @@ use crate::finding::{Area, Finding, FixKind, Severity};
 
 pub const HDMI_NO_SIGNAL: &str = "camera.hdmi_no_signal";
 pub const HDMI_OVERLAY: &str = "camera.hdmi_overlay";
+pub const HDMI_INTERLACED: &str = "camera.hdmi_interlaced";
 
 /// Working width for the analysis grid (pixels); plenty for icons and text.
 const GRID_W: usize = 160;
@@ -146,22 +147,90 @@ pub fn no_signal_finding(reason: NoPicture) -> Finding {
     f
 }
 
+/// Luma step (0..255) that counts as "a real line-to-line difference".
+const COMB_STEP: i32 = 30;
+/// Share of moving pixels that must show the comb pattern, and of frames.
+const COMB_SHARE: f64 = 0.06;
+const COMB_FRAMES: f64 = 0.5;
+/// Fewest moving pixels in a frame for it to say anything.
+const COMB_MIN_MOVING: usize = 200;
+
+/// True when moving parts of the picture show interlacing: every other line
+/// is drawn at a different moment, so a moving edge turns into teeth (each
+/// line differs a lot from both its neighbours while those two agree).
+/// Progressive video, noise and thin horizontal detail do not form that
+/// pattern in a large share of the moving pixels. Needs the picture to move;
+/// thresholds are starting values from synthetic frames only.
+pub fn interlaced_combing(capture: &VideoTestCapture) -> bool {
+    let frames: Vec<&Frame> = capture.frames.iter().map(|t| &t.frame).filter(|f| f.is_valid()).collect();
+    if frames.len() < 3 {
+        return false;
+    }
+    let (w, h) = (frames[0].width, frames[0].height);
+    if w < 32 || h < 32 || frames.iter().any(|f| f.width != w || f.height != h) {
+        return false;
+    }
+    let luma = |f: &Frame, x: usize, y: usize| {
+        let p = f.px(x, y);
+        (p[0] as f64 * 0.299 + p[1] as f64 * 0.587 + p[2] as f64 * 0.114) as i32
+    };
+    let (mut judged, mut combed) = (0usize, 0usize);
+    for pair in frames.windows(2) {
+        let (prev, cur) = (pair[0], pair[1]);
+        let (mut moving, mut teeth) = (0usize, 0usize);
+        for y in 1..h - 1 {
+            for x in 0..w {
+                let l = luma(cur, x, y);
+                if (l - luma(prev, x, y)).abs() <= MOVING_RANGE as i32 {
+                    continue;
+                }
+                moving += 1;
+                let (a, b) = (luma(cur, x, y - 1), luma(cur, x, y + 1));
+                let up = l - a >= COMB_STEP && l - b >= COMB_STEP;
+                let down = a - l >= COMB_STEP && b - l >= COMB_STEP;
+                if (up || down) && (a - b).abs() < COMB_STEP / 3 {
+                    teeth += 1;
+                }
+            }
+        }
+        if moving >= COMB_MIN_MOVING {
+            judged += 1;
+            if teeth as f64 >= moving as f64 * COMB_SHARE {
+                combed += 1;
+            }
+        }
+    }
+    judged >= 2 && combed as f64 >= judged as f64 * COMB_FRAMES
+}
+
 /// Findings from the frames of a capture-card camera. Webcams and phones
 /// never get these (their overlays are not HDMI menus).
 pub fn findings(capture: &VideoTestCapture, class: CameraClass) -> Vec<Finding> {
     if class != CameraClass::CaptureCard {
         return Vec::new();
     }
+    let mut out = Vec::new();
+    if interlaced_combing(capture) {
+        out.push(Finding::new(
+            HDMI_INTERLACED,
+            Area::Camera,
+            Severity::Major,
+            "Your camera is sending an interlaced picture",
+            "Moving edges, like your head or hands, show fine horizontal teeth. That is what an interlaced signal (1080i) looks like; streams and recordings expect a full-frame (progressive) picture.",
+            "In the camera's menu set the HDMI output to 1080p (not 1080i) and, if it asks, the video system to NTSC / 60 Hz. Then run the picture check again. If the camera has no 1080p choice, use a capture setting of 720p.",
+            FixKind::Manual,
+        ));
+    }
     let found = static_overlays(capture);
     if found.is_empty() {
-        return Vec::new();
+        return out;
     }
     let what = match (found.contains(&OverlayKind::RecDot), found.contains(&OverlayKind::InfoDisplay)) {
         (true, true) => "a red recording dot and camera text",
         (true, false) => "a red recording dot",
         _ => "camera text or icons",
     };
-    vec![Finding::new(
+    out.push(Finding::new(
         HDMI_OVERLAY,
         Area::Camera,
         Severity::Major,
@@ -169,7 +238,8 @@ pub fn findings(capture: &VideoTestCapture, class: CameraClass) -> Vec<Finding> 
         &format!("Something on the edge of your picture never moves while you do: it looks like {what}. That is the camera's own display coming through the HDMI cable."),
         "In the camera's menu turn HDMI info display off (on many cameras the Display or Info button also cycles it). If the dot or text stays, your camera may not give a clean HDMI picture; check its model in the camera guide.",
         FixKind::Manual,
-    )]
+    ));
+    out
 }
 
 #[cfg(test)]
@@ -204,6 +274,40 @@ mod tests {
     }
     fn cap(overlay: impl Fn(usize, usize) -> Option<[u8; 3]> + Copy) -> VideoTestCapture {
         VideoTestCapture { frames: (0..10).map(|t| scene(t, overlay)).collect() }
+    }
+
+    /// A moving bright block; on `interlaced` odd lines are drawn at a later
+    /// position than even lines (two fields, 10 px apart).
+    fn block_scene(t: usize, interlaced: bool) -> TaggedFrame {
+        let (w, h) = (160usize, 90usize);
+        let mut rgb = Vec::new();
+        for y in 0..h {
+            let cx = 30 + t * 14 + if interlaced && y % 2 == 1 { 10 } else { 0 };
+            for x in 0..w {
+                let n = noise(y * w + x);
+                let v = if x >= cx && x < cx + 40 && (20..70).contains(&y) { 210 } else { 60 };
+                rgb.extend_from_slice(&[(v + n) as u8, (v + n) as u8, (v + n) as u8]);
+            }
+        }
+        TaggedFrame::new(TestStep::TurnHead, Frame { width: w, height: h, rgb, timestamp_s: t as f64 * 0.5 })
+    }
+    fn blocks(interlaced: bool) -> VideoTestCapture {
+        VideoTestCapture { frames: (0..8).map(|t| block_scene(t, interlaced)).collect() }
+    }
+
+    #[test]
+    fn interlaced_teeth_on_moving_edges_are_found_progressive_is_not() {
+        assert!(interlaced_combing(&blocks(true)));
+        assert!(!interlaced_combing(&blocks(false)));
+        let f = findings(&blocks(true), CameraClass::CaptureCard);
+        assert!(f.iter().any(|f| f.id == HDMI_INTERLACED && f.fix.contains("1080p")));
+        assert!(findings(&blocks(true), CameraClass::FullUvc).is_empty());
+        // Nothing moves or too few frames: no verdict.
+        let still = VideoTestCapture { frames: (0..8).map(|_| block_scene(0, true)).collect() };
+        assert!(!interlaced_combing(&still));
+        assert!(!interlaced_combing(&VideoTestCapture::default()));
+        // The normal moving-face scene is progressive.
+        assert!(!interlaced_combing(&cap(|_, _| None)));
     }
 
     #[test]
