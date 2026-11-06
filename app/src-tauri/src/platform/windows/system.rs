@@ -390,6 +390,8 @@ fn usb_links() -> Vec<coach_core::system::UsbLink> {
             hub_name: p.hub_name,
             hub_bus_powered: p.hub_bus_powered,
             drops_7d: p.drops_7d,
+            image_only: p.image_only,
+            run_minutes: p.run_minutes,
         })
         .collect()
 }
@@ -605,7 +607,15 @@ impl SystemInspector for WinSystem {
                 holders.push(DeviceHolder { app: u.name, device, confirmed: u.confirmed });
             }
         }
-        ConnectionState { links: usb_links_cached(), holders }
+        // Maker tools that grab a camera body and stop it acting as a webcam.
+        let vendor_tools_running = [("eosutility.exe", "EOS Utility"), ("eosutility3.exe", "EOS Utility"), ("eos utility.exe", "EOS Utility"), ("cameraconnect.exe", "Canon CameraConnect"), ("imagingedge.exe", "Imaging Edge"), ("imaging edge desktop.exe", "Imaging Edge"), ("remote.exe", "Sony Imaging Edge Remote")]
+            .iter()
+            .filter(|(exe, _)| running.iter().any(|x| x == exe))
+            .map(|(_, n)| n.to_string())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        ConnectionState { links: usb_links_cached(), holders, vendor_tools_running }
     }
 
     fn obs_config_dir(&self) -> Option<PathBuf> {

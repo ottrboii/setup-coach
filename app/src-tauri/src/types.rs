@@ -373,6 +373,19 @@ impl CameraError {
     }
 }
 
+impl CameraError {
+    /// Like [`no_picture`](Self::no_picture), but for a real camera behind a
+    /// capture card: black or flat frames mean the camera sends no HDMI
+    /// picture, so the plain-English fallback points at the HDMI chain.
+    pub fn no_picture_hdmi(reason: PictureReason) -> Self {
+        let mut e = Self::no_picture(reason);
+        if matches!(reason, PictureReason::Black | PictureReason::Blank) {
+            e.message = coach_core::video::hdmi::no_signal_finding(if reason == PictureReason::Blank { coach_core::video::NoPicture::Blank } else { coach_core::video::NoPicture::Black }).fix;
+        }
+        e
+    }
+}
+
 impl std::fmt::Display for CameraError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.message)

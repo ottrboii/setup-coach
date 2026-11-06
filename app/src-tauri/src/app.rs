@@ -1099,7 +1099,7 @@ impl AppCore {
         let (metrics, findings, _live) = video::analyze_live(&capture, &state, class, mains).map_err(|np| {
             let reason = camera_busy::reason_of(np);
             self.note_picture(Some(reason));
-            CameraError::no_picture(reason)
+            if class == CameraClass::CaptureCard { CameraError::no_picture_hdmi(reason) } else { CameraError::no_picture(reason) }
         })?;
         let settings = video::recommend_settings(&metrics, &state, class, mains, &constraints);
         let score = coach_core::score::score_area(Area::Camera, &findings);
