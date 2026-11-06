@@ -31,6 +31,7 @@ async fn problems_show_up_and_clear_on_their_own() {
             UsbLink { name: "Yeti".into(), role: UsbRole::Audio, drops_7d: 4, controller: "A".into(), ..Default::default() },
         ],
         holders: vec![DeviceHolder { app: "Zoom".into(), device: HeldDevice::Mic, confirmed: true }],
+        ..Default::default()
     };
     let q = core.run_quick_checks().await;
     let ids = conn_ids(&q);
@@ -44,10 +45,39 @@ async fn problems_show_up_and_clear_on_their_own() {
     *mock.system.connection.lock().unwrap() = ConnectionState {
         links: vec![UsbLink { name: "Brio".into(), role: UsbRole::Camera, speed: UsbSpeed::Super, superspeed_capable: true, ..Default::default() }],
         holders: vec![],
+        ..Default::default()
     };
     let ids = conn_ids(&core.run_quick_checks().await);
     assert!(!ids.contains(&"connection.usb3_on_usb2_port".to_string()));
     assert!(!ids.contains(&"connection.mic_held_by_app".to_string()));
+}
+
+#[tokio::test]
+async fn camera_body_that_is_not_a_webcam_is_named_and_clears_when_it_becomes_one() {
+    let (core, mock, _d) = core();
+    *mock.system.connection.lock().unwrap() = ConnectionState {
+        links: vec![UsbLink { name: "Canon EOS M50".into(), role: UsbRole::Camera, vid: 0x04A9, image_only: true, ..Default::default() }],
+        vendor_tools_running: vec!["EOS Utility".into()],
+        ..Default::default()
+    };
+    let q = core.run_quick_checks().await;
+    let f = q.findings.iter().find(|f| f.id == "connection.camera_body_not_webcam").expect("body finding");
+    assert!(f.fix.contains("EOS Utility is running"));
+    // Webcam mode now on: Windows lists it as a camera, the finding is gone.
+    *mock.system.connection.lock().unwrap() = ConnectionState {
+        links: vec![UsbLink { name: "EOS Webcam Utility".into(), role: UsbRole::Camera, vid: 0x04A9, image_only: false, ..Default::default() }],
+        ..Default::default()
+    };
+    assert!(!conn_ids(&core.run_quick_checks().await).contains(&"connection.camera_body_not_webcam".to_string()));
+}
+
+#[test]
+fn probe_reads_body_and_run_times() {
+    let j = r#"[{"name":"EOS M50","role":"camera","vid":1193,"pid":12345,"image_only":true,"run_minutes":[27,30]},{"name":"Mic","role":"audio","run_minutes":[]}]"#;
+    let d = parse_usb_probe(j);
+    assert_eq!(d.len(), 2);
+    assert!(d[0].image_only && d[0].run_minutes == vec![27, 30]);
+    assert!(!d[1].image_only && d[1].run_minutes.is_empty());
 }
 
 #[test]

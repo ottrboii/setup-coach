@@ -48,9 +48,20 @@ public static class UsbProbe {
 $boot = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
 $since = (Get-Date).AddDays(-7)
 $removals = @{}
-Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-PnP/Configuration'; Id=420; StartTime=$since} -MaxEvents 2000 | ForEach-Object {
-  $k = [string]$_.Properties[0].Value
-  if ($k -like 'USB\*') { $removals[$k.ToUpper()] = 1 + [int]$removals[$k.ToUpper()] }
+$starts = @{}
+$runs = @{}
+# 410 = device started, 420 = device removed. Oldest first so a start is paired with the next removal.
+Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-PnP/Configuration'; Id=410,420; StartTime=$since} -MaxEvents 4000 | Sort-Object TimeCreated | ForEach-Object {
+  $k = ([string]$_.Properties[0].Value).ToUpper()
+  if ($k -notlike 'USB\*') { return }
+  if ($_.Id -eq 410) { $starts[$k] = $_.TimeCreated; return }
+  $removals[$k] = 1 + [int]$removals[$k]
+  if ($starts.ContainsKey($k)) {
+    $mins = [int][Math]::Round(($_.TimeCreated - $starts[$k]).TotalMinutes)
+    if (-not $runs.ContainsKey($k)) { $runs[$k] = @() }
+    $runs[$k] += $mins
+    $starts.Remove($k)
+  }
 }
 
 $tops = @{}
@@ -96,6 +107,8 @@ foreach ($top in $tops.Keys) {
   if (-not $hubIsRoot) { $busPowered = ([UsbProbe]::BusPowered($hubPath) -eq 1) }
   $vidpid = [regex]::Match($top, 'VID_([0-9A-F]{4})&PID_([0-9A-F]{4})', 'IgnoreCase')
   $drops = [int]$removals[$top.ToUpper()]
+  # A camera body that Windows only sees as a stills device (no webcam/video function).
+  $imageOnly = ($cam -and -not ($kidsOf | Where-Object { $_.Class -eq 'Camera' }))
   $out += [pscustomobject]@{
     name = $name; role = $role; also_audio = ($cam -and $aud)
     vid = if ($vidpid.Success) { [Convert]::ToInt32($vidpid.Groups[1].Value, 16) } else { 0 }
@@ -103,6 +116,8 @@ foreach ($top in $tops.Keys) {
     speed = $speed; superspeed_capable = $capable
     controller = $ctl; behind_hub = (-not $hubIsRoot); hub_bus_powered = $busPowered; hub_name = if ($hubIsRoot) { $null } else { $parentName }
     drops_7d = $drops
+    image_only = $imageOnly
+    run_minutes = [int[]]@($runs[$top.ToUpper()] | Where-Object { $_ -ne $null })
   }
 }
 ConvertTo-Json -InputObject @($out) -Compress

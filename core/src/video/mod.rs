@@ -12,6 +12,7 @@
 
 pub mod findings;
 pub mod guard;
+pub mod hdmi;
 pub mod image;
 pub mod metrics;
 pub mod recommend;
@@ -43,6 +44,7 @@ pub fn analyze(
 ) -> (VideoMetrics, Vec<Finding>) {
     let m = measure(capture, state.requested_fps);
     let mut f = findings::findings(&m, state, class, mains);
+    f.extend(hdmi::findings(capture, class));
     rank(&mut f);
     (m, f)
 }

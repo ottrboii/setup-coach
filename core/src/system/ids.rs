@@ -79,3 +79,5 @@ pub const CONN_DROPOUTS: &str = "connection.device_dropouts";
 pub const CONN_SHARED_CONTROLLER: &str = "connection.cameras_share_controller";
 pub const CONN_CAMERA_HELD: &str = "connection.camera_held_by_app";
 pub const CONN_MIC_HELD: &str = "connection.mic_held_by_app";
+pub const CONN_BODY_NOT_WEBCAM: &str = "connection.camera_body_not_webcam";
+pub const CONN_RUNTIME_LIMIT: &str = "connection.camera_switches_off_after_a_while";

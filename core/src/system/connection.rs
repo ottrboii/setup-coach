@@ -53,6 +53,13 @@ pub struct UsbLink {
     pub hub_bus_powered: bool,
     /// Times Windows removed and re-added the device in the last 7 days.
     pub drops_7d: u32,
+    /// Windows only sees it as a stills device (photo transfer), not as a
+    /// webcam: a camera body whose webcam mode is not running.
+    pub image_only: bool,
+    /// Minutes the device stayed connected before each removal in the last
+    /// 7 days (oldest first). Used to spot a camera that shuts off after the
+    /// same time every time.
+    pub run_minutes: Vec<u32>,
 }
 
 /// Which device an app is holding.
@@ -79,6 +86,9 @@ pub struct DeviceHolder {
 pub struct ConnectionState {
     pub links: Vec<UsbLink>,
     pub holders: Vec<DeviceHolder>,
+    /// Camera-maker tools that are running and grab camera bodies
+    /// (e.g. `EOS Utility`, `Imaging Edge`), by plain name.
+    pub vendor_tools_running: Vec<String>,
 }
 
 /// Apps that holding a device is expected and fine: our own tools.
@@ -154,6 +164,9 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
         }
     }
 
+    body_not_webcam(c, out);
+    runtime_limit(c, out);
+
     // Two cameras / capture cards on one controller.
     let video: Vec<&UsbLink> = c.links.iter().filter(|l| l.role == UsbRole::Camera && !l.controller.is_empty()).collect();
     for (i, a) in video.iter().enumerate() {
@@ -191,6 +204,85 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
     }
 }
 
+/// Camera makers by USB vendor id: (id, plain maker name, its webcam tool).
+const CAMERA_MAKERS: [(u16, &str, &str); 8] = [
+    (0x04A9, "Canon", "EOS Webcam Utility"),
+    (0x054C, "Sony", "Imaging Edge Webcam"),
+    (0x04B0, "Nikon", "Nikon Webcam Utility"),
+    (0x04CB, "Fujifilm", "Fujifilm X Webcam"),
+    (0x04DA, "Panasonic", "LUMIX Webcam Software"),
+    (0x07B4, "OM System", "OM Workspace"),
+    (0x2672, "GoPro", "GoPro Webcam mode"),
+    (0x2CA3, "DJI", "DJI's webcam mode"),
+];
+
+/// A camera body is plugged in, but Windows does not see a webcam.
+fn body_not_webcam(c: &ConnectionState, out: &mut Vec<Finding>) {
+    for l in c.links.iter().filter(|l| l.role == UsbRole::Camera && l.image_only) {
+        let Some((_, maker, tool)) = CAMERA_MAKERS.iter().find(|m| m.0 == l.vid) else { continue };
+        let tools = if c.vendor_tools_running.is_empty() {
+            String::new()
+        } else {
+            format!(" {} is running and may be holding the camera: close it (and its icon in the system tray) first.", c.vendor_tools_running.join(" and "))
+        };
+        out.push(Finding::new(
+            ids::CONN_BODY_NOT_WEBCAM,
+            Area::Camera,
+            Severity::Major,
+            &format!("Your {maker} camera is connected but isn't acting as a webcam"),
+            &format!("Windows sees {} as a photo camera only, so OBS and other apps can't pick it as a webcam.", l.name),
+            &format!("Check the cable is a data cable (not charge-only) in a port on the back of your PC, turn the camera's Wi-Fi and Bluetooth off, and set its USB mode to webcam or PC remote if it has the choice.{tools} Then install or update {tool} (we'll open the download page for you) and replug the camera."),
+            FixKind::Guided,
+        ));
+    }
+}
+
+/// Shortest and longest connected run (minutes) that still counts as
+/// "shut off by heat or battery". Starting values from single sources
+/// (owner reports of about 27 to 30 minutes); no lab data yet.
+const RUNTIME_MIN: u32 = 10;
+const RUNTIME_MAX: u32 = 60;
+/// Runs this close together (longest / shortest) count as "same time every time".
+const RUNTIME_SPREAD: f64 = 1.4;
+
+/// Typical run time (minutes) if a camera keeps stopping after about the
+/// same time connected: at least two runs, all inside the window, and close
+/// together. Anything messier is a flaky cable or port, not heat.
+pub fn typical_runtime_minutes(run_minutes: &[u32]) -> Option<u32> {
+    if run_minutes.len() < 2 || run_minutes.iter().any(|m| !(RUNTIME_MIN..=RUNTIME_MAX).contains(m)) {
+        return None;
+    }
+    let (lo, hi) = (*run_minutes.iter().min()?, *run_minutes.iter().max()?);
+    if f64::from(hi) > f64::from(lo) * RUNTIME_SPREAD {
+        return None;
+    }
+    Some(run_minutes.iter().sum::<u32>() / run_minutes.len() as u32)
+}
+
+/// True once a running camera has used up most of its usual time (80 %), so
+/// the app can warn before it cuts out mid-stream.
+pub fn near_runtime_limit(typical_min: u32, running_min: u32) -> bool {
+    typical_min > 0 && f64::from(running_min) >= f64::from(typical_min) * 0.8
+}
+
+fn runtime_limit(c: &ConnectionState, out: &mut Vec<Finding>) {
+    for l in c.links.iter().filter(|l| l.role == UsbRole::Camera) {
+        let Some(typical) = typical_runtime_minutes(&l.run_minutes) else { continue };
+        let mut f = Finding::new(
+            ids::CONN_RUNTIME_LIMIT,
+            Area::Camera,
+            Severity::Major,
+            &format!("Your {} keeps switching off after about the same time", l.name),
+            "It stopped each time after roughly the same length of time connected. That points to the camera overheating or its battery or auto power-off running out, not a bad cable.",
+            "Power it from the wall with a dummy battery, turn the camera's auto power-off off, give it airflow, and use 720p if it has the choice. If it still stops, use the HDMI output with a capture card instead of USB streaming.",
+            FixKind::Manual,
+        );
+        f.evidence.insert("typical_run_minutes".into(), f64::from(typical));
+        f.evidence.insert("runs".into(), l.run_minutes.len() as f64);
+        out.push(f);
+    }
+}
+
 fn speed_mbps(s: UsbSpeed) -> f64 {
     match s {
         UsbSpeed::Low => 1.5,
@@ -207,7 +299,7 @@ mod tests {
     use crate::system::audit;
 
     fn snap(links: Vec<UsbLink>, holders: Vec<DeviceHolder>) -> SystemSnapshot {
-        SystemSnapshot { connection: Some(ConnectionState { links, holders }), ..Default::default() }
+        SystemSnapshot { connection: Some(ConnectionState { links, holders, ..Default::default() }), ..Default::default() }
     }
     fn cam(name: &str, speed: UsbSpeed, capable: bool) -> UsbLink {
         UsbLink { name: name.into(), role: UsbRole::Camera, speed, superspeed_capable: capable, controller: "PCI(1)".into(), ..Default::default() }
@@ -296,5 +388,50 @@ mod tests {
         let before = snap(vec![], vec![DeviceHolder { app: "Zoom".into(), device: HeldDevice::Camera, confirmed: true }]);
         assert!(ids_of(&before).contains(&ids::CONN_CAMERA_HELD.to_string()));
         assert!(ids_of(&snap(vec![], vec![])).is_empty());
+    }
+
+    fn body(vid: u16, image_only: bool) -> UsbLink {
+        UsbLink { name: "EOS M50".into(), role: UsbRole::Camera, vid, image_only, ..Default::default() }
+    }
+
+    #[test]
+    fn camera_body_seen_as_stills_only_gets_webcam_help() {
+        let mut s = snap(vec![body(0x04A9, true)], vec![]);
+        let f = audit(&s, &[]);
+        let b = f.iter().find(|f| f.id == ids::CONN_BODY_NOT_WEBCAM).unwrap();
+        assert!(b.title.contains("Canon") && b.fix.contains("Wi-Fi") && b.fix.contains("EOS Webcam Utility"));
+        assert!(!b.fix.contains("EOS Utility is running"));
+        // The conflicting maker tool is named when it is running.
+        s.connection.as_mut().unwrap().vendor_tools_running = vec!["EOS Utility".into()];
+        let f = audit(&s, &[]);
+        assert!(f.iter().find(|f| f.id == ids::CONN_BODY_NOT_WEBCAM).unwrap().fix.contains("EOS Utility is running"));
+        // Already a webcam, or not a camera maker: nothing.
+        assert!(ids_of(&snap(vec![body(0x04A9, false)], vec![])).is_empty());
+        assert!(ids_of(&snap(vec![body(0x046D, true)], vec![])).is_empty());
+    }
+
+    #[test]
+    fn same_run_time_every_time_means_heat_not_cable() {
+        assert_eq!(typical_runtime_minutes(&[27, 30, 29]), Some(28));
+        // One run, wild spread, too short or too long: not a heat pattern.
+        assert_eq!(typical_runtime_minutes(&[28]), None);
+        assert_eq!(typical_runtime_minutes(&[12, 45, 30]), None);
+        assert_eq!(typical_runtime_minutes(&[2, 3, 2]), None);
+        assert_eq!(typical_runtime_minutes(&[120, 118]), None);
+        let mut c = cam("Alpha body", UsbSpeed::Super, true);
+        c.run_minutes = vec![27, 30];
+        let f = audit(&snap(vec![c.clone()], vec![]), &[]);
+        let r = f.iter().find(|f| f.id == ids::CONN_RUNTIME_LIMIT).unwrap();
+        assert_eq!(r.evidence["typical_run_minutes"], 28.0);
+        assert!(!r.title.chars().any(|c| c.is_ascii_digit()));
+        c.run_minutes = vec![3, 40, 15];
+        assert!(!ids_of(&snap(vec![c], vec![])).contains(&ids::CONN_RUNTIME_LIMIT.to_string()));
+    }
+
+    #[test]
+    fn warns_before_the_usual_limit() {
+        assert!(!near_runtime_limit(30, 10));
+        assert!(near_runtime_limit(30, 24));
+        assert!(!near_runtime_limit(0, 99));
     }
 }
