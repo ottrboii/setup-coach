@@ -75,6 +75,7 @@ fn good() -> SystemSnapshot {
                 fps: Some(30.0),
                 video_format: "MJPEG".into(),
                 color_range: ColorRange::Default,
+                ..Default::default()
             }],
             output_color_range: ColorRange::Partial,
             encoder: Some(ObsEncoder {

@@ -161,6 +161,13 @@ pub async fn read_state(obs: &dyn ObsApi, obs_dir: Option<&Path>) -> Result<ObsS
                     "full" => ColorRange::Full,
                     _ => ColorRange::Default,
                 },
+                // "Audio Output Mode": 0 capture only, 1 DirectSound, 2 WaveOut (OBS dshow_input).
+                own_audio: settings["audio_output_mode"].as_i64().is_some_and(|m| m > 0),
+                audio_device: if settings["use_custom_audio_device"].as_bool() == Some(true) {
+                    s(&settings, "audio_device_id").split(':').next().unwrap_or_default().to_string()
+                } else {
+                    String::new()
+                },
             });
         }
     }
