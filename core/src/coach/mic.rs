@@ -5,6 +5,7 @@ use super::{round1, CoachTarget, CoachTaskKind, CoachUpdate, Hint, HintKind, Pha
 use crate::audio::analyze::AudioMetrics;
 use crate::audio::dsp::{Biquad, db_pow, median, percentile};
 use crate::audio::findings::{Capsule, MicContext};
+use crate::SetupProfile;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 
@@ -66,6 +67,8 @@ pub struct LiveMicCoach {
     speech_rms: f64,
     goal: DistanceGoal,
     distance_text: String,
+    /// QuietRoom passes at or under this floor (the profile's noise "met" bar).
+    quiet_target_dbfs: f64,
     // gain
     epoch_t: f64,
     at_limit_up: Option<bool>,
@@ -88,13 +91,15 @@ impl LiveMicCoach {
     /// `report` is the last mic scan (for the speech level, distance goal…).
     pub fn new(task: CoachTaskKind, sample_rate: u32, ctx: &MicContext, report: Option<&AudioMetrics>) -> Self {
         let sr = sample_rate.max(8000);
+        let room_flag = ctx.profile.targets().room_decay.flag;
         let goal = match report {
-            Some(m) if m.reverb_decay_s.is_some_and(|r| r > 0.45) || m.speech_peak_dbfs < -22.0 => DistanceGoal::Closer,
+            Some(m) if m.reverb_decay_s.is_some_and(|r| r > room_flag) || m.speech_peak_dbfs < -22.0 => DistanceGoal::Closer,
             Some(m) if m.tone.boom_db > 5.0 || m.plosive_events > 3 => DistanceGoal::Farther,
             Some(_) => DistanceGoal::Confirm,
             None => DistanceGoal::Closer,
         };
         let distance_text = match (ctx.distance_cm, ctx.capsule) {
+            _ if ctx.profile != SetupProfile::Streaming => ctx.profile.distance_text(ctx),
             (Some((a, b)), _) => format!("{a:.0}–{b:.0} cm"),
             (None, Some(Capsule::Dynamic)) => "about a fist away (3–10 cm)".into(),
             (None, Some(_)) => "about a hand-span away (10–20 cm)".into(),
@@ -125,6 +130,7 @@ impl LiveMicCoach {
             speech_rms: report.map(|m| m.speech_rms_dbfs).filter(|v| v.is_finite() && *v > -90.0).unwrap_or(-28.0),
             goal,
             distance_text,
+            quiet_target_dbfs: ctx.profile.targets().noise_floor.met,
             epoch_t: 0.0,
             at_limit_up: None,
             base_talk: Vec::new(),
@@ -594,7 +600,7 @@ impl LiveMicCoach {
     }
 
     fn eval_quiet(&mut self, t: f64) -> CoachUpdate {
-        let target = CoachTarget::new(-120.0, -60.0, "dBFS");
+        let target = CoachTarget::new(-120.0, self.quiet_target_dbfs, "dBFS");
         let talking_recent = self.recent(0.6, 0.0).any(|f| f.talking);
         let quiet: Vec<Fr> = self.recent(1.5, 0.0).filter(|f| !f.talking).copied().collect();
         if talking_recent || (quiet.len() as f64) * FRAME_S < 0.5 {
@@ -613,7 +619,7 @@ impl LiveMicCoach {
         let hi = median(&quiet.iter().map(|f| f.hi).collect::<Vec<_>>());
         let rumble = lf > hi + 10.0;
         let in_zone = floor <= target.max;
-        let raw = 0.78 * ((-40.0 - floor) / 20.0).clamp(0.0, 1.0);
+        let raw = 0.78 * ((target.max + 20.0 - floor) / 20.0).clamp(0.0, 1.0);
         let step = self.tracker.measure(t, in_zone, raw);
         let (headline, detail, hint) = if step.phase == Phase::Done {
             ("Nice and quiet!".into(), "Your room noise is low enough that it won't distract viewers.".into(), Hint::new(HintKind::Stop, 0.0, "Done"))

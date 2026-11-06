@@ -13,8 +13,10 @@ pub mod finding;
 pub mod health;
 pub mod profiles;
 pub mod score;
+pub mod setup_profile;
 pub mod system;
 pub mod video;
 
 pub use constraints::Constraint;
 pub use finding::{Area, Finding, FixKind, Severity};
+pub use setup_profile::SetupProfile;

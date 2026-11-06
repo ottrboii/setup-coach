@@ -102,10 +102,14 @@ pub struct MicReport {
     pub chain: ProcessingChain,
     pub score: crate::score::Score,
     pub targets: Vec<targets::TargetCheck>,
+    /// The setup profile the pass bars came from (`MicContext::profile`).
+    #[serde(default)]
+    pub profile: crate::SetupProfile,
 }
 
 /// One call for the app: analyse → findings (with constraints applied) →
-/// processing chain → score → target checks.
+/// processing chain → score → target checks. The pass bars follow
+/// `ctx.profile`; the chain does not depend on the profile.
 pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint]) -> MicReport {
     let metrics = analyze(test);
     let mut findings = mic_findings(&metrics, ctx);
@@ -116,6 +120,6 @@ pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint])
         process::calibrate_makeup(test, &mut chain);
     }
     let score = crate::score::score_area(crate::Area::Mic, &findings);
-    let targets = targets::check_targets(&metrics);
-    MicReport { metrics, findings, chain, score, targets }
+    let targets = targets::check_targets_for(&metrics, ctx.profile);
+    MicReport { metrics, findings, chain, score, targets, profile: ctx.profile }
 }

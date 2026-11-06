@@ -249,6 +249,79 @@ SavedProfile = { name: string, saved_at: string, mic_chain: ProcessingChain | nu
 ```
 Stored in `%APPDATA%\SetupCoach\setup.json`. `save_setup` keeps `mic_behind`. A `setup.json` that only holds mic answers has `name: ""`, `saved_at: ""` and is not reported as `saved_profile`.
 
+## Setup profiles (added 2026-11-06: core done, backend + UI not built yet)
+
+The user picks what this session is for, once, at the start: **Streaming**, **Recording / voiceover** or
+**Call / meeting**. A profile moves the **pass bars** (when a target is met / close, when a finding fires
+and how bad it is) and the **physical guidance** (where to put the mic). It never changes the audio: the
+processing chain is computed the same way for every profile. "I can't do this" (`Constraint`) works the
+same in every profile. Streaming is the default and is exactly the behaviour before profiles.
+
+Core (`coach_core::setup_profile`, re-exported as `coach_core::SetupProfile`):
+```ts
+SetupProfile = "streaming" | "voiceover" | "call"
+SetupProfileInfo = {                       // core: SetupProfile::info(&MicContext) -> ProfileInfo
+  id: SetupProfile, label: string,         // "Recording / voiceover"
+  summary: string,                         // one plain sentence for the picker
+  placement: string,                       // where to put this mic, plain words (distance step / report)
+  room_advice: string,                     // plain words about room and noise
+  distance_cm: [number, number] | null,    // Advanced only
+  targets: ProfileTargets }                // Advanced only
+ProfileTargets = { speech_peak: [lo, hi], speech_peak_close: [lo, hi],
+                   loud_peak: MaxBar, noise_floor: MaxBar, snr: MinBar, room_decay: MaxBar }
+MaxBar = { met: number, close: number, flag: number, major: number }   // lower is better; finding above `flag`
+MinBar = { met: number, close: number, major: number }                 // higher is better; finding under `close`
+```
+- `MicContext` gained `profile: SetupProfile` (`#[serde(default)]`: old saved contexts load as streaming).
+  `finish_mic_test`, `rescan_mic`, `record_final` and the live coach read it from the context they are
+  given; no new arguments. The live coach uses it for the QuietRoom target, the distance words and
+  when to ask the user to come closer.
+- `MicReport` gained `profile` (the bars its `targets` and findings used; `#[serde(default)]`).
+  `TargetCheck` ids and labels are the same in every profile; only `target` text and `status` move.
+- One new finding title: `mic.roomy` in voiceover with mild echo reads "Your room is a little echoey for
+  a voiceover" (Minor). The id is unchanged.
+
+Pass bars (evidence in `core/src/setup_profile.rs`, `cargo run --release --example profile_sweep`):
+
+| | Streaming | Voiceover | Call |
+|---|---|---|---|
+| Talking peaks / loudest | −18…−12 / ≤ −6 dBFS | same | same |
+| Noise floor met / finding / major | ≤ −60 / > −50 / > −45 | ≤ −60 / > −55 / > −50 | ≤ −50 / > −45 / > −40 |
+| Voice above noise met / finding / major | ≥ 50 / < 40 / < 30 dB | ≥ 50 / < 45 / < 40 | ≥ 25 / < 20 / < 15 |
+| Room echo met / finding / major | ≤ 0.35 / > 0.45 / > 0.7 s | ≤ 0.27 / > 0.35 / > 0.5 | ≤ 0.5 / > 0.65 / > 0.75 |
+| Mic distance | profile range, out of the camera's view | closer half of the range, pop filter | profile range; headset 1–3 cm |
+
+Backend + UI (to build in the next piece; names are the proposal, coordinator approves):
+
+| Command | Args | Returns |
+|---|---|---|
+| `list_setup_profiles` | `{ deviceId: string }` | `SetupProfileInfo[]` – all three, `placement` worded for that device's mic |
+| `get_setup_profile` | – | `SetupProfile` – the session's profile (last used, default `streaming`) |
+| `set_setup_profile` | `{ profile: SetupProfile }` | `SetupProfileSwitch` |
+
+```ts
+SetupProfileSwitch = { profile: SetupProfile,
+                       applied: ApplyResult | null,     // the stored setup for (profile, current mic), re-applied
+                       needs_scan: boolean }            // true when nothing is stored yet for this pair
+StoredMicSetup = { profile: SetupProfile, device_id: string, saved_at: string,
+                   mic_chain: ProcessingChain, obs_input: string | null,
+                   constraints: Constraint[],           // "I can't do this" answers belong to this profile only
+                   score: number, targets: TargetCheck[] }   // for the switcher card and Advanced
+```
+- `mic_context` stamps the session profile into the `MicContext` it returns. The UI never edits
+  `context.profile` itself; it calls `set_setup_profile` and then `mic_context` again.
+- Storage: `setup.json` gains `active_profile: SetupProfile` and
+  `mic_setups: { [profile: string]: { [deviceId: string]: StoredMicSetup } }` (both `#[serde(default)]`).
+  A finished mic flow (after `apply_mic_chain` + verify) stores its setup under the active profile and
+  that device. A `setup.json` without these fields means streaming, and its existing `mic_chain` is
+  read as the streaming setup for the device it was made with.
+- Switching profiles with a stored setup re-applies its chain through the settings vault like any
+  other write (backup first, label "Before switching to Recording / voiceover", item kind `obs_filters`),
+  so "go back" works. Hardware gain and mic position are not stored as settings: after a switch the UI
+  shows `placement` and offers a short re-check (SetGain, FindDistance) instead of claiming it is done.
+- `reapply_saved_setup` (startup, re-plug) applies the active profile's setup for that device.
+- Plain language in the picker and coaching; `targets`, `distance_cm` and dB numbers only in Advanced.
+
 ## Live coaching (added 2026-11-02)
 
 Coaching is a live loop: the user changes something physical (or in another
