@@ -35,6 +35,7 @@ export async function render(root, { go, refreshNav }) {
     page.append(loading('Building your coaching plan…'));
     try {
       c.steps = await api.coachPlan(c.area);
+      if (c.only) c.steps = c.steps.filter((s) => c.only.includes(s.task)); // quick re-check after a profile switch
       c.index = 0;
       c.status = {};
     } catch (e) {
@@ -353,6 +354,13 @@ export async function render(root, { go, refreshNav }) {
   async function finish() {
     await stopLive();
     if (destroyed) return;
+    if (c.backTo) {
+      const back = c.backTo;
+      const n = c.steps.length;
+      state.coach = null;
+      toast(n ? 'Level and distance checked' : 'Nothing to adjust', n ? 'Your mic is set for this profile.' : 'Your level and distance already fit this profile.', 'good');
+      return go(back);
+    }
     if (c.returnTo) {
       const fixedIt = c.steps.every((s) => c.status[s.id] === 'done');
       return fixedIt ? leaveToStart(true) : leaveToStart(false);

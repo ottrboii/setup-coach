@@ -107,5 +107,8 @@ export const api = {
   coachPlan: (area) => call('coach_plan', { area }),
   startCoach: (step) => call('start_coach', { step }),
   stopCoach: () => call('stop_coach'),
+  listSetupProfiles: (deviceId) => call('list_setup_profiles', { deviceId }),
+  getSetupProfile: () => call('get_setup_profile'),
+  setSetupProfile: (profile) => call('set_setup_profile', { profile }),
   openForUser: (target) => call('open_for_user', { target }),
 };

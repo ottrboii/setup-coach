@@ -560,3 +560,12 @@ body.mini .coach-stepper { display: none; }
 .q-help summary { cursor: pointer; color: var(--accent); font-weight: 600; min-height: 32px; display: flex; align-items: center; }
 .q-help-pos { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 .q-help-link { color: var(--accent); }
+
+/* Setup profile picker */
+.profile-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.profile-opt { display: flex; flex-direction: column; gap: 4px; text-align: left; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 12px; padding: 14px; cursor: pointer; font: inherit; min-height: 56px; }
+.profile-opt:hover { border-color: var(--accent); }
+.profile-opt.selected { border-color: var(--accent); background: rgba(124, 140, 255, 0.14); }
+.profile-opt .muted { font-size: 14px; font-weight: 400; }
+.profile-place { border-left: 3px solid var(--accent); padding-left: 12px; }
+@media (max-width: 480px) { .profile-options { grid-template-columns: 1fr; } }
