@@ -231,6 +231,21 @@ pub async fn save_setup(app: S<'_>, name: String) -> R<SavedProfile> {
 }
 
 #[tauri::command]
+pub async fn list_setup_profiles(app: S<'_>, device_id: String) -> R<Vec<coach_core::setup_profile::ProfileInfo>> {
+    app.list_setup_profiles(&device_id)
+}
+
+#[tauri::command]
+pub async fn get_setup_profile(app: S<'_>) -> R<coach_core::SetupProfile> {
+    Ok(app.active_profile())
+}
+
+#[tauri::command]
+pub async fn set_setup_profile(app: S<'_>, profile: coach_core::SetupProfile) -> R<SetupProfileSwitch> {
+    app.set_setup_profile(profile).await
+}
+
+#[tauri::command]
 pub async fn reapply_saved_setup(app: S<'_>) -> R<ApplyResult> {
     Ok(app.reapply_saved_setup().await)
 }

@@ -29,6 +29,7 @@ mod drift_ops;
 pub use drift_ops::{DriftPoint, DriftReport, DriftStatus, DriftVerdictView};
 mod coaching;
 mod micchoice;
+mod setup_profiles;
 mod vault_ops;
 pub use ab::{match_gains, read_clip, slug, TakeMeta};
 pub use coaching::{NoWindow, RecordingWindow, WindowControl};
@@ -729,6 +730,7 @@ impl AppCore {
         if answers.onboard_auto_level.is_some() {
             ctx.onboard_auto_level = answers.onboard_auto_level;
         }
+        ctx.profile = self.active_profile();
         Ok(ctx)
     }
 
@@ -847,6 +849,13 @@ impl AppCore {
     }
 
     pub async fn apply_mic_chain(&self, chain: ProcessingChain, obs_input: &str) -> ApplyResult {
+        self.apply_mic_chain_labeled(chain, obs_input, None).await
+    }
+
+    /// `apply_mic_chain`; with a backup `label` it is a re-apply of an already
+    /// stored setup (profile switch) and does not store anything new.
+    pub(crate) async fn apply_mic_chain_labeled(&self, chain: ProcessingChain, obs_input: &str, label: Option<String>) -> ApplyResult {
+        let is_switch = label.is_some();
         let mut res = ApplyResult::default();
         let obs_input = self.resolve_obs_input(obs_input).await;
         let obs_input = obs_input.as_str();
@@ -856,7 +865,8 @@ impl AppCore {
         }
         let device = self.inner.lock().unwrap().last_device.clone();
         let mic = device.as_deref().and_then(|d| self.device_name(d)).map(|n| plain_device_name(&n)).unwrap_or_else(|| "mic".into());
-        if let Err(e) = self.backup_before(&format!("Before setting up your {mic}"), &targets).await {
+        let label = label.clone().unwrap_or_else(|| format!("Before setting up your {mic}"));
+        if let Err(e) = self.backup_before(&label, &targets).await {
             res.fail("backup", e);
             return res;
         }
@@ -889,9 +899,14 @@ impl AppCore {
             }
             None => res.fail("obs", "Connect to OBS to apply the settings there. Your settings are saved."),
         }
-        let mut inner = self.inner.lock().unwrap();
-        inner.applied_chain = Some(chain);
-        inner.applied_input = Some(obs_input.to_string());
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.applied_chain = Some(chain.clone());
+            inner.applied_input = Some(obs_input.to_string());
+        }
+        if !is_switch {
+            self.remember_mic_setup(&chain, obs_input);
+        }
         res
     }
 
@@ -921,6 +936,7 @@ impl AppCore {
         let constraints = inner.last_constraints.clone();
         drop(inner);
         let after = audio::scan(&process::render_test(&test, &chain), &ctx, &constraints);
+        self.update_stored_result(&after);
         Ok(VerifyResult { before, after })
     }
 
@@ -1246,13 +1262,17 @@ impl AppCore {
 
     pub fn save_setup(&self, name: &str) -> R<SavedProfile> {
         // Keep the answers to "What mic is plugged into this?".
-        let existing_choices = self.load_setup().map(|p| p.mic_behind).unwrap_or_default();
+        let existing = self.load_setup();
+        let (existing_choices, active_profile, mic_setups) =
+            existing.map(|p| (p.mic_behind, p.active_profile, p.mic_setups)).unwrap_or_default();
         let inner = self.inner.lock().unwrap();
         let p = SavedProfile {
             name: if name.trim().is_empty() { "My setup".into() } else { name.trim().to_string() },
             saved_at: crate::paths::now_iso(),
             mic_chain: inner.applied_chain.clone(),
             mic_behind: existing_choices,
+            active_profile,
+            mic_setups,
             camera_settings: inner.applied_camera.as_ref().map(|c| c.1.clone()),
             camera_id: inner.applied_camera.as_ref().map(|c| c.0.clone()),
             obs_input: inner.applied_input.clone(),
@@ -1279,8 +1299,16 @@ impl AppCore {
                 res.failed.extend(r.failed);
             }
         }
-        if let Some(chain) = &p.mic_chain {
-            match &p.obs_input {
+        // The active profile's stored setup for this mic wins; an old setup.json
+        // (no stored setups) is the streaming setup.
+        let stored = self.coach_mic_device().and_then(|d| p.mic_setups.get(p.active_profile.id()).and_then(|m| m.get(&d)).cloned());
+        let (mic_chain, obs_input) = match stored {
+            Some(s) => (Some(s.mic_chain), s.obs_input),
+            None if p.active_profile == coach_core::SetupProfile::Streaming => (p.mic_chain.clone(), p.obs_input.clone()),
+            None => (None, None),
+        };
+        if let Some(chain) = &mic_chain {
+            match &obs_input {
                 Some(input) if self.obs().await.is_some() => {
                     let r = self.apply_mic_chain(chain.clone(), input).await;
                     res.applied.extend(r.applied);

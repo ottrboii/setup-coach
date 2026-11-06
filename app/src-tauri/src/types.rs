@@ -137,6 +137,36 @@ pub struct SavedProfile {
     /// Which physical mic is behind which device (key = device id). Added 2026-11-05.
     #[serde(default)]
     pub mic_behind: std::collections::BTreeMap<String, MicBehind>,
+    /// What the session is set up for (streaming, voiceover, call). Added 2026-11-06.
+    #[serde(default)]
+    pub active_profile: coach_core::SetupProfile,
+    /// One stored mic setup per profile (key = `streaming`|`voiceover`|`call`) per device id.
+    #[serde(default)]
+    pub mic_setups: std::collections::BTreeMap<String, std::collections::BTreeMap<String, StoredMicSetup>>,
+}
+
+/// The mic setup a finished flow left for one (profile, device). Switching profiles re-applies it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StoredMicSetup {
+    pub profile: coach_core::SetupProfile,
+    pub device_id: String,
+    pub saved_at: String,
+    pub mic_chain: coach_core::audio::ProcessingChain,
+    pub obs_input: Option<String>,
+    /// "I can't do this" answers belong to this profile only.
+    #[serde(default)]
+    pub constraints: Vec<coach_core::Constraint>,
+    pub score: u8,
+    pub targets: Vec<coach_core::audio::targets::TargetCheck>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetupProfileSwitch {
+    pub profile: coach_core::SetupProfile,
+    /// The stored setup for (profile, current mic), re-applied.
+    pub applied: Option<ApplyResult>,
+    /// True when nothing is stored yet for this pair.
+    pub needs_scan: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
