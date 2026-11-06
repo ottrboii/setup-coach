@@ -35,6 +35,25 @@ const MIC_OPTIONS = [
 }));
 // What the user said is behind each device id (the backend keeps this in setup.json).
 const micChoices = {};
+
+// Setup profiles (API.md "Setup profiles"): placement worded per profile, stored setups per (profile, device).
+const PROFILE_INFO = {
+  streaming: { id: 'streaming', label: 'Streaming', summary: 'You talk for a long time and chat hears you live. Mic stays out of the camera view.',
+    placement: 'Put the mic about a fist to two fists from your mouth, just out of the camera view, pointing at your mouth.',
+    room_advice: 'Some room echo and a quiet fan are fine; we can tidy most of it up.', distance_cm: [5, 15],
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -55, flag: -50, major: -45 }, snr: { met: 50, close: 45, major: 30 }, room_decay: { met: 0.35, close: 0.4, flag: 0.45, major: 0.7 } } },
+  voiceover: { id: 'voiceover', label: 'Recording / voiceover', summary: 'You record narration or voiceover and want it as clean and close as possible.',
+    placement: 'Move the mic closer, about one fist from your mouth, with a pop filter between you and it. Your face can be in the middle of the mic.',
+    room_advice: 'A quiet, soft room matters most here: close doors, add blankets or cushions near you.', distance_cm: [5, 10],
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -57, flag: -55, major: -50 }, snr: { met: 50, close: 47, major: 40 }, room_decay: { met: 0.27, close: 0.31, flag: 0.35, major: 0.5 } } },
+  call: { id: 'call', label: 'Call / meeting', summary: 'You talk with other people. Clear and easy matters more than studio quality.',
+    placement: 'Anywhere comfortable in front of you works. Keep the mic where it is and about a hand from your mouth; a headset sits 1 to 3 cm from the corner of your mouth.',
+    room_advice: 'A bit of background noise is fine on a call. Just avoid sitting next to a loud fan.', distance_cm: [3, 20],
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -50, close: -47, flag: -45, major: -40 }, snr: { met: 25, close: 22, major: 15 }, room_decay: { met: 0.5, close: 0.58, flag: 0.65, major: 0.75 } } },
+};
+let activeProfile = 'streaming';
+let lastMicDevice = null;
+const storedSetups = {}; // `${profile}|${deviceId}` -> true once a mic flow finished under that profile
 const MIC_FACTS = { ev_re20: { gain_needed_db: 55, distance_cm: [3, 15], address: 'end' }, shure_sm7b: { gain_needed_db: 60, distance_cm: [3, 10], address: 'end' } };
 
 const ENVIRONMENT = {
@@ -532,14 +551,24 @@ export function createMock() {
       }
       return { applied: actionIds.filter((a) => !failed.find((f) => f.id === a)), failed, restart_obs_needed: actionIds.includes('a1') };
     },
+    async list_setup_profiles() { await wait(120); return ['streaming', 'voiceover', 'call'].map((k) => PROFILE_INFO[k]); },
+    async get_setup_profile() { return activeProfile; },
+    async set_setup_profile({ profile }) {
+      if (!PROFILE_INFO[profile]) throw new Error('That setup type does not exist.');
+      await wait(500);
+      activeProfile = profile;
+      const has = !!storedSetups[`${profile}|${lastMicDevice}`];
+      return { profile, applied: has ? { applied: ['obs_filters'], failed: [], restart_obs_needed: false } : null, needs_scan: !has };
+    },
     async mic_context({ deviceId, answers }) {
       await wait(200);
+      lastMicDevice = deviceId;
       // The named mic (picker) drives the context, like the real backend; a question answer wins.
       const picked = micChoices[deviceId]?.status === 'chosen' ? micChoices[deviceId] : null;
       const sm7 = answers && answers.mic_model_id === 'Shure SM7B';
       const name = sm7 ? 'Shure SM7B' : picked ? picked.display_name : null;
       const facts = (sm7 && MIC_FACTS.shure_sm7b) || (picked && MIC_FACTS[picked.profile_id]) || null;
-      return { mic_name: name, capsule: 'dynamic', address: facts?.address || 'end', connection: 'xlr', gain_needed_db: facts ? facts.gain_needed_db : null,
+      return { profile: activeProfile, mic_name: name, capsule: 'dynamic', address: facts?.address || 'end', connection: 'xlr', gain_needed_db: facts ? facts.gain_needed_db : null,
         interface_max_gain_db: 56, booster_db: answers && answers.booster ? 25 : null, gain_at_max: answers ? answers.gain_at_max ?? null : null,
         onboard_auto_level: null, distance_cm: facts ? facts.distance_cm : [3, 10] };
     },
@@ -547,7 +576,7 @@ export function createMock() {
     async mark_step({ kind, edge }) { micStep = edge === 'start' ? kind : null; return null; },
     async finish_mic_test({ constraints: cs }) { clearInterval(micTimer); constraints = cs || []; await wait(1600); return micReport(constraints, coached.mic); },
     async rescan_mic({ constraints: cs }) { constraints = cs || []; await wait(700); return micReport(constraints); },
-    async apply_mic_chain() { await wait(1100); return { applied: ['vst3_config', 'obs_filters'], failed: [], restart_obs_needed: false }; },
+    async apply_mic_chain() { storedSetups[`${activeProfile}|${lastMicDevice}`] = true; await wait(1100); return { applied: ['vst3_config', 'obs_filters'], failed: [], restart_obs_needed: false }; },
     async verify_mic() { await wait(1400); return { before: micReport(constraints), after: micReport(constraints, true) }; },
     async play_preview() { await wait(100); return null; },
     async stop_preview() { return null; },

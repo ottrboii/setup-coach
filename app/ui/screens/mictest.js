@@ -3,6 +3,7 @@ import { api, on } from '../api.js';
 import { esc, html, icons, errorBanner } from '../components.js';
 import { state, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
+import { profileCard } from '../profilepicker.js';
 
 export const SCRIPT = `Hey chat! <mark>P</mark>eter <mark>p</mark>icked a <mark>b</mark>ig <mark>b</mark>ag of <mark>p</mark>opcorn for the <mark>s</mark>tream.
 <mark>S</mark>he <mark>s</mark>ays <mark>s</mark>ix <mark>s</mark>illy <mark>s</mark>nakes <mark>s</mark>neaked past the <mark>b</mark>oss.
@@ -54,6 +55,7 @@ export async function render(root, { go }) {
       <div class="row"><button class="btn primary lg" id="start" ${mic ? '' : 'disabled'}>Start the test</button></div>
     </div>`);
   body.append(intro);
+  if (mic) intro.before(profileCard(mic, { mode: 'start', go }));
   const startBtn = intro.querySelector('#start');
   const slot = intro.querySelector('#choice-slot');
   // Which mic is it? Shown as 'Your mic: ... · Change'; asked first when we can't tell.

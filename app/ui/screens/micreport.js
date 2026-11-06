@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { esc, html, scoreRing, scoreWord, findingCard, upgradeCard, toast, advanced, kvTable, fmt } from '../components.js';
 import { state, MIC_CONSTRAINT, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
+import { profileCard, profileLine } from '../profilepicker.js';
 import { cleanAnswers } from './mictest.js';
 
 const STATUS = { met: ['ok', 'On target'], close: ['major', 'Close'], missed: ['critical', 'Off target'], not_measured: ['', 'Not measured'] };
@@ -33,6 +34,7 @@ export async function render(root, { go }) {
           <div class="stack" style="gap:8px;flex:1;min-width:260px">
             <span class="eyebrow">Your mic report</span>
             <div id="miclinebox"></div>
+            <div id="profilelinebox"></div>
             <div class="row" style="gap:10px"><h1>${esc(scoreWord(r.score.value))}</h1>${delta(state.scoreBefore?.mic, r.score.value)}</div>
             <p class="muted">${open.length
               ? `${open.length} thing${open.length === 1 ? '' : 's'} holding you back. ${physical.length ? `Start with the quick tweaks below — they matter more than any setting.` : 'All of them are settings we can apply for you.'}`
@@ -45,7 +47,14 @@ export async function render(root, { go }) {
     const slot = html('<div id="choice-slot"></div>');
     // Changing the mic re-checks the same recording against the new mic; no retest needed.
     head.querySelector('#miclinebox').append(yourMicLine(mic, () => openMicChoice(slot, mic, { onDone: () => reanalyse() })));
+    head.querySelector('#profilelinebox').append(profileLine(() => {
+      const box = page.querySelector('#profile-slot');
+      if (box.firstChild) { box.innerHTML = ''; return; }
+      box.append(profileCard(mic, { mode: 'switch', go }));
+      box.scrollIntoView({ block: 'nearest' });
+    }));
     page.append(head);
+    page.append(html('<div id="profile-slot"></div>'));
     page.append(slot);
 
     if (open.length) {
