@@ -308,7 +308,7 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
                 Severity::Major,
                 "Background noise is almost as loud as your quiet voice",
                 "Your quiet speech is only a few dB above the room noise, so no gate or expander can remove the noise without cutting words.",
-                "Move the mic closer to your mouth and away from the noise (PC fan, keyboard), then lower the gain.",
+                "Move the mic closer to your mouth and away from the noise (PC fan, keyboard). Distance is what lifts your voice above the noise.",
                 FixKind::Manual,
             )
             .with_evidence("noise_floor_dbfs", floor.unwrap_or_default() as f64)

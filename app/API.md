@@ -269,7 +269,14 @@ SetupProfileInfo = {                       // core: SetupProfile::info(&MicConte
   placement: string,                       // where to put this mic, plain words (distance step / report)
   room_advice: string,                     // plain words about room and noise
   distance_cm: [number, number] | null,    // Advanced only
-  targets: ProfileTargets }                // Advanced only
+  targets: ProfileTargets,                 // Advanced only
+  irrelevant: IrrelevantFindings }         // additive; absent = hide nothing
+IrrelevantFindings = { areas: Area[],      // every finding in these areas is hidden ("camera", "stream") ...
+                       keep: string[],     // ... except these ids
+                       ids: string[] }     // single ids hidden whatever their area (e.g. "mic.keyboard")
+// The backend already applies it: the mic report (core `audio::scan`) and the quick scan
+// (`run_quick_checks`) never contain these findings, and hidden ones cost no score or fix.
+// The UI uses it to hide screens/tabs that only produce hidden findings (voiceover: camera, stream health).
 ProfileTargets = { speech_peak: [lo, hi], speech_peak_close: [lo, hi],
                    loud_peak: MaxBar, noise_floor: MaxBar, snr: MinBar, room_decay: MaxBar }
 MaxBar = { met: number, close: number, flag: number, major: number }   // lower is better; finding above `flag`
@@ -279,6 +286,13 @@ MinBar = { met: number, close: number, major: number }                 // higher
   `finish_mic_test`, `rescan_mic`, `record_final` and the live coach read it from the context they are
   given; no new arguments. The live coach uses it for the QuietRoom target, the distance words and
   when to ask the user to come closer.
+- `MicContext` gained `gain: "unknown" | "knob" | "software" | "none"` and `gain_where: string | null`
+  (both `#[serde(default)]`; filled by the backend from the device profile, interface and GoXLR Utility).
+  They decide whether advice may say "turn your gain down" (see `GainAccess` in core).
+  `ProcessingChain.input_gain_db` can now be negative: for a mic with `gain: "none"` the level
+  cut/boost goes into the software gain stage and `hardware_gain_change_db` is 0.
+- `UsbLink` hub findings: `connection.behind_hub` is `info` for a self-powered hub with no dropouts and
+  full speed (camera only), `minor` with dropouts or a slow link, `major` for a bus-powered hub.
 - `MicReport` gained `profile` (the bars its `targets` and findings used; `#[serde(default)]`).
   `TargetCheck` ids and labels are the same in every profile; only `target` text and `status` move.
 - One new finding title: `mic.roomy` in voiceover with mild echo reads "Your room is a little echoey for

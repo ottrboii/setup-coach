@@ -7,7 +7,7 @@ use crate::platform::{Platform, StreamHandle};
 use crate::types::*;
 use coach_core::audio::{
     self,
-    findings::{Address as MAddr, Capsule as MCap, Connection as MConn, MicContext},
+    findings::{Address as MAddr, Capsule as MCap, Connection as MConn, GainAccess, GainFacts, InterfaceGain, MicContext},
     process, AudioBuffer, MicReport, MicTest, ProcessingChain, Segment, SegmentKind,
 };
 use coach_core::health::{post_stream_report, HealthMonitor, MonitorConfig, ReportConfig, StatsSample, StreamReport};
@@ -446,6 +446,9 @@ impl AppCore {
                 }
             }
         }
+        // Only what matters for what the user is setting up (voiceover: no
+        // camera or stream items). Before fixes and score so hidden items cost nothing.
+        self.active_profile().filter_findings(&mut findings);
         coach_core::finding::rank(&mut findings);
         let runtime_warnings = snap.connection.as_ref().map(system::runtime_warnings).unwrap_or_default();
         let obs_running = self.platform.system.obs_running();
@@ -790,6 +793,18 @@ impl AppCore {
             ctx.connection = Some(MConn::Bluetooth);
         }
         ctx.interface_max_gain_db = iface.and_then(|i| i.max_gain_db).map(f64::from);
+        // What can lower the level at the source decides how "too loud" is worded.
+        let interface = iface.map(|i| if i.family == "goxlr" { InterfaceGain::VendorApp("the GoXLR app".into()) } else { InterfaceGain::Preamp });
+        let controls = mic.map(|p| p.hardware_controls.as_slice()).unwrap_or(&[]);
+        let (gain, gain_where) = GainAccess::resolve(&GainFacts {
+            connection: ctx.connection,
+            hardware_controls: controls,
+            windows_slider_is_hw_gain: mic.and_then(|p| p.windows_slider_is_hw_gain),
+            profile_verified: mic.is_some_and(|p| p.verified),
+            interface,
+        });
+        ctx.gain = gain;
+        ctx.gain_where = gain_where;
         if answers.booster == Some(true) {
             ctx.booster_db = Some(self.profiles.boosters.first().map(|b| b.gain_db as f64).unwrap_or(25.0));
         }

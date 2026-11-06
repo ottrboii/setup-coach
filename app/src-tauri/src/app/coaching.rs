@@ -179,6 +179,9 @@ impl AppCore {
         if self.is_goxlr_device(device_id) {
             if let Some((_, dev)) = self.goxlr_device().await {
                 ctx.interface_max_gain_db = Some(goxlr::GAIN_RANGE_DB.1);
+                // Utility is running: the app can reach (and move) the GoXLR's gain.
+                ctx.gain = coach_core::audio::findings::GainAccess::Software;
+                ctx.gain_where = Some("GoXLR Utility".into());
                 if answers.gain_at_max.is_none() {
                     ctx.gain_at_max = Some(dev.mic_gain_db >= goxlr::GAIN_RANGE_DB.1 - 2.0);
                 }
@@ -326,7 +329,14 @@ impl AppCore {
         if let Some(f) = has("mic.wrong_side") {
             push(step("talk-into-logo", Some(f), T::TalkIntoLogo, "Talk into the front of the mic", "This mic hears from its side (the logo side), not the top. Turn it while you talk and we'll tell you when it's right.", "logo_side"), &mut out);
         }
-        if let Some(f) = any(&["mic.too_far", "mic.roomy", "mic.thin", "mic.boomy"]) {
+        // No gain to turn: distance is the only level control the user has.
+        let no_gain = ctx.gain == coach_core::audio::findings::GainAccess::None;
+        let distance_ids: &[&str] = if no_gain {
+            &["mic.too_far", "mic.roomy", "mic.thin", "mic.boomy", "mic.too_quiet", "mic.background_noise"]
+        } else {
+            &["mic.too_far", "mic.roomy", "mic.thin", "mic.boomy"]
+        };
+        if let Some(f) = any(distance_ids) {
             let explain = if f == "mic.boomy" {
                 "You're very close, which makes your voice boomy. Back off slowly while you talk — we'll say when it sounds right."
             } else {
@@ -348,6 +358,10 @@ impl AppCore {
                 Some(d) => self.gain_source(d).await.is_some(),
                 None => false,
             };
+            // A mic path with no gain control (and nothing we can move) has
+            // nothing to coach here: the finding says what to do instead and
+            // the chain trims the level in software.
+            let skip = no_gain && !auto;
             let mut s = step(
                 "set-gain",
                 Some(f),
@@ -361,7 +375,9 @@ impl AppCore {
                 "knob",
             );
             s.auto = auto;
-            push(s, &mut out);
+            if !skip {
+                push(s, &mut out);
+            }
         }
         if let Some(f) = any(&["mic.background_noise", "mic.hum"]).filter(|_| !hiss || has("mic.hum").is_some()) {
             push(step("quiet-room", Some(f), T::QuietRoom, "Quiet the background", "Stay silent while we listen to your room. Switch off or turn away from noisy things and watch the number drop.", "noise_null"), &mut out);

@@ -114,6 +114,7 @@ pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint])
     let metrics = analyze(test);
     let mut findings = mic_findings(&metrics, ctx);
     findings::apply_constraints(&mut findings, constraints);
+    ctx.profile.filter_findings(&mut findings);
     crate::finding::rank(&mut findings);
     let mut chain = compute_chain(&metrics, ctx, constraints);
     if !metrics.no_signal {

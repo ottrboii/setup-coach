@@ -1,4 +1,4 @@
-﻿//! Connection health: USB link speed and topology, devices that keep
+//! Connection health: USB link speed and topology, devices that keep
 //! dropping out, and apps that are holding the camera or mic.
 //!
 //! Input is [`ConnectionState`], collected by the Windows app. Everything is
@@ -157,28 +157,7 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
 
         // Behind a hub.
         if l.behind_hub && !card {
-            let hub = l.hub_name.as_deref().unwrap_or("a USB hub");
-            if l.hub_bus_powered {
-                out.push(Finding::new(
-                    ids::CONN_HUB,
-                    if l.role == UsbRole::Camera { Area::Camera } else { Area::Mic },
-                    Severity::Major,
-                    &format!("Your {what} shares power through an unpowered hub"),
-                    &format!("{} is plugged into {hub}, which has no power supply of its own. Cameras and mics cut out or glitch when the hub can't give them enough power.", l.name),
-                    "Plug it straight into a USB port on the back of your PC. If you need a hub, use one with its own power adapter.",
-                    FixKind::Manual,
-                ));
-            } else if l.role == UsbRole::Camera {
-                out.push(Finding::new(
-                    ids::CONN_HUB,
-                    Area::Camera,
-                    Severity::Minor,
-                    "Your camera is plugged in through a hub",
-                    &format!("{} goes through {hub}. Hubs share speed between everything plugged in, which can make video stutter or drop out.", l.name),
-                    "If you see stutter or dropouts, plug the camera straight into a port on the back of your PC.",
-                    FixKind::Manual,
-                ));
-            }
+            out.extend(hub_finding(l, what));
         }
 
         // Dropping out.
@@ -242,6 +221,59 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
     }
 }
 
+/// What a hub between a device and the PC means, judged by evidence.
+///
+/// Windows reports "a non-root hub is in the chain", which is also true for
+/// hubs built into the PC (front-panel ports, the motherboard, a monitor's
+/// USB ports) that the user never plugged anything into. A hub is only called
+/// a likely cause when it can be tied to a problem:
+/// * no power supply of its own: it cannot feed the device (Major);
+/// * the device dropped off in the last 7 days, or runs below the speed it
+///   is capable of (Minor, "may be causing it");
+/// * otherwise it is just a fact worth knowing (Info for cameras, silent for mics).
+fn hub_finding(l: &UsbLink, what: &str) -> Option<Finding> {
+    let hub = l.hub_name.as_deref().unwrap_or("a USB hub");
+    let area = if l.role == UsbRole::Camera { Area::Camera } else { Area::Mic };
+    let below_speed = l.role == UsbRole::Camera && l.superspeed_capable && l.speed != UsbSpeed::Unknown && l.speed < UsbSpeed::Super;
+    let mut f = if l.hub_bus_powered {
+        Finding::new(
+            ids::CONN_HUB,
+            area,
+            Severity::Major,
+            &format!("Your {what} shares power through an unpowered hub"),
+            &format!("{} is plugged into {hub}, which has no power supply of its own. Cameras and mics cut out or glitch when the hub can't give them enough power.", l.name),
+            "Plug it straight into a USB port on the back of your PC. If you need a hub, use one with its own power adapter.",
+            FixKind::Manual,
+        )
+    } else if l.drops_7d >= 1 || below_speed {
+        let problem = if l.drops_7d >= 1 { "Windows has lost and re-found it recently" } else { "it is running slower than it can" };
+        Finding::new(
+            ids::CONN_HUB,
+            area,
+            Severity::Minor,
+            &format!("Your {what} goes through a hub, and it may be causing trouble"),
+            &format!("{} is plugged in through {hub}, and {problem}. A hub shares one connection between everything on it, so it is the first thing to rule out.", l.name),
+            "Plug it straight into a USB port on the back of your PC (not a front port or a monitor's ports) and see if it stops. We'll check again.",
+            FixKind::Manual,
+        )
+    } else if l.role == UsbRole::Camera {
+        Finding::new(
+            ids::CONN_HUB,
+            area,
+            Severity::Info,
+            "A hub sits between your camera and your PC",
+            &format!("{} goes through {hub}. It has its own power and the camera has stayed connected at full speed, so this is probably fine. It is often a hub inside the PC (front ports, motherboard) or monitor rather than one you plugged in.", l.name),
+            "Nothing to do. If you ever see stutter or dropouts, try a USB port on the back of your PC.",
+            FixKind::Manual,
+        )
+    } else {
+        return None;
+    };
+    f.evidence.insert("hub_bus_powered".into(), if l.hub_bus_powered { 1.0 } else { 0.0 });
+    f.evidence.insert("drops_7d".into(), f64::from(l.drops_7d));
+    Some(f)
+}
+
 /// Capture card (Cam Link, HD60, HDMI dongle) USB path: fast port, no hub,
 /// not sharing a controller with another camera. Physical fixes only; the
 /// next scan clears the finding once the card runs on a better path.
@@ -263,15 +295,31 @@ fn capture_card_checks(c: &ConnectionState, out: &mut Vec<Finding>) {
         }
         if l.behind_hub {
             let hub = l.hub_name.as_deref().unwrap_or("a USB hub");
-            let mut f = Finding::new(
-                ids::CONN_CAPTURE_HUB,
-                Area::Camera,
-                Severity::Major,
-                &format!("Your {} is plugged in through a hub", l.name),
-                &format!("{hub} splits one connection between everything plugged into it, and a capture card needs nearly all of it. Expect dropped frames, freezes or a black picture."),
-                "Plug the capture card straight into a USB 3 port on the back of your PC. If it must go through a hub, it needs a powered USB 3 hub with nothing else heavy on it. We'll check again as soon as you move it.",
-                FixKind::Guided,
-            );
+            // A card needs most of a connection, so a hub stays a Minor heads-up
+            // even when all is well; Major once it has a bus-powered hub or the
+            // card has dropped off / runs slow (same evidence rule as `hub_finding`).
+            let trouble = l.hub_bus_powered || l.drops_7d >= 1 || (needs_usb3(l) && l.speed != UsbSpeed::Unknown && l.speed < UsbSpeed::Super);
+            let mut f = if trouble {
+                Finding::new(
+                    ids::CONN_CAPTURE_HUB,
+                    Area::Camera,
+                    Severity::Major,
+                    &format!("Your {} is plugged in through a hub", l.name),
+                    &format!("{hub} splits one connection between everything plugged into it, and a capture card needs nearly all of it. Expect dropped frames, freezes or a black picture."),
+                    "Plug the capture card straight into a USB 3 port on the back of your PC. If it must go through a hub, it needs a powered USB 3 hub with nothing else heavy on it. We'll check again as soon as you move it.",
+                    FixKind::Guided,
+                )
+            } else {
+                Finding::new(
+                    ids::CONN_CAPTURE_HUB,
+                    Area::Camera,
+                    Severity::Minor,
+                    &format!("A hub sits between your {} and your PC", l.name),
+                    &format!("{} goes through {hub}. It has its own power and the card is running at full speed with no dropouts, so it may be fine. A capture card needs most of a connection, so it is worth knowing; it is often a hub inside the PC (front ports, motherboard) or monitor.", l.name),
+                    "If you see dropped frames or a black picture, plug the card straight into a USB 3 port on the back of your PC and we'll check again.",
+                    FixKind::Guided,
+                )
+            };
             f.can_decline = true;
             f.evidence.insert("hub_bus_powered".into(), if l.hub_bus_powered { 1.0 } else { 0.0 });
             out.push(f);
@@ -460,10 +508,35 @@ mod tests {
         assert!(f.iter().any(|f| f.id == ids::CONN_HUB && f.severity == Severity::Major && f.area == Area::Mic));
         mic.hub_bus_powered = false;
         assert!(ids_of(&snap(vec![mic], vec![])).is_empty());
+    }
+
+    /// Otto's C922: a self-powered "Generic USB Hub" in the chain (inside the
+    /// PC or a monitor), full speed, no drops. It must not be blamed for stutter.
+    #[test]
+    fn self_powered_hub_with_no_trouble_is_info_not_a_cause() {
         let mut c = cam("C922", UsbSpeed::High, false);
         c.behind_hub = true;
-        let f = audit(&snap(vec![c], vec![]), &[]);
-        assert!(f.iter().any(|f| f.id == ids::CONN_HUB && f.severity == Severity::Minor));
+        c.hub_name = Some("Generic USB Hub".into());
+        let f = audit(&snap(vec![c.clone()], vec![]), &[]);
+        let h = f.iter().find(|f| f.id == ids::CONN_HUB).expect("hub is mentioned");
+        assert_eq!(h.severity, Severity::Info);
+        assert!(h.why.contains("Generic USB Hub") && h.why.contains("probably fine"));
+        assert!(!h.why.contains("stutter") && !h.title.contains("trouble"));
+        assert!(h.fix.contains("If you ever see"));
+        assert_eq!(crate::score::score_area(Area::Camera, &f).value, 100, "info does not cost score");
+        // Dropouts, a bus-powered hub or a slow link bring the stronger wording back.
+        let mut dropped = c.clone();
+        dropped.drops_7d = 2;
+        let f = audit(&snap(vec![dropped], vec![]), &[]);
+        assert_eq!(f.iter().find(|f| f.id == ids::CONN_HUB).unwrap().severity, Severity::Minor);
+        let mut slow = cam("Brio", UsbSpeed::High, true);
+        slow.behind_hub = true;
+        let f = audit(&snap(vec![slow], vec![]), &[]);
+        assert_eq!(f.iter().find(|f| f.id == ids::CONN_HUB).unwrap().severity, Severity::Minor);
+        let mut bus = c;
+        bus.hub_bus_powered = true;
+        let f = audit(&snap(vec![bus], vec![]), &[]);
+        assert_eq!(f.iter().find(|f| f.id == ids::CONN_HUB).unwrap().severity, Severity::Major);
     }
 
     #[test]
@@ -511,14 +584,26 @@ mod tests {
     }
 
     #[test]
-    fn capture_card_behind_any_hub_is_major() {
+    fn capture_card_behind_a_hub_is_major_only_with_evidence() {
+        // Changed from "any hub is Major": a self-powered hub with the card at
+        // full speed and no dropouts is only a heads-up (Minor); the same
+        // wording as the camera hub finding, see `hub_finding`.
         let mut l = card(UsbSpeed::Super);
         l.behind_hub = true;
         l.hub_name = Some("Generic USB Hub".into());
-        let f = audit(&snap(vec![l], vec![]), &[]);
+        let f = audit(&snap(vec![l.clone()], vec![]), &[]);
         assert_eq!(f.len(), 1);
+        assert_eq!((f[0].id.as_str(), f[0].severity), (ids::CONN_CAPTURE_HUB, Severity::Minor));
+        assert!(f[0].why.contains("Generic USB Hub") && f[0].why.contains("may be fine"));
+        let mut bus = l.clone();
+        bus.hub_bus_powered = true;
+        let f = audit(&snap(vec![bus], vec![]), &[]);
         assert_eq!((f[0].id.as_str(), f[0].severity), (ids::CONN_CAPTURE_HUB, Severity::Major));
         assert!(f[0].why.contains("Generic USB Hub"));
+        let mut dropped = l;
+        dropped.drops_7d = 1;
+        let f = audit(&snap(vec![dropped], vec![]), &[]);
+        assert!(f.iter().any(|f| f.id == ids::CONN_CAPTURE_HUB && f.severity == Severity::Major));
     }
 
     #[test]
