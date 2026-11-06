@@ -116,11 +116,12 @@ function withChoice(dev) {
         options: ['No, it is off (normal sound)', 'Yes, it is on (thinner sound)', "I'm not sure"],
         help: {
           what: 'This switch can thin out the deep bass on purpose, which helps if your voice sounds boomy or muddy.',
-          where: 'A small switch on the body of the mic, marked On and Off. Check it by eye or by feel before you start.',
+          where: 'A small up-and-down slide switch in a dark plate on the side of the mic body, between the ElectroVoice label and the black mount collar. Up (slanted line) is thinner sound; down (flat line) is normal.',
           positions: [
             { label: 'No, it is off (normal sound)', meaning: 'Your natural, full sound. This is the normal setting.' },
             { label: 'Yes, it is on (thinner sound)', meaning: 'Takes some deep bass out, so a boomy voice sounds clearer but thinner.' },
           ],
+          diagram: 're20_bass_tilt',
           manual_url: 'https://products.electrovoice.com/na/en/re20',
         },
       }] : [],

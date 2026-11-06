@@ -2,6 +2,7 @@
 // Deliberately generic (a slider with N stops, knob at one stop). It never shows where the
 // switch sits on a mic body, because that is not sourced. Plain words go in the captions.
 import { esc } from './components.js';
+import { re20Svg } from './re20diagram.js';
 
 /** SVG for a slider with `n` stops and the knob at stop `i` (0-based). */
 export function switchSvg(n, i, label) {
@@ -21,14 +22,16 @@ export function switchSvg(n, i, label) {
 }
 
 /** Row of figures, one per position. Returns an HTML string; each figure has data-label. */
-export function switchDiagramHtml(positions) {
+export function switchDiagramHtml(positions, diagram) {
   const ps = (positions || []).filter((p) => p && p.label);
   if (ps.length < 2 || ps.length > 6) return '';
+  // Model-specific art only where it is sourced; everything else keeps the generic slider.
+  const re20 = diagram === 're20_bass_tilt' && ps.length === 2;
   const figs = ps.map((p, i) => `
     <figure class="sd-fig" data-label="${esc(p.label)}">
-      ${switchSvg(ps.length, i, p.label)}
+      ${re20 ? re20Svg(i) : switchSvg(ps.length, i, p.label)}
       <figcaption><b>${esc(p.label)}</b><span>${esc(p.meaning || '')}</span></figcaption>
     </figure>`).join('');
   return `<div class="sd" role="group" aria-label="The switch in each position">${figs}
-    <p class="subtle sd-note">Simple drawings to help you match what you see. Your switch may look different or slide another way.</p></div>`;
+    <p class="subtle sd-note">Simple drawings to help you match what you see. Your switch may look a little different.</p></div>`;
 }

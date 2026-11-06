@@ -582,3 +582,21 @@ body.mini .coach-stepper { display: none; }
 .profile-opt .muted { font-size: 14px; font-weight: 400; }
 .profile-place { border-left: 3px solid var(--accent); padding-left: 12px; }
 @media (max-width: 480px) { .profile-options { grid-template-columns: 1fr; } }
+
+/* RE20 bass-tilt drawing: self-drawn; the plate is dark like the real one in both themes. */
+.sd-re20 { width: 100%; max-width: 220px; }
+.re-body { fill: #6d7550; stroke: var(--text-3); stroke-width: 1.5; }
+.re-grille { fill: #4c5236; stroke: var(--text-3); stroke-width: 1.5; }
+.re-mesh { stroke: #8b936c; stroke-width: 1.2; fill: none; }
+.re-collar, .re-plate { fill: #23262a; stroke: var(--text-3); stroke-width: 1.5; }
+.re-text { fill: #eef0e2; font: 700 13px system-ui, sans-serif; letter-spacing: .5px; }
+.re-lead { stroke: var(--text-3); stroke-width: 1.2; stroke-dasharray: 3 3; fill: none; }
+.re-icon { stroke: #eef0f2; stroke-width: 3; stroke-linecap: round; fill: none; }
+.re-slot { fill: #0e1012; stroke: #4a4f55; stroke-width: 1; }
+.re-knob rect { fill: #9aa0a6; stroke: #cfd3d7; stroke-width: 1.5; }
+.re-knob path { stroke: #23262a; stroke-width: 1.5; stroke-linecap: round; }
+.re-knob { transition: transform .3s ease; }
+.sd-fig.on .re-knob rect { fill: var(--accent); stroke: var(--accent-2); }
+.sd-fig.on .re-knob path { stroke: var(--accent-ink); }
+@media (prefers-reduced-motion: reduce) { .re-knob { transition: none; } }
+.sd:has(.sd-re20) { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
