@@ -600,3 +600,11 @@ body.mini .coach-stepper { display: none; }
 .sd-fig.on .re-knob path { stroke: var(--accent-ink); }
 @media (prefers-reduced-motion: reduce) { .re-knob { transition: none; } }
 .sd:has(.sd-re20) { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+
+/* Per-item outcome of "Fix for me": Fixed / Couldn't fix / Needs you, with the reason underneath. */
+.fix-list { list-style: none; padding-left: 0 !important; display: grid; gap: 8px; }
+.fix-row { margin: 0 !important; }
+.fix-chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--surface-3); color: var(--text-2); white-space: nowrap; margin-right: 6px; }
+.fix-chip.good { background: var(--good-bg); color: var(--good); }
+.fix-chip.warn { background: var(--warn-bg); color: var(--warn); }
+.fix-chip.bad { background: var(--bad-bg); color: var(--bad); }

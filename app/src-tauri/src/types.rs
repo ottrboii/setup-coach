@@ -199,6 +199,44 @@ pub struct QuickChecks {
     pub runtime_warnings: Vec<coach_core::system::RuntimeWarning>,
 }
 
+/// What happened to one fix, after the app re-scanned to check (not just what
+/// the call returned).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FixStatus {
+    /// Applied, and the re-scan no longer shows the problem.
+    Fixed,
+    /// The change was accepted but the re-scan still shows the problem: not counted as fixed.
+    NotConfirmed,
+    /// Could not be done; `message` says why.
+    Failed,
+    /// Windows keeps this one for the user; `guided` walks them through it.
+    NeedsYou,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FixItem {
+    /// The action id (from the `QuickChecks` this fix started from).
+    pub id: String,
+    /// Plain label of the fix ("Turn off Windows audio enhancements").
+    pub label: String,
+    /// Finding ids this fix was meant to clear.
+    pub resolves: Vec<String>,
+    pub status: FixStatus,
+    /// One plain sentence: "Done." or the reason it did not work.
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guided: Option<CoachStep>,
+}
+
+/// Result of `fix_and_verify`: one entry per fix that was tried, and the fresh
+/// scan taken AFTER the fixes (the truth the screen should draw).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FixReport {
+    pub items: Vec<FixItem>,
+    pub quick: QuickChecks,
+    pub restart_obs_needed: bool,
+}
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ApplyFailure {
     pub id: String,

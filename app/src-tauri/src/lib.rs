@@ -80,6 +80,7 @@ pub fn run() {
             commands::get_feedback,
             commands::save_feedback_to_desktop,
             commands::apply_actions,
+            commands::fix_and_verify,
             commands::mic_context,
             commands::start_mic_test,
             commands::mark_step,

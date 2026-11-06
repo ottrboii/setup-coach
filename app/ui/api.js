@@ -51,12 +51,14 @@ export async function on(event, handler) {
 export const api = {
   getEnvironment: () => call('get_environment'),
   connectObs: (password) => call('connect_obs', password ? { password } : {}),
-  runQuickChecks: () => call('run_quick_checks'),
+  runQuickChecks: (deviceId) => call('run_quick_checks', { deviceId: deviceId || null }),
   logUi,
   saveFeedback: (input) => call('save_feedback', { input }),
   getFeedback: () => call('get_feedback'),
   saveFeedbackToDesktop: () => call('save_feedback_to_desktop'),
   applyActions: (actionIds) => call('apply_actions', { actionIds }),
+  // Apply, then re-scan and judge each fix by the scan (FixReport). Use this for 'Fix for me'.
+  fixAndVerify: (actionIds, deviceId) => call('fix_and_verify', { actionIds, deviceId: deviceId || null }),
   micContext: (deviceId, answers) => call('mic_context', { deviceId, answers }),
   startMicTest: (deviceId) => call('start_mic_test', { deviceId }),
   markStep: (kind, edge) => call('mark_step', { kind, edge }),

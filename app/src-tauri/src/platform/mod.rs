@@ -239,6 +239,139 @@ pub fn is_capture_endpoint_id(id: &str) -> bool {
     id.starts_with("{0.0.1.00000000}.{") && id.len() < 80 && id.chars().all(|c| c.is_ascii_hexdigit() || matches!(c, '{' | '}' | '.' | '-'))
 }
 
+/// Why a one-value Windows audio change did not happen. The numeric code is
+/// the exit code of the elevated `--fx-helper` process, so the app can tell
+/// "Windows protects this key" from "UAC was declined" from "changed but not
+/// shown" instead of one catch-all sentence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FxErr {
+    /// The mic is not connected (any more).
+    Gone,
+    /// Windows refused the write (also for administrators: the endpoint keys are owned by the audio service).
+    Denied,
+    /// The write went through but a re-read still shows the old value.
+    NotShown,
+    /// This mic has no such setting we can switch.
+    Unsupported,
+}
+
+impl FxErr {
+    pub fn code(self) -> i32 {
+        match self {
+            FxErr::Denied => 3,
+            FxErr::NotShown => 4,
+            FxErr::Gone => 5,
+            FxErr::Unsupported => 6,
+        }
+    }
+    /// Plain-language reason, safe to show as is.
+    pub fn message(self) -> String {
+        match self {
+            FxErr::Gone => "That microphone isn't connected any more.".into(),
+            FxErr::Denied => "Windows refused the change, even with administrator permission (it protects this setting).".into(),
+            FxErr::NotShown => "Windows took the change but still shows the old value.".into(),
+            FxErr::Unsupported => "This setting isn't available for your mic.".into(),
+        }
+    }
+    /// Message for the exit code of the elevated helper.
+    pub fn message_for_exit_code(code: u32) -> String {
+        match code {
+            3 => FxErr::Denied.message(),
+            4 => FxErr::NotShown.message(),
+            5 => FxErr::Gone.message(),
+            6 => FxErr::Unsupported.message(),
+            2 => "The permission helper didn't understand the request.".into(),
+            c => format!("The permission helper stopped unexpectedly (code {c})."),
+        }
+    }
+}
+
+/// Read an on/off MMDevices property. Windows stores these either as a plain
+/// `REG_DWORD` (exclusive-mode switches) or as a serialized `VT_BOOL`
+/// `REG_BINARY` (VT 0x000b, value at bytes 8..10).
+pub fn parse_flag(is_dword: bool, bytes: &[u8]) -> Option<bool> {
+    if is_dword {
+        let b: [u8; 4] = bytes.get(..4)?.try_into().ok()?;
+        return Some(u32::from_le_bytes(b) != 0);
+    }
+    (bytes.len() >= 10 && bytes[0] == 0x0b).then(|| bytes[8] != 0 || bytes[9] != 0)
+}
+
+/// The bytes to write to turn a property `on`/off, keeping the way Windows
+/// already stores it. `existing = None` (value missing: Windows' default
+/// applies) creates a plain DWORD. Returns `(is_dword, bytes)`; `None` when the
+/// stored form is one we don't know how to patch.
+pub fn flag_bytes(existing: Option<(bool, &[u8])>, on: bool) -> Option<(bool, Vec<u8>)> {
+    match existing {
+        None => Some((true, u32::from(on).to_le_bytes().to_vec())),
+        Some((true, _)) => Some((true, u32::from(on).to_le_bytes().to_vec())),
+        Some((false, b)) if b.len() >= 10 && b[0] == 0x0b => {
+            let mut v = b.to_vec();
+            let x = if on { 0xff } else { 0x00 };
+            v[8] = x;
+            v[9] = x;
+            Some((false, v))
+        }
+        Some(_) => None,
+    }
+}
+
+/// "Audio enhancements are off" from the two copies Windows keeps (the
+/// endpoint property store and the `FxProperties` registry value). Either one
+/// saying "on" counts as on; unknown only when neither can be read.
+pub fn combine_sysfx(property_store: Option<bool>, fx_properties: Option<bool>) -> Option<bool> {
+    match (property_store, fx_properties) {
+        (Some(false), _) | (_, Some(false)) => Some(false),
+        (Some(true), _) | (_, Some(true)) => Some(true),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod flag_tests {
+    use super::*;
+
+    #[test]
+    fn dword_and_vt_bool_flags_are_read() {
+        assert_eq!(parse_flag(true, &[1, 0, 0, 0]), Some(true));
+        assert_eq!(parse_flag(true, &[0, 0, 0, 0]), Some(false));
+        assert_eq!(parse_flag(true, &[1]), None);
+        let on = [0x0b, 0, 0, 0, 1, 0, 0, 0, 0xff, 0xff, 0, 0];
+        let off = [0x0b, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0];
+        assert_eq!(parse_flag(false, &on), Some(true));
+        assert_eq!(parse_flag(false, &off), Some(false));
+        assert_eq!(parse_flag(false, &[0x41, 0, 0, 0]), None);
+    }
+
+    #[test]
+    fn writing_keeps_the_stored_form_and_creates_a_dword_when_missing() {
+        // Missing value (exclusive control on a fresh mic): a plain DWORD 0.
+        assert_eq!(flag_bytes(None, false), Some((true, vec![0, 0, 0, 0])));
+        assert_eq!(flag_bytes(Some((true, &[1, 0, 0, 0])), false), Some((true, vec![0, 0, 0, 0])));
+        let on = [0x0b, 0, 0, 0, 1, 0, 0, 0, 0xff, 0xff, 0, 0];
+        assert_eq!(flag_bytes(Some((false, &on)), false), Some((false, vec![0x0b, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0])));
+        // A form we don't understand is never overwritten.
+        assert_eq!(flag_bytes(Some((false, &[1, 2, 3])), true), None);
+    }
+
+    #[test]
+    fn enhancements_need_both_copies_to_agree_before_we_call_them_off() {
+        assert_eq!(combine_sysfx(Some(true), Some(true)), Some(true));
+        assert_eq!(combine_sysfx(Some(true), None), Some(true));
+        assert_eq!(combine_sysfx(Some(true), Some(false)), Some(false));
+        assert_eq!(combine_sysfx(Some(false), None), Some(false));
+        assert_eq!(combine_sysfx(None, None), None);
+    }
+
+    #[test]
+    fn helper_exit_codes_have_distinct_plain_reasons() {
+        let msgs: std::collections::BTreeSet<String> = [3, 4, 5, 6, 2, 9].iter().map(|c| FxErr::message_for_exit_code(*c)).collect();
+        assert_eq!(msgs.len(), 6);
+        assert_eq!(FxErr::message_for_exit_code(FxErr::Denied.code() as u32), FxErr::Denied.message());
+        assert!(!FxErr::NotShown.message().to_lowercase().contains("administrator"));
+    }
+}
+
 /// The Windows Settings page for exactly this microphone (Settings > System >
 /// Sound > the mic, where "Audio enhancements" lives). Documented form
 /// `ms-settings:sound-properties?endpointId={0.0.1.00000000}.{guid}`; falls

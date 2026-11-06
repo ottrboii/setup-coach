@@ -552,6 +552,24 @@ export function createMock() {
       }
       return { applied: actionIds.filter((a) => !failed.find((f) => f.id === a)), failed, restart_obs_needed: actionIds.includes('a1') };
     },
+    // Apply, re-scan, report each fix by what the scan shows (?fail=apply: nothing works; ?guided=off: plain failure).
+    async fix_and_verify({ actionIds }) {
+      await wait(1200);
+      const allFail = /[?&]fail=apply\b/.test(location.search);
+      const items = actionIds.map((id) => {
+        const a = QUICK.actions.find((x) => x.id === id);
+        const base = { id, label: a ? a.label : 'That fix', resolves: a ? a.resolves : [] };
+        if (allFail) return { ...base, status: 'failed', message: "Windows didn't allow that change." };
+        if (id === 'a4') return { ...base, status: 'failed', message: 'Windows refused the change, even with administrator permission (it protects this setting).' };
+        if (id === 'a2' && !/[?&]guided=off\b/.test(location.search)) {
+          return { ...base, status: 'needs_you', message: "Windows' permission prompt was closed, so nothing was changed. You can switch it off yourself in a few clicks: we'll open the right page and watch for the change.", guided: GUIDED_VOICE_CLARITY };
+        }
+        a.resolves.forEach((r) => mockFixed.add(r));
+        return { ...base, status: 'fixed', message: 'Done. The re-check no longer shows it.' };
+      });
+      const quick = { ...QUICK, findings: QUICK.findings.filter((f) => !mockFixed.has(f.id)), actions: QUICK.actions.filter((a) => !a.resolves.every((r) => mockFixed.has(r))) };
+      return { items, quick, restart_obs_needed: actionIds.includes('a1') && items.some((i) => i.id === 'a1' && i.status === 'fixed') };
+    },
     async list_setup_profiles() { await wait(120); return ['streaming', 'voiceover', 'call'].map((k) => PROFILE_INFO[k]); },
     async get_setup_profile() { return activeProfile; },
     async set_setup_profile({ profile }) {
