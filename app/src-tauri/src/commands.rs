@@ -144,6 +144,32 @@ pub async fn restore_freed_camera(app: S<'_>) -> R<FreeCameraResult> {
 }
 
 #[tauri::command]
+pub async fn start_sync_test(app: S<'_>, device_id: String, camera_id: String) -> Result<(), CameraError> {
+    app.inner().start_sync_test(&device_id, &camera_id).await
+}
+
+#[tauri::command]
+pub async fn finish_sync_test(app: S<'_>) -> R<crate::app::SyncReport> {
+    app.finish_sync_test().await
+}
+
+#[tauri::command]
+pub async fn stop_sync_test(app: S<'_>) -> R<()> {
+    app.stop_sync_test();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn apply_sync_fix(app: S<'_>) -> R<crate::app::SyncApplyResult> {
+    Ok(app.apply_sync_fix().await)
+}
+
+#[tauri::command]
+pub async fn undo_sync_fix(app: S<'_>) -> R<crate::app::SyncApplyResult> {
+    Ok(app.undo_sync_fix().await)
+}
+
+#[tauri::command]
 pub async fn get_mains(app: S<'_>) -> R<MainsInfo> {
     Ok(app.mains_info())
 }

@@ -118,6 +118,7 @@ foreach ($top in $tops.Keys) {
     drops_7d = $drops
     image_only = $imageOnly
     run_minutes = [int[]]@($runs[$top.ToUpper()] | Where-Object { $_ -ne $null })
+    connected_min = if ($starts.ContainsKey($top.ToUpper())) { [int][Math]::Round(((Get-Date) - $starts[$top.ToUpper()]).TotalMinutes) } else { $null }
   }
 }
 ConvertTo-Json -InputObject @($out) -Compress

@@ -15,6 +15,8 @@ export const state = {
   cameraReport: null,
   cameraApplied: false,
   healthReport: null,
+  syncReport: null,      // SyncReport of the last lip-sync clap test
+  syncApplied: false,    // we set the OBS Sync Offset and the next check has not run yet
   saved: null,
   coach: null,           // { area: 'mic'|'camera', steps: CoachStep[]|null, index, status: {stepId: 'done'|'skipped'} }
   autoStart: null,       // 'mic' | 'camera' → start that test immediately (retest after coaching)

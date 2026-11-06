@@ -164,6 +164,9 @@ pub struct QuickChecks {
     pub findings: Vec<Finding>,
     pub actions: Vec<PlannedActionView>,
     pub score: Vec<Score>,
+    /// Cameras close to the time they usually switch off (pre-stream warning).
+    #[serde(default)]
+    pub runtime_warnings: Vec<coach_core::system::RuntimeWarning>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -582,6 +585,8 @@ pub mod events {
     pub const CAMERA_PREVIEW: &str = "camera-preview";
     /// `{ live: bool, reason?: PictureReason }`, sent when the camera picture is lost or comes back.
     pub const CAMERA_PICTURE: &str = "camera-picture";
+    /// `{ t_s, level_db, claps, clap: bool, frames }`, ~10/s during the lip-sync clap test.
+    pub const SYNC_PROGRESS: &str = "sync-progress";
     pub const HEALTH_ALERT: &str = "health-alert";
     pub const HEALTH_SAMPLE: &str = "health-sample";
 }

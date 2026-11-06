@@ -287,6 +287,7 @@ pub struct UsbProbeDevice {
     pub drops_7d: u32,
     pub image_only: bool,
     pub run_minutes: Vec<u32>,
+    pub connected_min: Option<u32>,
 }
 
 /// Parse the probe's JSON (an array; PowerShell may print a lone object).

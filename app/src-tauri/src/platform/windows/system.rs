@@ -392,6 +392,7 @@ fn usb_links() -> Vec<coach_core::system::UsbLink> {
             drops_7d: p.drops_7d,
             image_only: p.image_only,
             run_minutes: p.run_minutes,
+            connected_min: p.connected_min,
         })
         .collect()
 }

@@ -12,6 +12,11 @@ export const guidedFailures = (res) => (res && res.failed ? res.failed.filter((f
 /** Failures with no guided step: only a message. */
 export const plainFailures = (res) => (res && res.failed ? res.failed.filter((f) => f && !f.guided) : []);
 
+/** Pre-stream heads-up for cameras that usually switch off after a while (`QuickChecks.runtime_warnings`). */
+export function runtimeWarningBanners(quick) {
+  return ((quick && quick.runtime_warnings) || []).map((w) => html(`<div class="banner warn" role="alert"><div class="stack" style="gap:4px"><b>${esc(w.camera)} may switch off soon</b><span>${esc(w.message)}</span></div></div>`));
+}
+
 /** Open the coaching screen for one guided step; `from` is the route to return to. */
 export function startGuidedFix(failure, from, go) {
   state.coach = { area: 'mic', steps: [failure.guided], index: 0, status: {}, returnTo: from, autoOpen: true };

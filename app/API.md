@@ -534,4 +534,53 @@ Every closed question ends with `I'm not sure` (core adds it) and the UI adds it
 No contract change. \QuickChecks.findings\ now also carries ids \connection.usb3_on_usb2_port\, \connection.behind_hub\, \connection.device_dropouts\, \connection.cameras_share_controller\, \connection.camera_held_by_app\, \connection.mic_held_by_app\ (areas camera/mic, \ix_kind\ manual or guided, numbers only in \evidence\: \speed_mbps\, \drops_7d\). They clear on the next scan once the cause is gone. Backend: \SystemInspector::connection_state()\; Windows reads USB speed/hubs/drops with a PowerShell probe (cached 15 s) and the Windows camera/mic privacy log.
 
 ### Field-complaint extras (camera body, HDMI, heat, lip sync)
-No contract change. New finding ids, all plain-text with numbers only in `evidence`: `connection.camera_body_not_webcam` (QuickChecks, guided; names the maker tool that is running), `connection.camera_switches_off_after_a_while` (QuickChecks, manual; evidence `typical_run_minutes`, `runs`), `camera.hdmi_overlay` (camera test report, capture-card cameras only), `sync.av_offset` (area mic; evidence `offset_ms`, `score`, `claps`; produced by `coach_core::avsync` once a clap-test command exists, not yet wired). `CameraError` for a capture-card camera with black/flat frames now carries the HDMI checklist in `message` (same `code`/`reason`). `coach_core::system::near_runtime_limit` is ready for a live "your camera usually stops soon" warning, not yet shown.
+No contract change. New finding ids, all plain-text with numbers only in `evidence`: `connection.camera_body_not_webcam` (QuickChecks, guided; names the maker tool that is running), `connection.camera_switches_off_after_a_while` (QuickChecks, manual; evidence `typical_run_minutes`, `runs`), `camera.hdmi_overlay` (camera test report, capture-card cameras only), `sync.av_offset` (area mic; evidence `offset_ms`, `score`, `claps`; produced by `coach_core::avsync`, now returned by the clap test, see "Lip-sync clap test"). `CameraError` for a capture-card camera with black/flat frames now carries the HDMI checklist in `message` (same `code`/`reason`). `near_runtime_limit` now drives `QuickChecks.runtime_warnings` (see "Lip-sync clap test and camera runtime warning").
+
+
+## Lip-sync clap test and camera runtime warning (added 2026-11-06)
+
+| Command | Args | Returns |
+|---|---|---|
+| `start_sync_test` | `{ deviceId: string, cameraId: string }` | `()` (rejects with `CameraError` like `start_camera_test`) – records the mic and the camera picture together; emits `sync-progress` and `camera-preview` |
+| `finish_sync_test` | – | `SyncReport` – stops, measures (`coach_core::avsync::measure_offset`), says which side to delay. Plain error "Start the clap test first." if none is running |
+| `stop_sync_test` | – | `()` – cancel / "I can't do this" / leaving the screen; safe any time, also twice |
+| `apply_sync_fix` | – | `SyncApplyResult` – sets the OBS Sync Offset of the mic input (obs-websocket `SetInputAudioSyncOffset`) to what the last `SyncReport.fix` asked for; only for `side: "delay_sound"` with `can_auto` |
+| `undo_sync_fix` | – | `SyncApplyResult` – puts the previous Sync Offset back (`{ ok: true, message: "Nothing to undo." }` if none) |
+
+```ts
+SyncReport = { verdict: "in_sync" | "sound_late" | "sound_early" | "unclear",
+               offset_ms: number | null,       // what viewers get: + = sound after picture. null when unclear
+               score: number, claps: number, frames_per_s: number,
+               coarse: boolean,                // < 8 pictures/s: rough guide only
+               finding: Finding | null,        // id "sync.av_offset" (title/why for display)
+               fix: SyncFix | null,
+               hint: string | null,            // plain reason when unclear, or a note when coarse
+               obs_sync_offset_ms: number }    // OBS Sync Offset already on the mic input (counted in offset_ms)
+SyncFix = { side: "delay_camera" | "delay_sound",
+            ms: number,                        // absolute value to type: OBS Render Delay (camera) or Sync Offset (sound)
+            change_ms: number,                 // how much more than now
+            steps: string[],                   // plain-language manual steps
+            can_auto: boolean,                 // delay_sound + OBS connected + mic input found
+            obs_input: string | null, camera_source: string | null }
+SyncApplyResult = { ok: boolean, input: string | null, previous_ms: number | null, applied_ms: number | null, message: string }
+```
+Event `sync-progress`: `{ t_s, level_db, claps, clap: boolean, frames }`, ~10/s while recording (live clap counter and meter).
+Event `camera-preview` is also sent during the clap test, payload `{ image }` (no `paper_guide`).
+
+Flow: intro (device names; "I can't do this" shows by-eye steps) → `start_sync_test` → live counter until 4 claps (or ~14 s) →
+`finish_sync_test` → result. `sound_late` (voice after picture): delay the camera with an OBS Render Delay filter, by hand (`fix.steps`).
+`sound_early`: delay the sound; with `can_auto` offer "Set it in OBS for me" (`apply_sync_fix`, plus Undo). Either way "Check again"
+runs the test again. The mic is read straight from the device, so the backend adds the OBS Sync Offset already set to what it
+measures, and the camera picture comes from OBS' screenshot (assumed to include a Render Delay filter) when OBS is connected.
+The result is `in_sync` once it is inside the usual limits (sound ahead 45 ms, behind 125 ms). `unclear` carries a plain `hint`
+(too few claps, hands not seen), never a guessed number. The Sync Offset change is not in the settings vault yet (only the
+in-session `undo_sync_fix`).
+
+**Camera runtime warning.** `QuickChecks` gained `runtime_warnings: RuntimeWarning[]` (`#[serde(default)]`):
+`RuntimeWarning = { camera: string, typical_min: number, connected_min: number, minutes_left: number, message: string /* plain English */ }`.
+A camera appears once its recorded run times show a pattern (`typical_runtime_minutes`) and the current run has used 80 % of it
+(`near_runtime_limit`). `connected_min` comes from the USB probe (`UsbLink.connected_min`: minutes since Windows last started the
+device; null when Windows has no start event in the last 7 days, then there is no warning). The UI shows it on Home ("Re-check
+before stream") and on the quick scan.
+
+Also fixed in the UI: `camera-preview` payload is `{ image, paper_guide }` per this file, the camera screen now reads `.image`.
