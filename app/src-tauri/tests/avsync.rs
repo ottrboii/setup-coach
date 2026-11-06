@@ -78,6 +78,50 @@ async fn drift_check_runs_in_mock_mode_and_never_guesses() {
     core.stop_drift_check();
 }
 
+fn live_mic(mock: &MockPlatform) {
+    let noise: Vec<f32> = (0..48_000u32).map(|i| ((i.wrapping_mul(2654435761) >> 16) % 200) as f32 / 100_000.0).collect();
+    *mock.audio.live.lock().unwrap() = Some(setup_coach_app::platform::mock::LiveMock {
+        source: Arc::new(noise),
+        sample_rate: 48_000,
+        gain_db: Arc::new(std::sync::Mutex::new(0.0)),
+        offset_db: 0.0,
+        speed: 1.0,
+    });
+}
+
+#[tokio::test]
+async fn cancelling_a_clap_round_keeps_the_drift_check() {
+    let (core, mock, _e, _d) = core();
+    live_mic(&mock);
+    let (mic, cam) = (mock.audio.inputs[0].id.clone(), mock.camera.devices[0].id.clone());
+    assert!(core.cancel_drift_clap().is_err(), "nothing to cancel before a check");
+    core.start_drift_check(&mic, &cam, 60.0).await.unwrap();
+    let s = core.cancel_drift_clap().unwrap();
+    assert!(!s.clap_open);
+    assert!(core.drift_status().is_some(), "cancelling a round does not end the check");
+    assert!(core.finish_drift_clap().await.is_err(), "the cancelled round is not measured");
+    core.start_drift_clap().unwrap();
+    assert!(core.drift_status().unwrap().clap_open);
+    core.stop_drift_check();
+    assert!(core.drift_status().is_none());
+}
+
+#[tokio::test]
+async fn overlapping_starts_leave_no_mic_stream_behind() {
+    let (core, mock, events, _d) = core();
+    live_mic(&mock);
+    let (mic, cam) = (mock.audio.inputs[0].id.clone(), mock.camera.devices[0].id.clone());
+    let (a, b) = tokio::join!(core.start_drift_check(&mic, &cam, 60.0), core.start_drift_check(&mic, &cam, 60.0));
+    a.unwrap();
+    b.unwrap();
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    core.stop_drift_check();
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    let n = events.count(events::SYNC_PROGRESS);
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(events.count(events::SYNC_PROGRESS), n, "a mic stream from the first start is still running");
+}
+
 #[tokio::test]
 async fn camera_close_to_its_usual_cutoff_is_warned_about_before_streaming() {
     let (core, mock, _e, _d) = core();

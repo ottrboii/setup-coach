@@ -82,6 +82,7 @@ export const api = {
   startDriftCheck: (deviceId, cameraId, intervalS) => call('start_drift_check', { deviceId, cameraId, intervalS }),
   startDriftClap: () => call('start_drift_clap'),
   finishDriftClap: () => call('finish_drift_clap'),
+  cancelDriftClap: () => call('cancel_drift_clap'),
   driftStatus: () => call('drift_status'),
   stopDriftCheck: () => call('stop_drift_check'),
   getMains: () => call('get_mains'),

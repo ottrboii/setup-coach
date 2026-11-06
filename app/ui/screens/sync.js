@@ -82,8 +82,8 @@ export async function render(root, { go, refreshNav }) {
     page.append(view);
     const $ = (s) => view.querySelector(s);
     const stop = async () => { cancelled = true; teardown(); try { await round.stop(); } catch (_) { /* nothing running */ } };
-    $('#cancel').addEventListener('click', async () => { await stop(); cancelled = false; drawIntro(); });
-    $('#cant').addEventListener('click', async () => { await stop(); cancelled = false; drawManual(); });
+    $('#cancel').addEventListener('click', async () => { await stop(); cancelled = false; (round.back || drawIntro)(); });
+    $('#cant').addEventListener('click', async () => { await stop(); cancelled = false; (round.back || drawManual)(); });
     cancelled = false;
     let claps = 0;
     let lastClapAt = 0;
@@ -133,6 +133,7 @@ export async function render(root, { go, refreshNav }) {
       teardown();
       try { await round.stop(); } catch (_) { /* nothing running */ }
       if (cancelled) return;
+      if (round.back) { toast("That clap round didn't work", (e && e.message) || 'Please try it again.', 'warn'); round.back(); return; }
       drawError(e);
     }
   }
@@ -242,10 +243,18 @@ export async function render(root, { go, refreshNav }) {
   // ---- Drift check: clap now, again after a wait, and see if the gap holds ----
   let inDrift = false;
   let driftWait = null;
+  // The first round has nothing to keep, so cancelling it ends the check. A later
+  // round only drops that round and goes back to the wait screen with the earlier points.
+  const backToWait = async () => {
+    let s = null;
+    try { s = await api.driftStatus(); } catch (_) { /* gone */ }
+    if (s) drawDrift(s); else drawIntro();
+  };
   const driftRound = (first, intervalS) => ({
     begin: () => (first ? api.startDriftCheck(state.micId, state.cameraId, intervalS) : api.startDriftClap()),
     finish: () => api.finishDriftClap(),
-    stop: () => api.stopDriftCheck(),
+    stop: () => (first ? api.stopDriftCheck() : api.cancelDriftClap()),
+    back: first ? null : backToWait,
     done: (s) => drawDrift(s),
   });
   const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -389,7 +398,14 @@ export async function render(root, { go, refreshNav }) {
   let driftOn = null;
   try { driftOn = await api.driftStatus(); } catch (_) { /* older backend */ }
   if (driftOn && !driftOn.clap_open) drawDrift(driftOn);
-  else if (driftOn) { await api.stopDriftCheck().catch(() => {}); drawIntro(); }
+  else if (driftOn) {
+    // A clap round was left open (the user went to another screen mid-round): drop just that round.
+    const s = await api.cancelDriftClap().catch(() => null);
+    if (s && s.points.length) {
+      drawDrift(s);
+      page.prepend(html('<div class="banner info"><span>Your last clap round wasn\'t finished, so we left it out. Your earlier checks are kept.</span></div>'));
+    } else { await api.stopDriftCheck().catch(() => {}); drawIntro(); }
+  }
   else if (state.autoStart === 'sync') { state.autoStart = null; start(); } else drawIntro();
 
   return () => {

@@ -595,8 +595,12 @@ repeated on **one continuous mic recording**: the mic stays open for the whole c
 | `start_drift_check` | `{ deviceId: string, cameraId: string, intervalS: number }` | `DriftStatus` (rejects with `CameraError` like `start_sync_test`) – opens the mic for the check and opens the first clap round; emits `sync-progress` and `camera-preview` during rounds. `intervalS` is clamped to 1 s – 3 h (UI offers 10 / 30 / 60 min) |
 | `start_drift_clap` | – | `()` – opens the next clap round. Error "Start the drift check first." |
 | `finish_drift_clap` | – | `DriftStatus` – closes the round, measures it (`coach_core::avsync::measure_offset`), adds it to the series. Errors "Start the drift check first." / "Press Clap now first." |
+| `cancel_drift_clap` | – | `DriftStatus` – drops the open clap round without measuring it (Cancel / "I can't do this" / an error in a later round); earlier points and the mic stay. Error "Start the drift check first." |
 | `drift_status` | – | `DriftStatus \| null` – null when no drift check runs (the UI uses it to come back to a running check) |
-| `stop_drift_check` | – | `()` – cancel / "I can't do this" / done; safe any time, also twice. `start_sync_test` also ends a drift check |
+| `stop_drift_check` | – | `()` – ends the whole check ("Stop the check", done, first round cancelled, app exit); safe any time, also twice. `start_sync_test` and a second `start_drift_check` also end a running one |
+
+The mic is opened in shared mode, so the mic test, mic preview and coaching can run while a drift check holds it. The camera is
+only read during a clap round; `start_drift_clap` stops a running camera preview.
 
 ```ts
 DriftStatus = { interval_s: number, elapsed_s: number,

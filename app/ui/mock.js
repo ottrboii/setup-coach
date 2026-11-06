@@ -634,6 +634,7 @@ export function createMock() {
       drift.last = last;
       return { ...s, last };
     },
+    async cancel_drift_clap() { if (!drift) throw new Error('Start the drift check first.'); drift.open = false; clearInterval(syncTimer); return driftStatus(); },
     async drift_status() { return drift ? driftStatus() : null; },
     async stop_drift_check() { if (drift) clearTimeout(drift.dueTimer); drift = null; clearInterval(syncTimer); return null; },
     async camera_picture_status() {

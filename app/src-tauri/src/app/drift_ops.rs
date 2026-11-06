@@ -199,11 +199,11 @@ impl AppCore {
             r.total += n;
         });
         let handle = self.platform.audio.start_capture(device_id, sink).map_err(CameraError::from)?;
-        {
+        let old = {
             let mut inner = self.inner.lock().unwrap();
             inner.last_device = Some(device_id.to_string());
             inner.sync_fix = None;
-            inner.drift = Some(DriftSession {
+            inner.drift.replace(DriftSession {
                 rec,
                 frames,
                 grabbing: Arc::new(AtomicBool::new(false)),
@@ -216,7 +216,11 @@ impl AppCore {
                 points: vec![],
                 last_point_at: None,
                 last: None,
-            });
+            })
+        };
+        // Another start may have finished while we waited for the camera: end it, so its mic stream can't linger.
+        if let Some(s) = old {
+            s.halt();
         }
         self.start_drift_clap()?;
         self.drift_status().ok_or_else(|| CameraError::from("The drift check stopped.".to_string()))
@@ -224,6 +228,8 @@ impl AppCore {
 
     /// Open a clap window (the first one opens by itself).
     pub fn start_drift_clap(self: &Arc<Self>) -> R<()> {
+        // The camera is only read during a clap round; a running camera preview would compete for it.
+        self.stop_camera_preview();
         let mut inner = self.inner.lock().unwrap();
         let s = inner.drift.as_mut().ok_or("Start the drift check first.")?;
         s.grabbing.store(false, Ordering::SeqCst);
@@ -321,15 +327,35 @@ impl AppCore {
         })
     }
 
-    /// Stop the drift check (cancel, "I can't do this", leaving the screen). Safe any time.
+    /// Drop the open clap round without measuring it (Cancel / "I can't do
+    /// this" / an error during a round). Earlier rounds and the mic stay.
+    pub fn cancel_drift_clap(&self) -> R<DriftStatus> {
+        {
+            let inner = self.inner.lock().unwrap();
+            let s = inner.drift.as_ref().ok_or("Start the drift check first.")?;
+            s.grabbing.store(false, Ordering::SeqCst);
+            s.rec.lock().unwrap().window = None;
+            s.frames.lock().unwrap().clear();
+        }
+        self.drift_status().ok_or_else(|| "The drift check was stopped.".to_string())
+    }
+
+    /// Stop the whole drift check ("Stop the check", done, app exit). Safe any time.
     pub fn stop_drift_check(&self) {
         let s = self.inner.lock().unwrap().drift.take();
-        if let Some(mut s) = s {
-            s.alive.store(false, Ordering::SeqCst);
-            s.grabbing.store(false, Ordering::SeqCst);
-            if let Some(h) = s.capture.take() {
-                h.stop();
-            }
+        if let Some(s) = s {
+            s.halt();
+        }
+    }
+}
+
+impl DriftSession {
+    /// End this session: timers, frame grabber and the mic stream.
+    fn halt(mut self) {
+        self.alive.store(false, Ordering::SeqCst);
+        self.grabbing.store(false, Ordering::SeqCst);
+        if let Some(h) = self.capture.take() {
+            h.stop();
         }
     }
 }

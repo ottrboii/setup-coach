@@ -185,6 +185,11 @@ pub async fn finish_drift_clap(app: S<'_>) -> R<crate::app::DriftStatus> {
 }
 
 #[tauri::command]
+pub async fn cancel_drift_clap(app: S<'_>) -> R<crate::app::DriftStatus> {
+    app.cancel_drift_clap()
+}
+
+#[tauri::command]
 pub async fn drift_status(app: S<'_>) -> R<Option<crate::app::DriftStatus>> {
     Ok(app.drift_status())
 }
