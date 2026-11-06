@@ -1,5 +1,5 @@
 ﻿# Setup Coach — Project overview
-_Updated 2026-11-06. Owner: Otto (Ottr Gaming Influencer AB). Coordinator session: SETUP COACH: COORDINATOR._
+_Updated 2026-11-07. Owner: Otto (Ottr Gaming Influencer AB). Coordinator session: SETUP COACH: COORDINATOR._
 
 ## What it is
 A Windows app that coaches non-technical streamers (the "bought an SM7B and left it on defaults" crowd) to a properly set-up **mic, camera and stream**. Philosophy: **no AI processing** — fix the physical setup first with live, animated coaching, then apply plain static settings (OBS filters + our VST3, Windows settings, camera controls, GoXLR via GoXLR Utility), then re-measure to verify. Business: up-front purchase + affiliate links at the moment a physical limit is measured (or affiliate-only for volume).
@@ -11,6 +11,11 @@ First full build done and green on Windows CI (installer + VST3 artifacts). Not 
 - Camera/mic extras (#23): HDMI chain checklist (`video/hdmi.rs`), camera-body-not-a-webcam, "switches off after a while" runtime-limit pattern (`video/guard.rs`), lip-sync core (`core/src/avsync.rs`), mic vibration (`audio/vibration.rs`).
 - Lip sync (#25): clap test screen (`app/ui/screens/sync.js`), commands `start/finish/stop_sync_test`, `apply_sync_fix` (sets OBS Sync Offset on the mic input via obs-websocket) and `undo_sync_fix`; camera runtime pre-stream warning; `connected_min` in quick checks. See `app/API.md`.
 - Capture-card checks (#26, `system/capture.rs`): Cam Link on a non-USB3 path, Sony HDMI fps family and interlace, double capture audio.
+- Drift (#28): slope test `sync.av_drift` checks lip-sync drift over time.
+- Setup profiles (#29-#31): Streaming / Recording-voiceover / Call-meeting, each with its own pass bars; the chosen setup is stored per profile per mic. #35 adds a relevance filter (`SetupProfileInfo.irrelevant`).
+- In-app switch diagrams (#32-#33): self-drawn RE20 bass-tilt diagram (`help.diagram`); the maker link is a "Copy address" button because links do nothing in the webview.
+- Quick scan (#34, `fix_and_verify`): uses the picked mic, shows per item Fixed / Couldn't fix / Needs you, then re-scans to verify.
+- #35 also: gain advice follows what the mic can do (`GainAccess`), clearer `mic.reflection`, quieter hub finding.
 - Research: `docs/field-complaints/*.md` (camera, mic-audio, stream-obs, dual-pc with gap list, #24).
 - Core engine: mic/camera analysis, findings, processing chain + verification, system/OBS audit, stream health, device profiles, live coaching engine.
 - App: Tauri 2 backend with Windows platform code (type-checked, CI-built, never run on a real PC yet) + static UI with live animated coaching and a full mock mode.
@@ -53,4 +58,10 @@ Rust workspace (`core/` = `coach_core`, `app/src-tauri/` = `setup-coach-app`), s
 - Clap test and new connection/capture-card checks are unverified on hardware (Sony a6000 + Cam Link 4K).
 - NDI / two-PC role pairing and remote obs-websocket host are not built (see `docs/field-complaints/dual-pc.md`).
 - OBS Sync Offset is not stored in the settings vault.
+- Drift reference: OBS timing vs PC clock is undecided.
+- Analyser voice-above-noise may be set from peaks; streaming bars need real recordings. Voiceover/call bars are unverified against real recordings.
+- Room-echo measurement comes out empty at RT60 ~1.0 s.
+- Backend `open_url` command (without mini-mode) so the maker page can be a real link instead of Copy address.
+- UI should use `SetupProfileInfo.irrelevant` to hide camera/stream-health screens in voiceover.
+- `system.mic_boost_on` and `mic.gain_stacked` still say "turn up gain" for mics with no gain.
 
