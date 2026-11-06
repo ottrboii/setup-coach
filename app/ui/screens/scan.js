@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, loading, errorBanner, toast, advanced } from '../components.js';
 import { state, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
-import { guidedFailures, plainFailures, guidedFixCard, runtimeWarningBanners } from '../guided.js';
+import { guidedFixCard, runtimeWarningBanners } from '../guided.js';
 
 const AREA_LABEL = { mic: 'Mic settings', system: 'Windows', camera: 'Camera', stream: 'Stream' };
 // Findings fixed by hand in Windows Sound settings when we lack the rights to do it.
@@ -39,8 +39,9 @@ export async function render(root, { go, refreshNav }) {
     if (!state.quick || force) {
       body.append(loading('Checking Windows sound settings, OBS filters and your stream settings…'));
       try {
-        state.quick = await api.runQuickChecks();
+        state.quick = await api.runQuickChecks(state.micId);
         state.applied = null;
+        state.fixReport = null;
       } catch (e) {
         body.innerHTML = '';
         body.append(errorBanner(e, () => run(true)));
@@ -61,10 +62,10 @@ export async function render(root, { go, refreshNav }) {
   function draw() {
     body.innerHTML = '';
     const q = state.quick;
-    const fixed = new Set(state.applied ? q.actions.filter((a) => state.applied.applied.includes(a.id)).flatMap((a) => a.resolves) : []);
-    const open = q.findings.filter((f) => !fixed.has(f.id) && f.severity !== 'info');
-    const pendingActions = q.actions.filter((a) => !state.applied?.applied.includes(a.id));
-    const autoOpen = open.filter((f) => pendingActions.some((a) => a.resolves.includes(f.id))).length;
+    // `q` is always the latest scan (after a fix it is the re-scan the backend took to verify it),
+    // so nothing here is remembered from an earlier round: what is listed is what is true now.
+    const open = q.findings.filter((f) => f.severity !== 'info');
+    const autoOpen = open.filter((f) => q.actions.some((a) => a.resolves.includes(f.id))).length;
     const total = q.score.length ? Math.round(q.score.reduce((s, x) => s + x.value, 0) / q.score.length) : 100;
 
     const summary = html(`
@@ -89,37 +90,42 @@ export async function render(root, { go, refreshNav }) {
     body.append(summary);
     for (const b of runtimeWarningBanners(q)) body.append(b);
 
-    if (state.applied) {
-      const r = state.applied;
-      const labelOf = (id) => q.actions.find((a) => a.id === id)?.label || 'That fix';
-      const n = r.applied.length;
-      const guided = guidedFailures(r);
-      const fails = plainFailures(r).map((f) => `<li><b>${esc(labelOf(f.id))}</b> — we couldn't do this automatically. ${esc(f.error)}</li>`).join('');
-      const head = n && !r.failed.length ? `Done — fixed ${n} thing${n === 1 ? '' : 's'} for you.`
-        : n ? `Fixed ${n} thing${n === 1 ? '' : 's'}. The rest need a hand from you.`
-          : guided.length === r.failed.length ? 'Windows wants you to switch this one yourself.'
-            : "We couldn't change anything automatically.";
-      body.append(html(`<div class="banner ${r.failed.length ? 'warn' : 'good'}" style="margin-top:16px"><div class="stack" style="gap:4px"><b>${esc(head)}</b>
-        ${fails ? `<ul class="plain">${fails}</ul><span class="subtle">They stay on your list below. Use "Open Sound settings" where it's offered, or press the fix button to try again.</span>` : ''}</div></div>`));
+    if (state.fixReport) {
+      const r = state.fixReport;
+      const by = (s) => r.items.filter((i) => i.status === s);
+      const fixedN = by('fixed').length;
+      const needN = by('needs_you').length;
+      const badN = by('failed').length + by('not_confirmed').length;
+      const head = !r.items.length ? 'Nothing was selected.'
+        : fixedN === r.items.length ? `Done — fixed ${fixedN} thing${fixedN === 1 ? '' : 's'}, and the re-check agrees.`
+          : fixedN ? `Fixed ${fixedN} of ${r.items.length}. The rest are listed below with the reason.`
+            : "Nothing could be fixed automatically. Each reason is below.";
+      const chip = { fixed: ['good', 'Fixed'], needs_you: ['warn', 'Needs you'], failed: ['bad', "Couldn't fix"], not_confirmed: ['bad', "Couldn't confirm"] };
+      const rows = r.items.map((i) => {
+        const [tone, text] = chip[i.status] || ['bad', 'Not done'];
+        return `<li class="fix-row"><span class="fix-chip ${tone}">${esc(text)}</span> <b>${esc(i.label)}</b><br><span class="subtle">${esc(i.message)}</span></li>`;
+      }).join('');
+      const tone = badN || needN ? 'warn' : 'good';
+      body.append(html(`<div class="banner ${tone}" role="status" style="margin-top:16px"><div class="stack" style="gap:6px"><b>${esc(head)}</b>
+        <ul class="plain fix-list">${rows}</ul>
+        <span class="subtle">${fixedN ? 'We scanned again after the changes, so this list is what Windows and OBS show now. You can undo any of it from Backups. ' : ''}${badN || needN ? 'Anything not fixed stays in the list below.' : ''}</span></div></div>`));
       // Windows said no, but we can walk them through it: one big button each.
-      for (const f of guided) body.append(guidedFixCard(f, { from: 'scan', go, label: labelOf(f.id) }));
-      if (r.restart_obs_needed && n) body.append(html('<div class="banner warn" style="margin-top:12px"><span><b>Restart OBS</b> to finish applying the changes. We\'ll reconnect automatically.</span></div>'));
+      for (const i of by('needs_you')) body.append(guidedFixCard({ error: i.message, guided: i.guided }, { from: 'scan', go, label: i.label }));
+      if (r.restart_obs_needed && fixedN) body.append(html('<div class="banner warn" style="margin-top:12px"><span><b>Restart OBS</b> to finish applying the changes. We\'ll reconnect automatically.</span></div>'));
     }
 
-    const selected = new Set(q.actions.filter((a) => !state.applied?.applied.includes(a.id)).map((a) => a.id));
+    const selected = new Set(q.actions.map((a) => a.id));
     const list = html('<div class="findings" style="margin-top:20px"></div>');
-    const ranked = [...q.findings].sort((a, b) => Number(fixed.has(a.id)) - Number(fixed.has(b.id)));
-    for (const f of ranked) {
+    for (const f of q.findings) {
       const acts = q.actions.filter((a) => a.resolves.includes(f.id));
-      const isFixed = fixed.has(f.id);
       list.append(findingCard(f, {
-        fixed: isFixed,
-        selectable: acts.length > 0 && !isFixed,
+        fixed: false,
+        selectable: acts.length > 0,
         checked: acts.every((a) => selected.has(a.id)),
         onToggle: (on) => acts.forEach((a) => (on ? selected.add(a.id) : selected.delete(a.id))) || updateBtn(),
       }));
       // Steps the user does in Windows: give them a one-click way to the right page.
-      const help = !acts.length && !isFixed && f.severity !== 'info' && SOUND_SETTINGS_FOR.has(f.id);
+      const help = !acts.length && f.severity !== 'info' && SOUND_SETTINGS_FOR.has(f.id);
       if (help) {
         const card = list.lastElementChild;
         const b = html('<button class="btn sm primary">Open Sound settings</button>');
@@ -137,8 +143,9 @@ export async function render(root, { go, refreshNav }) {
     }
 
     const bar = html(`<div class="card stack" style="margin-top:20px">
-      <div class="spread"><div class="stack" style="gap:2px"><b>Let us handle the settings</b><span class="subtle">Nothing physical — just switches in Windows and OBS. You can undo any of it.</span></div>
-      <div class="row"><button class="btn primary lg" id="fix"></button></div></div></div>`);
+      <div class="spread"><div class="stack" style="gap:2px"><b>Let us handle the settings</b><span class="subtle">Nothing physical — just switches in Windows and OBS. We scan again afterwards to check, and you can undo any of it.</span></div>
+      <div class="row"><button class="btn primary lg" id="fix"></button></div></div>
+      <div id="fix-live" class="stack" style="gap:6px"></div></div>`);
     const fixBtn = bar.querySelector('#fix');
     function updateBtn() {
       fixBtn.textContent = selected.size ? `Fix ${selected.size} thing${selected.size === 1 ? '' : 's'} for me` : 'Nothing selected';
@@ -146,22 +153,42 @@ export async function render(root, { go, refreshNav }) {
     }
     updateBtn();
     fixBtn.addEventListener('click', async () => {
+      const ids = [...selected];
+      const todo = q.actions.filter((a) => ids.includes(a.id));
       fixBtn.disabled = true;
       fixBtn.innerHTML = '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> Fixing…';
+      // Live status while the backend works: every item, what it is doing, and a heads-up for Windows' permission prompt.
+      const live = bar.querySelector('#fix-live');
+      live.innerHTML = '';
+      live.append(html(`<ul class="plain fix-list">${todo.map((a) => `<li class="fix-row"><span class="fix-chip"><span class="spinner" style="width:12px;height:12px;border-width:2px"></span> Working…</span> <b>${esc(a.label)}</b></li>`).join('')}</ul>`));
+      if (todo.some((a) => a.needs_admin)) live.append(html('<span class="subtle">Windows may ask for permission — choose Yes. It only changes the one setting.</span>'));
+      live.append(html('<span class="subtle">Then we scan again to check each one actually changed.</span>'));
       try {
-        const res = await api.applyActions([...selected]);
-        state.applied = res;
+        const rep = await api.fixAndVerify(ids, state.micId);
+        // The re-scan IS the new truth: replace the old scan, keep the per-item outcomes on screen.
+        state.quick = rep.quick;
+        // Earlier rounds stay on screen, and are re-judged by this fresh scan: if one came back, say so.
+        const earlier = (state.fixReport?.items || []).filter((i) => i.status === 'fixed').map((i) => {
+          const back = rep.quick.findings.find((f) => i.resolves.includes(f.id) && f.severity !== 'info');
+          return back ? { ...i, status: 'not_confirmed', message: `It came back: the re-check shows "${back.title}" again.` }
+            : { ...i, message: 'Fixed earlier; the re-check still shows it gone.' };
+        });
+        state.fixReport = { ...rep, items: [...rep.items, ...earlier] };
+        state.applied = null;
+        refreshNav();
+        const f = rep.items.filter((i) => i.status === 'fixed').length;
         // Exactly one toast, and never a success toast when nothing was fixed.
-        if (res.applied.length && !res.failed.length) toast('All done', 'Your settings are updated. You can undo any of it from Backups.', 'good');
-        else if (res.applied.length) toast('Partly done', 'Some fixes need a hand from you. See the list.', '');
-        else toast("Nothing was changed", "We couldn't do these automatically. The list shows what to do instead.", 'bad');
+        if (f && f === rep.items.length) toast('All done', 'Fixed, and the re-check agrees. You can undo any of it from Backups.', 'good');
+        else if (f) toast('Partly done', `${f} of ${rep.items.length} fixed. The list says why for the rest.`, '');
+        else toast("Nothing was changed", 'Each item says why, and what to do instead.', 'bad');
         draw();
       } catch (e) {
-        toast("That didn't work", `${e.message} Nothing was changed. Press the button to try again.`, 'bad');
+        live.innerHTML = '';
+        toast("That didn't work", `${e.message || e} Press the button to try again, or scan again to see where things stand.`, 'bad');
         updateBtn();
       }
     });
-    if (q.actions.length && !(state.applied && selected.size === 0)) body.append(bar);
+    if (q.actions.length) body.append(bar);
     body.append(list);
 
     const next = html(`<div class="card hero stack" style="margin-top:20px"><h2>Next: listen to your mic</h2>

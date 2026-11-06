@@ -2,7 +2,7 @@
 
 use super::audio::capture_endpoints;
 use super::{com_init, run_hidden, running_processes};
-use crate::platform::{detect_mains, parse_usb_probe,GainControl, MainsGuess, SystemInspector, WinKey, WinValue};
+use crate::platform::{detect_mains, parse_usb_probe, FxErr, GainControl, MainsGuess, SystemInspector, WinKey, WinValue};
 use coach_core::system::{
     Action, AudioEndpoint, CameraSystemState, Connection, DuckingPreference, GpuVendor, HardwareInfo, KnownProcessingApps, NetworkInfo,
     WindowsAudioState,
@@ -16,8 +16,8 @@ use windows::Win32::Media::KernelStreaming::AUDIO_EFFECT_TYPE_DEEP_NOISE_SUPPRES
 use windows::Win32::System::Com::StructuredStorage::{PropVariantClear, PropVariantToUInt32, PROPVARIANT};
 use windows::Win32::System::Com::{CoTaskMemFree, CLSCTX_ALL, STGM_READ, STGM_READWRITE};
 use windows::Win32::System::Variant::VT_UI4;
-use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WRITE};
-use winreg::RegKey;
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_QUERY_VALUE, KEY_READ, KEY_SET_VALUE, REG_BINARY, REG_DWORD};
+use winreg::{RegKey, RegValue};
 
 pub struct WinSystem;
 
@@ -34,42 +34,53 @@ fn endpoint_guid(id: &str) -> Option<&str> {
     id.rsplit('.').next()
 }
 
+const MMDEVICES_CAPTURE: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture";
+
 fn props_key(id: &str, write: bool) -> Option<RegKey> {
     let guid = endpoint_guid(id)?;
     RegKey::predef(HKEY_LOCAL_MACHINE)
         .open_subkey_with_flags(
-            format!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\{guid}\Properties"),
-            if write { KEY_READ | KEY_WRITE } else { KEY_READ },
+            format!(r"{MMDEVICES_CAPTURE}\{guid}\Properties"),
+            // Value access only. These keys let administrators set values but not
+            // create sub-keys, and KEY_WRITE asks for CREATE_SUB_KEY too, so it is
+            // refused even in an elevated process (checked on Windows 11 25H2).
+            if write { KEY_QUERY_VALUE | KEY_SET_VALUE } else { KEY_READ },
         )
         .ok()
 }
 
-/// Serialized VT_BOOL property: bytes 0..2 = VT (0x000b), value at 8..10.
+/// A two-state endpoint property, as Windows stores it (see `parse_flag`).
+/// `None` = not stored (Windows' default applies) or not readable.
 fn reg_bool(id: &str, name: &str) -> Option<bool> {
-    let k = props_key(id, false)?;
-    let v = k.get_raw_value(name).ok()?;
-    let b = v.bytes;
-    if b.len() >= 10 && b[0] == 0x0b {
-        Some(b[8] != 0 || b[9] != 0)
-    } else {
-        None
-    }
+    let v = props_key(id, false)?.get_raw_value(name).ok()?;
+    crate::platform::parse_flag(v.vtype == REG_DWORD, &v.bytes)
 }
 
-fn set_reg_bool(id: &str, name: &str, on: bool) -> Result<(), String> {
-    let k = props_key(id, true).ok_or_else(admin_msg)?;
-    let mut v = k.get_raw_value(name).map_err(|_| admin_msg())?;
-    if v.bytes.len() < 10 {
-        return Err("This setting isn't available for your mic.".into());
-    }
-    let x = if on { 0xff } else { 0x00 };
-    v.bytes[8] = x;
-    v.bytes[9] = x;
-    k.set_raw_value(name, &v).map_err(|_| admin_msg())
+/// What Windows does when the value is not stored: exclusive control is
+/// allowed, "Listen to this device" is off.
+fn flag_default(name: &str) -> bool {
+    name == PROP_EXCLUSIVE
 }
 
-fn admin_msg() -> String {
-    "Windows needs administrator permission for this one. Restart Setup Coach as administrator, or change it in Sound settings.".into()
+/// The setting as Windows really has it right now (stored value, else its
+/// default). `None` only when the mic's settings can't be read at all.
+fn flag_now(id: &str, name: &str) -> Option<bool> {
+    props_key(id, false)?;
+    Some(reg_bool(id, name).unwrap_or_else(|| flag_default(name)))
+}
+
+fn set_reg_bool(id: &str, name: &str, on: bool) -> Result<(), FxErr> {
+    props_key(id, false).ok_or(FxErr::Gone)?;
+    let k = props_key(id, true).ok_or(FxErr::Denied)?;
+    let cur = k.get_raw_value(name).ok();
+    if cur.is_none() && name != PROP_EXCLUSIVE {
+        // Not stored: Windows' default applies. Nothing to do if that is what we want;
+        // only exclusive control is a plain number we may create.
+        return if flag_default(name) == on { Ok(()) } else { Err(FxErr::Unsupported) };
+    }
+    let existing = cur.as_ref().map(|v| (v.vtype == REG_DWORD, v.bytes.as_slice()));
+    let (is_dword, bytes) = crate::platform::flag_bytes(existing, on).ok_or(FxErr::Unsupported)?;
+    k.set_raw_value(name, &RegValue { bytes, vtype: if is_dword { REG_DWORD } else { REG_BINARY } }).map_err(|_| FxErr::Denied)
 }
 
 fn sysfx_disabled(d: &IMMDevice) -> Option<bool> {
@@ -86,34 +97,65 @@ fn sysfx_disabled(d: &IMMDevice) -> Option<bool> {
 /// in both `Properties` and `FxProperties`; checked on a real Windows 11 PC).
 const FX_PROP_NAME: &str = "{1da5d803-d492-4edd-8c23-e0c0ffee7f0e},5";
 
+/// The `FxProperties` copy (the one Windows' own Sound settings page shows).
+fn fx_copy(endpoint: &str) -> Option<bool> {
+    let guid = endpoint_guid(endpoint)?;
+    let k = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(format!(r"{MMDEVICES_CAPTURE}\{guid}\FxProperties"), KEY_READ).ok()?;
+    k.get_value::<u32, _>(FX_PROP_NAME).ok().map(|v| v != 0)
+}
+
+/// "Enhancements are off" for a mic, from both copies Windows keeps. Either one
+/// saying "on" counts as on.
+fn sysfx_off(d: &IMMDevice, endpoint: &str) -> Option<bool> {
+    crate::platform::combine_sysfx(sysfx_disabled(d), fx_copy(endpoint))
+}
+
 fn read_sysfx(endpoint: &str) -> bool {
-    find_device(endpoint).and_then(|d| sysfx_disabled(&d)).unwrap_or(false)
+    find_device(endpoint).and_then(|d| sysfx_off(&d, endpoint)).unwrap_or(false)
+}
+
+/// Set the value on both registry copies (value access only). Ok when at least one took.
+fn write_sysfx_registry(endpoint: &str, disabled: bool) -> Result<(), FxErr> {
+    let guid = endpoint_guid(endpoint).ok_or(FxErr::Gone)?;
+    let mut any = false;
+    for sub in ["Properties", "FxProperties"] {
+        if let Ok(k) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(format!(r"{MMDEVICES_CAPTURE}\{guid}\{sub}"), KEY_QUERY_VALUE | KEY_SET_VALUE) {
+            any |= k.set_value(FX_PROP_NAME, &u32::from(disabled)).is_ok();
+        }
+    }
+    if any {
+        Ok(())
+    } else {
+        Err(FxErr::Denied)
+    }
 }
 
 /// Write "enhancements off/on" from this process. Windows only lets
 /// administrators do this (IMMDevice::OpenPropertyStore: "A client that is not
 /// running as an administrator is restricted to read-only access"), so for
 /// everyone else this fails and `set_sysfx` falls back to a one-off UAC helper.
-pub(crate) fn write_sysfx_in_process(endpoint: &str, disabled: bool) -> Result<(), String> {
+/// Both copies are written (property store and registry), because the Sound
+/// settings page reads the `FxProperties` one.
+pub(crate) fn write_sysfx_in_process(endpoint: &str, disabled: bool) -> Result<(), FxErr> {
     com_init();
-    let d = find_device(endpoint).ok_or("That microphone isn't connected any more.")?;
-    unsafe {
-        let store = d.OpenPropertyStore(STGM_READWRITE).map_err(|_| admin_msg())?;
-        let mut pv = PROPVARIANT::default();
-        (*pv.Anonymous.Anonymous).vt = VT_UI4;
-        (*pv.Anonymous.Anonymous).Anonymous.ulVal = u32::from(disabled);
-        store.SetValue(&PKEY_DISABLE_SYSFX, &pv).map_err(|_| admin_msg())?;
-        store.Commit().map_err(|_| admin_msg())?;
+    let d = find_device(endpoint).ok_or(FxErr::Gone)?;
+    let store_ok = unsafe {
+        (|| -> windows::core::Result<()> {
+            let store = d.OpenPropertyStore(STGM_READWRITE)?;
+            let mut pv = PROPVARIANT::default();
+            (*pv.Anonymous.Anonymous).vt = VT_UI4;
+            (*pv.Anonymous.Anonymous).Anonymous.ulVal = u32::from(disabled);
+            store.SetValue(&PKEY_DISABLE_SYSFX, &pv)?;
+            store.Commit()
+        })()
+        .is_ok()
+    };
+    let reg = write_sysfx_registry(endpoint, disabled);
+    if store_ok || reg.is_ok() {
+        Ok(())
+    } else {
+        Err(FxErr::Denied)
     }
-    // The copy Windows' own Settings page writes next to it (best effort).
-    if let Some(guid) = endpoint_guid(endpoint) {
-        if let Ok((k, _)) = RegKey::predef(HKEY_LOCAL_MACHINE)
-            .create_subkey_with_flags(format!(r"SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Capture\{guid}\FxProperties"), KEY_READ | KEY_WRITE)
-        {
-            let _ = k.set_value(FX_PROP_NAME, &u32::from(disabled));
-        }
-    }
-    Ok(())
 }
 
 /// Re-read until the value shows up (Windows applies it a moment later).
@@ -130,7 +172,7 @@ fn wait_for_sysfx(endpoint: &str, disabled: bool) -> bool {
 /// Turn Windows "Audio enhancements" off (or back on) for one mic and prove it
 /// by reading the value back. Order: write directly (works for admins), else
 /// ask Windows for permission (UAC) for just this one change. Only `Ok` when
-/// the re-read shows the new value.
+/// the re-read shows the new value; the error says which step failed.
 pub(crate) fn set_sysfx(endpoint: &str, disabled: bool) -> Result<(), String> {
     let direct = write_sysfx_in_process(endpoint, disabled);
     if direct.is_ok() && wait_for_sysfx(endpoint, disabled) {
@@ -139,11 +181,14 @@ pub(crate) fn set_sysfx(endpoint: &str, disabled: bool) -> Result<(), String> {
     if read_sysfx(endpoint) == disabled {
         return Ok(());
     }
+    if let Err(e @ (FxErr::Gone | FxErr::Unsupported)) = direct {
+        return Err(e.message());
+    }
     run_elevated_helper(&["sysfx", endpoint, if disabled { "1" } else { "0" }])?;
     if wait_for_sysfx(endpoint, disabled) {
         Ok(())
     } else {
-        Err("Windows still shows audio enhancements as on for this mic.".into())
+        Err(FxErr::NotShown.message())
     }
 }
 
@@ -158,7 +203,7 @@ fn reg_flag_name(which: &str) -> Option<&'static str> {
 
 fn wait_for_reg_flag(endpoint: &str, name: &str, on: bool) -> bool {
     for _ in 0..12 {
-        if reg_bool(endpoint, name) == Some(on) {
+        if flag_now(endpoint, name) == Some(on) {
             return true;
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
@@ -171,17 +216,21 @@ fn wait_for_reg_flag(endpoint: &str, name: &str, on: bool) -> bool {
 /// (administrators), else one UAC prompt for just this change.
 fn set_reg_flag(which: &str, endpoint: &str, on: bool) -> Result<(), String> {
     let name = reg_flag_name(which).ok_or("Unknown setting.")?;
-    if set_reg_bool(endpoint, name, on).is_ok() && wait_for_reg_flag(endpoint, name, on) {
+    let direct = set_reg_bool(endpoint, name, on);
+    if direct.is_ok() && wait_for_reg_flag(endpoint, name, on) {
         return Ok(());
     }
-    if reg_bool(endpoint, name) == Some(on) {
+    if flag_now(endpoint, name) == Some(on) {
         return Ok(());
+    }
+    if let Err(e @ (FxErr::Gone | FxErr::Unsupported)) = direct {
+        return Err(e.message());
     }
     run_elevated_helper(&["regflag", which, endpoint, if on { "1" } else { "0" }])?;
     if wait_for_reg_flag(endpoint, name, on) {
         Ok(())
     } else {
-        Err("Windows still shows this setting unchanged for your mic.".into())
+        Err(FxErr::NotShown.message())
     }
 }
 
@@ -207,20 +256,26 @@ fn run_elevated_helper(args: &[&str]) -> Result<(), String> {
         if info.hProcess.is_invalid() {
             return Err("Windows didn't start the permission helper.".into());
         }
-        let _ = WaitForSingleObject(info.hProcess, 60_000);
+        let waited = WaitForSingleObject(info.hProcess, 60_000);
         let mut code = 1u32;
         let _ = GetExitCodeProcess(info.hProcess, &mut code);
         let _ = CloseHandle(info.hProcess);
+        if waited.0 != 0 {
+            // WAIT_OBJECT_0 is 0: anything else means it was still running after 60 s.
+            return Err("The permission helper took too long, so nothing was counted as changed.".into());
+        }
         if code == 0 {
             Ok(())
         } else {
-            Err("The permission helper couldn't change it.".into())
+            Err(FxErr::message_for_exit_code(code))
         }
     }
 }
 
 /// `setup-coach-app.exe --fx-helper sysfx <endpoint> <0|1>`: runs elevated,
-/// changes exactly one value, exits 0 only if the read-back matches.
+/// changes exactly one value, exits 0 only if the read-back matches. Other exit
+/// codes are `FxErr::code` (3 refused, 4 not shown, 5 mic gone, 6 unsupported)
+/// or 2 for a request it doesn't understand.
 pub fn fx_helper_main(args: &[String]) -> Option<i32> {
     let i = args.iter().position(|a| a == "--fx-helper")?;
     let rest = &args[i + 1..];
@@ -229,7 +284,8 @@ pub fn fx_helper_main(args: &[String]) -> Option<i32> {
             let disabled = flag == "1";
             match write_sysfx_in_process(endpoint, disabled) {
                 Ok(()) if wait_for_sysfx(endpoint, disabled) => 0,
-                _ => 1,
+                Ok(()) => FxErr::NotShown.code(),
+                Err(e) => e.code(),
             }
         }
         [what, which, endpoint, flag]
@@ -239,7 +295,8 @@ pub fn fx_helper_main(args: &[String]) -> Option<i32> {
             let name = reg_flag_name(which).unwrap_or_default();
             match set_reg_bool(endpoint, name, on) {
                 Ok(()) if wait_for_reg_flag(endpoint, name, on) => 0,
-                _ => 1,
+                Ok(()) => FxErr::NotShown.code(),
+                Err(e) => e.code(),
             }
         }
         _ => 2,
@@ -446,7 +503,7 @@ impl SystemInspector for WinSystem {
                     is_bluetooth_handsfree: lname.contains("hands-free") || lname.contains("handsfree"),
                     sample_rate: d.sample_rate,
                     channels: d.channels,
-                    enhancements_enabled: sysfx_disabled(&dev).map(|off| !off).unwrap_or(false),
+                    enhancements_enabled: sysfx_off(&dev, &d.id).map(|off| !off).unwrap_or(false),
                     voice_clarity_enabled: voice_clarity(&dev).unwrap_or(false),
                     mic_boost_db: None, // needs IDeviceTopology walking; not probed yet
                     is_onboard: lname.contains("realtek") || lname.contains("high definition audio"),
@@ -683,10 +740,10 @@ impl SystemInspector for WinSystem {
             WinKey::Ducking => json!(reg_u32(HKEY_CURRENT_USER, DUCKING_KEY, "UserDuckingPreference")),
             WinKey::UsbSelectiveSuspend => json!(usb_suspend_indexes()?),
             WinKey::EndpointVolume { endpoint } => json!(endpoint_volume(&find_device(endpoint)?)?),
-            WinKey::Enhancements { endpoint } => json!(u32::from(sysfx_disabled(&find_device(endpoint)?).unwrap_or(false))),
+            WinKey::Enhancements { endpoint } => json!(u32::from(sysfx_off(&find_device(endpoint)?, endpoint).unwrap_or(false))),
             WinKey::VoiceClarity { endpoint } => json!(u32::from(voice_clarity(&find_device(endpoint)?)?)),
-            WinKey::Listen { endpoint } => json!(u32::from(reg_bool(endpoint, PROP_LISTEN)?)),
-            WinKey::ExclusiveMode { endpoint } => json!(u32::from(reg_bool(endpoint, PROP_EXCLUSIVE)?)),
+            WinKey::Listen { endpoint } => json!(u32::from(flag_now(endpoint, PROP_LISTEN)?)),
+            WinKey::ExclusiveMode { endpoint } => json!(u32::from(flag_now(endpoint, PROP_EXCLUSIVE)?)),
             // We never write Microphone Boost (it's coached), so nothing to save.
             WinKey::MicBoost { .. } => return None,
         };
@@ -727,8 +784,8 @@ impl SystemInspector for WinSystem {
                 set_sysfx(endpoint, flag)
             }
             WinKey::VoiceClarity { endpoint } => set_voice_clarity(endpoint, flag).map_err(|e| format!("{e} Change it in Settings → System → Sound → your mic.")),
-            WinKey::Listen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, flag),
-            WinKey::ExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, flag),
+            WinKey::Listen { endpoint } => set_reg_bool(endpoint, PROP_LISTEN, flag).map_err(|e| e.message()),
+            WinKey::ExclusiveMode { endpoint } => set_reg_bool(endpoint, PROP_EXCLUSIVE, flag).map_err(|e| e.message()),
             WinKey::MicBoost { .. } => Ok(()),
         }
     }

@@ -341,7 +341,7 @@ export async function render(root, { go, refreshNav }) {
       page.append(html(`<div class="card hero coach-finish"><div class="tick big">${icons.check}</div><h1>That's fixed</h1><p class="lead">We saw the change in Windows. Re-checking your settings…</p></div>`));
     }
     try {
-      state.quick = await api.runQuickChecks();
+      state.quick = await api.runQuickChecks(state.micId);
       state.applied = null;
       refreshNav();
     } catch (e) {

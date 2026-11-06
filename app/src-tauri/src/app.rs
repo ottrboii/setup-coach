@@ -103,6 +103,8 @@ struct Inner {
     preview: Option<Box<dyn StreamHandle>>,
     plan: Vec<PlannedActionView>,
     last_snapshot: Option<SystemSnapshot>,
+    /// The Windows endpoint of the mic the user is setting up (from the UI's picker). The quick scan audits this one, not whatever Windows happens to have as default.
+    chosen_mic: Option<String>,
     camera: Option<CameraSession>,
     last_camera: Option<(String, CameraReport)>,
     applied_camera: Option<(String, CameraSettings)>,
@@ -364,7 +366,7 @@ impl AppCore {
         let mut processing = sys.processing_apps();
         processing.goxlr_utility_running |= self.goxlr().await.is_some();
         let mut snap = SystemSnapshot {
-            windows: sys.windows_audio(),
+            windows: self.windows_for_chosen_mic(sys.windows_audio()),
             obs: obs_state,
             camera,
             processing,
@@ -392,6 +394,21 @@ impl AppCore {
         snap
     }
 
+    /// Treat the mic the user picked as THE mic for the audit. With OBS closed the
+    /// scan used to look at Windows' default recording device, which can be a webcam's
+    /// built-in mic: every Fix then changed the wrong device. Only the is_default
+    /// flag of the snapshot copy is moved; OBS' own device choice still wins.
+    fn windows_for_chosen_mic(&self, mut w: Option<system::WindowsAudioState>) -> Option<system::WindowsAudioState> {
+        let chosen = self.inner.lock().unwrap().chosen_mic.clone();
+        let (Some(chosen), Some(state)) = (chosen, w.as_mut()) else { return w };
+        if state.endpoints.iter().any(|e| e.is_capture && e.id == chosen) {
+            for e in state.endpoints.iter_mut().filter(|e| e.is_capture) {
+                e.is_default = e.id == chosen;
+            }
+        }
+        w
+    }
+
     /// Append one line to `<data dir>\logs\ui.log` (kept under ~512 KB).
     pub fn log_ui(&self, level: &str, source: &str, message: &str) {
         use std::io::Write;
@@ -411,6 +428,14 @@ impl AppCore {
     }
 
     pub async fn run_quick_checks(&self) -> QuickChecks {
+        self.run_quick_checks_for(None).await
+    }
+
+    /// The quick scan for the mic the user picked (`device_id` = its Windows endpoint id; remembered for later scans and fixes).
+    pub async fn run_quick_checks_for(&self, device_id: Option<&str>) -> QuickChecks {
+        if let Some(d) = device_id.filter(|d| !d.is_empty()) {
+            self.inner.lock().unwrap().chosen_mic = Some(d.to_string());
+        }
         let snap = self.snapshot().await;
         let mut findings = system::audit(&snap, &[]);
         let prev = self.inner.lock().unwrap().last_snapshot.clone();
@@ -450,6 +475,50 @@ impl AppCore {
         QuickChecks { findings, actions, score, runtime_warnings }
     }
 
+    /// "Fix these for me", the honest version: apply, then RE-SCAN and judge each
+    /// fix by what the scan shows, not by what the call returned. A change Windows
+    /// or OBS accepted but that the scan still sees comes back as `NotConfirmed`;
+    /// a refusal comes back as `Failed` (with the reason) or `NeedsYou` (guided
+    /// steps). The returned `quick` is the fresh scan; ids in it are new, so the
+    /// UI must not mix them with the ids it sent.
+    pub async fn fix_and_verify(&self, ids: &[String], device_id: Option<&str>) -> FixReport {
+        let plan = self.inner.lock().unwrap().plan.clone();
+        let res = self.apply_actions(ids).await;
+        let quick = self.run_quick_checks_for(device_id).await;
+        let still: Vec<&coach_core::finding::Finding> = quick.findings.iter().filter(|f| f.severity != coach_core::finding::Severity::Info).collect();
+        let items = ids
+            .iter()
+            .map(|id| {
+                let Some(p) = plan.iter().find(|p| &p.id == id) else {
+                    return FixItem {
+                        id: id.clone(),
+                        label: "That fix".into(),
+                        resolves: vec![],
+                        status: FixStatus::Failed,
+                        message: "That fix is out of date. Run the checks again.".into(),
+                        guided: None,
+                    };
+                };
+                let base = |status, message: String, guided| FixItem { id: id.clone(), label: p.label.clone(), resolves: p.resolves.clone(), status, message, guided };
+                if res.applied.contains(id) {
+                    match still.iter().find(|f| p.resolves.contains(&f.id)) {
+                        Some(f) => base(
+                            FixStatus::NotConfirmed,
+                            format!("We made the change, but the re-check still shows \"{}\", so we haven't counted it as fixed.", f.title),
+                            None,
+                        ),
+                        None => base(FixStatus::Fixed, "Done. The re-check no longer shows it.".into(), None),
+                    }
+                } else if let Some(f) = res.failed.iter().find(|f| &f.id == id) {
+                    let status = if f.guided.is_some() { FixStatus::NeedsYou } else { FixStatus::Failed };
+                    base(status, f.error.clone(), f.guided.clone())
+                } else {
+                    base(FixStatus::Failed, "This one wasn't run.".into(), None)
+                }
+            })
+            .collect();
+        FixReport { items, quick, restart_obs_needed: res.restart_obs_needed }
+    }
     pub async fn apply_actions(&self, ids: &[String]) -> ApplyResult {
         let plan = self.inner.lock().unwrap().plan.clone();
         let mut res = ApplyResult::default();

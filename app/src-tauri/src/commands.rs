@@ -26,9 +26,9 @@ pub async fn connect_obs(app: S<'_>, password: Option<String>) -> R<ObsStatus> {
 /// panic or a stuck Windows call becomes a plain error the UI can show
 /// instead of a promise that never settles.
 #[tauri::command]
-pub async fn run_quick_checks(app: S<'_>) -> R<QuickChecks> {
+pub async fn run_quick_checks(app: S<'_>, device_id: Option<String>) -> R<QuickChecks> {
     let core = app.inner().clone();
-    let task = tokio::spawn(async move { core.run_quick_checks().await });
+    let task = tokio::spawn(async move { core.run_quick_checks_for(device_id.as_deref()).await });
     match tokio::time::timeout(std::time::Duration::from_secs(45), task).await {
         Ok(Ok(q)) => Ok(q),
         Ok(Err(_)) => {
@@ -48,6 +48,31 @@ pub async fn run_quick_checks(app: S<'_>) -> R<QuickChecks> {
 pub async fn log_ui(app: S<'_>, level: String, source: String, message: String) -> R<()> {
     app.log_ui(&level, &source, &message);
     Ok(())
+}
+
+/// Apply the chosen quick fixes, then re-scan and report each one as fixed /
+/// couldn't fix (and why) / needs you. One line per fix goes to `logs\ui.log`.
+#[tauri::command]
+pub async fn fix_and_verify(app: S<'_>, action_ids: Vec<String>, device_id: Option<String>) -> R<FixReport> {
+    let core = app.inner().clone();
+    let ids = action_ids.clone();
+    let task = tokio::spawn(async move { core.fix_and_verify(&ids, device_id.as_deref()).await });
+    match tokio::time::timeout(std::time::Duration::from_secs(180), task).await {
+        Ok(Ok(r)) => {
+            for i in &r.items {
+                app.log_ui("info", "fix", &format!("{} [{:?}] {}", i.label, i.status, i.message));
+            }
+            Ok(r)
+        }
+        Ok(Err(_)) => {
+            app.log_ui("error", "backend", "fix_and_verify panicked");
+            Err("The fix hit an unexpected problem. Nothing was counted as fixed; run the scan again to see where things stand.".into())
+        }
+        Err(_) => {
+            app.log_ui("error", "backend", "fix_and_verify timed out after 180 s");
+            Err("The fix is taking too long. Run the scan again to see where things stand.".into())
+        }
+    }
 }
 
 #[tauri::command]

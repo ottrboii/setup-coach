@@ -1,4 +1,4 @@
-﻿# Setup Coach app: backend ⇄ UI contract
+# Setup Coach app: backend ⇄ UI contract
 
 Tauri 2. Backend: `app/src-tauri` (Rust, uses `coach_core`). UI: `app/ui`
 (static HTML/CSS/JS ES modules, no build step; `frontendDist = "../ui"`).
@@ -58,7 +58,8 @@ port/password from `%APPDATA%\obs-studio\plugin_config\obs-websocket\config.json
 
 | Command | Args | Returns |
 |---|---|---|
-| `run_quick_checks` | – | `QuickChecks` |
+| `run_quick_checks` | `{ deviceId?: string }` | `QuickChecks` |
+| `fix_and_verify` | `{ actionIds: string[], deviceId?: string }` | `FixReport` |
 | `apply_actions` | `{ actionIds: string[] }` | `ApplyResult` |
 | `log_ui` | `{ level: string, source: string, message: string }` | `()` – appends a line to `%APPDATA%\SetupCoach\logs\ui.log` (in the self-test zip). The UI calls it for every rejected command and caught screen error. (added 2026-11-05) |
 
@@ -722,3 +723,18 @@ device; null when Windows has no start event in the last 7 days, then there is n
 before stream") and on the quick scan.
 
 Also fixed in the UI: `camera-preview` payload is `{ image, paper_guide }` per this file, the camera screen now reads `.image`.
+
+### Quick scan: picked mic, verified fixes (2026-11-06)
+
+**`run_quick_checks { deviceId? }`.** `deviceId` is the Windows endpoint id of the mic the user picked (`state.micId`). It is remembered and used for this and later scans/fixes: that mic is audited as "the mic" (its `is_default` flag is moved in the scan's copy; an OBS input that pins a device still wins). Before this, with OBS closed the scan audited Windows' default recording device, which can be a webcam's built-in mic, so "Fix for me" changed the wrong device. Omitted/null = old behaviour (Windows default). Backward compatible.
+
+**`fix_and_verify { actionIds, deviceId? }` -> `FixReport`.** Applies the actions, then **re-scans** and judges each fix by the scan:
+
+```
+FixReport = { items: FixItem[], quick: QuickChecks, restart_obs_needed: boolean }
+FixItem   = { id, label, resolves: string[], status: "fixed" | "not_confirmed" | "failed" | "needs_you",
+              message: string, guided?: CoachStep }
+```
+`fixed` = applied and the re-scan no longer shows the finding. `not_confirmed` = the change was accepted but the re-scan still shows the finding (not counted). `failed` = could not be done; `message` is the plain reason. `needs_you` = Windows keeps it for the user; `guided` is the step for "Show me how". `quick` is the fresh scan: **action ids in it are new**, so the UI must replace its `QuickChecks` with it and never mix ids from two scans (the old UI kept the last `ApplyResult` and lost earlier fixes when the next press replaced it, so fixed findings "came back"). One `fix` line per item is appended to `logs\ui.log`. `apply_actions` is unchanged (used by the dashboard re-apply and the mic-apply screen).
+
+**Helper errors are specific now.** The elevated `--fx-helper` exits 0 (read-back matches), 2 (bad request), 3 (Windows refused the write), 4 (written but still shown old), 5 (mic gone), 6 (setting not available). The app maps these to different plain messages instead of one "The permission helper couldn't change it." Registry writes open the endpoint keys with value access only (`KEY_SET_VALUE`): `KEY_WRITE` also asks for "create sub-key", which those keys deny even to elevated administrators. Exclusive control (`{b3f8fa53-...},3`) is a plain `REG_DWORD` that is usually **absent** (= allowed); it is now created as 0 instead of failing, and read as "allowed" when absent. Audio enhancements are read from both copies (property store and `FxProperties`); either saying "on" counts as on, and both are written.

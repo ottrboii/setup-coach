@@ -50,7 +50,7 @@ export async function render(root, { go, refreshNav }) {
     box.innerHTML = '';
     box.append(loading('Re-checking Windows and OBS…'));
     try {
-      state.quick = await api.runQuickChecks();
+      state.quick = await api.runQuickChecks(state.micId);
       state.applied = null;
       refreshNav();
       const open = state.quick.findings.filter((f) => f.severity !== 'info');
