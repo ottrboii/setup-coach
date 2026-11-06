@@ -141,6 +141,17 @@ impl ObsApi for FakeObs {
                 st.inputs[i].monitor = d["monitorType"].as_str().unwrap_or_default().into();
                 Ok(Value::Null)
             }
+            "GetInputAudioSyncOffset" => {
+                input_idx.ok_or("no input")?;
+                let ms = st.params.get(&("sync_offset".to_string(), name)).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+                Ok(json!({ "inputAudioSyncOffset": ms }))
+            }
+            "SetInputAudioSyncOffset" => {
+                input_idx.ok_or("no input")?;
+                let ms = d["inputAudioSyncOffset"].as_i64().ok_or("no offset")?;
+                st.params.insert(("sync_offset".to_string(), name), ms.to_string());
+                Ok(Value::Null)
+            }
             "GetInputVolume" => input_idx.map(|i| json!({ "inputVolumeDb": st.inputs[i].volume_db })).ok_or("no input".into()),
             "GetInputMute" => input_idx.map(|i| json!({ "inputMuted": st.inputs[i].muted })).ok_or("no input".into()),
             "SetInputMute" => {

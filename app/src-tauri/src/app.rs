@@ -22,6 +22,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 mod ab;
+mod avsync_ops;
+pub use avsync_ops::{SyncApplyResult, SyncReport};
 mod camera_busy;
 mod coaching;
 mod micchoice;
@@ -115,6 +117,12 @@ struct Inner {
     freed_camera: Option<String>,
     /// Last `camera-picture` event sent: true = live.
     picture_live: Option<bool>,
+    /// Running lip-sync clap test.
+    sync: Option<avsync_ops::SyncSession>,
+    /// The fix the last clap test asked for (`apply_sync_fix` applies it).
+    sync_fix: Option<avsync_ops::SyncFix>,
+    /// OBS input and Sync Offset (ms) from before we changed it.
+    sync_prev: Option<(String, i64)>,
 }
 
 pub struct AppCore {
@@ -408,6 +416,7 @@ impl AppCore {
             }
         }
         coach_core::finding::rank(&mut findings);
+        let runtime_warnings = snap.connection.as_ref().map(system::runtime_warnings).unwrap_or_default();
         let obs_running = self.platform.system.obs_running();
         // Never offer a one-click fix that is certain to fail (no admin rights):
         // those findings become "you do it" steps up front.
@@ -432,7 +441,7 @@ impl AppCore {
         let mut inner = self.inner.lock().unwrap();
         inner.plan = actions.clone();
         inner.last_snapshot = Some(snap);
-        QuickChecks { findings, actions, score }
+        QuickChecks { findings, actions, score, runtime_warnings }
     }
 
     pub async fn apply_actions(&self, ids: &[String]) -> ApplyResult {

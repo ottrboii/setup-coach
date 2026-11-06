@@ -60,6 +60,9 @@ pub struct UsbLink {
     /// 7 days (oldest first). Used to spot a camera that shuts off after the
     /// same time every time.
     pub run_minutes: Vec<u32>,
+    /// Minutes the device has been connected in its current run (since Windows
+    /// last started it), when Windows says.
+    pub connected_min: Option<u32>,
 }
 
 /// Which device an app is holding.
@@ -265,6 +268,43 @@ pub fn near_runtime_limit(typical_min: u32, running_min: u32) -> bool {
     typical_min > 0 && f64::from(running_min) >= f64::from(typical_min) * 0.8
 }
 
+/// Before-you-stream heads-up for a camera that is close to its usual cut-off.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RuntimeWarning {
+    pub camera: String,
+    /// How long it usually runs before switching off.
+    pub typical_min: u32,
+    /// How long it has been on in this run.
+    pub connected_min: u32,
+    /// Minutes left until the usual cut-off (0 once past it).
+    pub minutes_left: u32,
+    pub message: String,
+}
+
+/// Cameras that usually switch off after a while and have already used up
+/// most of that time in the current run. Needs the camera's run history and
+/// how long it has been connected; without either there is nothing to warn about.
+pub fn runtime_warnings(c: &ConnectionState) -> Vec<RuntimeWarning> {
+    c.links
+        .iter()
+        .filter(|l| l.role == UsbRole::Camera)
+        .filter_map(|l| {
+            let typical = typical_runtime_minutes(&l.run_minutes)?;
+            let running = l.connected_min?;
+            if !near_runtime_limit(typical, running) {
+                return None;
+            }
+            let left = typical.saturating_sub(running);
+            let message = if left == 0 {
+                format!("Your {} has been on longer than it usually lasts (about {typical} minutes) and may switch off at any moment. Unplug it and plug it back in, or fix the heat or power problem, before you go live.", l.name)
+            } else {
+                format!("Your {} usually switches off after about {typical} minutes and has been on for {running}. Expect it to cut out in about {left} minutes: switch it off and on again before you go live, or fix the heat or power problem first.", l.name)
+            };
+            Some(RuntimeWarning { camera: l.name.clone(), typical_min: typical, connected_min: running, minutes_left: left, message })
+        })
+        .collect()
+}
+
 fn runtime_limit(c: &ConnectionState, out: &mut Vec<Finding>) {
     for l in c.links.iter().filter(|l| l.role == UsbRole::Camera) {
         let Some(typical) = typical_runtime_minutes(&l.run_minutes) else { continue };
@@ -433,5 +473,22 @@ mod tests {
         assert!(!near_runtime_limit(30, 10));
         assert!(near_runtime_limit(30, 24));
         assert!(!near_runtime_limit(0, 99));
+    }
+
+    #[test]
+    fn runtime_warning_only_when_near_the_usual_cutoff() {
+        let mk = |connected: Option<u32>, runs: &[u32]| {
+            let l = UsbLink { name: "Sony a6000".into(), role: UsbRole::Camera, run_minutes: runs.to_vec(), connected_min: connected, ..Default::default() };
+            ConnectionState { links: vec![l], ..Default::default() }
+        };
+        assert!(runtime_warnings(&mk(Some(5), &[27, 30, 29])).is_empty());
+        assert!(runtime_warnings(&mk(None, &[27, 30, 29])).is_empty());
+        assert!(runtime_warnings(&mk(Some(24), &[45, 12])).is_empty(), "no pattern, no warning");
+        let w = runtime_warnings(&mk(Some(24), &[27, 30, 29]));
+        assert_eq!(w.len(), 1);
+        assert_eq!((w[0].typical_min, w[0].minutes_left), (28, 4));
+        let past = runtime_warnings(&mk(Some(40), &[27, 30, 29]));
+        assert_eq!(past[0].minutes_left, 0);
+        assert!(past[0].message.contains("longer than it usually lasts"));
     }
 }

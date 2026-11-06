@@ -18,7 +18,7 @@ mod windows;
 mod tests;
 
 pub use actions::{quick_fixes, Action, PlannedAction};
-pub use connection::{ConnectionState, DeviceHolder, HeldDevice, UsbLink, UsbRole, UsbSpeed};
+pub use connection::{runtime_warnings, ConnectionState, DeviceHolder, HeldDevice, RuntimeWarning, UsbLink, UsbRole, UsbSpeed};
 pub use diff::snapshot_diff;
 pub use state::*;
 
