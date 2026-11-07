@@ -57,26 +57,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Pattern knob on omni or stereo picks up the whole room - use cardioid (heart symbol).",
@@ -130,26 +110,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "No gain knob on the mic - gain is set in G HUB / Windows."
@@ -202,26 +162,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Low volume reports are usually Blue VO!CE or the smart knob set to headphone mode, not mic gain."
@@ -268,26 +208,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "This one is a dynamic mic you speak into the end - unlike other Yetis. Keep it close (a fist away)."
       ],
@@ -335,26 +255,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Which way to speak into it is unverified - check on hardware."
       ],
@@ -385,26 +285,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the front (logo side).",
         "No gain knob - the Windows input slider is the gain."
@@ -447,26 +327,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Tap-to-mute on top is easy to leave on - a red light means muted.",
@@ -510,26 +370,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Tap-to-mute on top is easy to leave on - a red light means muted.",
@@ -573,26 +413,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Tap-to-mute on top is easy to leave on - a red light means muted.",
@@ -639,26 +459,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Tap-to-mute on top is easy to leave on - a red light means muted.",
@@ -694,26 +494,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the top of the mic.",
         "No gain knob - the Windows input slider is the gain (unverified)."
@@ -744,26 +524,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the top of the mic.",
         "No gain knob - the Windows input slider is the gain (unverified)."
@@ -798,26 +558,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away. (address unverified)",
         "Often shows in Windows as a generic 'USB PnP Audio Device' - we may need to ask which model it is."
@@ -853,26 +593,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified.",
         "Often shows in Windows as a generic 'USB PnP Audio Device' - we may need to ask which model it is."
@@ -909,26 +629,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Dynamic mic: talk into the end from about a fist away.",
         "Has USB and XLR - with XLR it needs an interface with plenty of gain."
@@ -964,26 +664,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified."
       ],
@@ -1018,26 +698,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Dynamic: keep it close, talk into the end."
       ],
@@ -1081,26 +741,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified - check on hardware.",
         "With Wave Link, OBS should use the Wave Link stream mix, not the raw mic."
@@ -1155,26 +795,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Supercardioid: you must talk straight at it - turning away drops your level a lot.",
         "With Wave Link, OBS should use the Wave Link stream mix, not the raw mic (unverified naming).",
@@ -1210,26 +830,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified."
       ],
@@ -1256,26 +856,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Dynamic XLR: needs an interface with plenty of clean gain; talk into the end."
       ],
@@ -1306,26 +886,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the top. Supercardioid: stay in front of it.",
         "No gain knob - the Windows slider is the gain (unverified)."
@@ -1359,26 +919,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified."
       ],
@@ -1413,26 +953,6 @@
         "ideal": 15,
         "max": 20
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified."
       ],
@@ -1466,26 +986,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
       ],
@@ -1524,26 +1024,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
       ],
@@ -1574,26 +1054,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified."
       ],
@@ -1632,26 +1092,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Talk into the end from about a fist away.",
         "Gain is digital in RODE Central."
@@ -1694,26 +1134,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Auto Level fights other processing - turn it off once gain is set.",
         "The MOTIV app only works over USB; in XLR mode it does nothing."
@@ -1766,26 +1186,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Auto Level and the denoiser should be off for a clean, steady voice.",
         "Talk into the end, a fist away."
@@ -1834,26 +1234,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Capsule type and processing details unverified."
       ],
@@ -1880,26 +1260,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "XLR only - needs an interface with plenty of clean gain."
       ],
@@ -1933,26 +1293,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Talk into the end (the top of the stick), a fist away.",
         "The on/off switch on the handle is a common 'my mic is dead' cause."
@@ -1991,26 +1331,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Talk into the end, a fist away."
       ],
@@ -2046,26 +1366,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Talk into the end, a fist away."
       ],
@@ -2100,26 +1400,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away."
       ],
@@ -2151,26 +1431,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Address direction unverified.",
         "Generic Windows name; we may need to ask which mic this is."
@@ -2230,26 +1490,6 @@
         "max": 10
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Needs about 60 dB of clean gain - small interfaces (Scarlett Solo) can't give that, which causes hiss. A booster (Cloudlifter/FetHead) or a stronger interface fixes it.",
         "Built to be used very close: 2-5 cm. Sitting back makes it quiet and noisy.",
@@ -2325,26 +1565,6 @@
         "max": 10
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Built-in preamp needs 48V phantom power when it's switched on.",
         "Use +18 or +28 dB on the mic with small interfaces instead of maxing the interface knob."
@@ -2372,26 +1592,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Gain-hungry: needs a lot of clean gain, similar to the SM7B.",
         "Talk into the end, close."
@@ -2419,26 +1619,6 @@
         "max": 10
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Low output: needs plenty of clean gain.",
         "End-address: talk into the top of the mic, close."
@@ -2485,20 +1665,6 @@
         "max": 15
       },
       "angle_deg": 0,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 70,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4000,
-          "gain_db": 1.5,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Variable-D design: very little extra bass when you get close, so distance changes tone less than other dynamics.",
         "Talk into the end (the top), not the side.",
@@ -2548,20 +1714,6 @@
         "max": 15
       },
       "angle_deg": 0,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 70,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4000,
-          "gain_db": 1.5,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Keep the curve switch on the voice (flat) setting.",
         "Talk into the end."
@@ -2590,26 +1742,6 @@
         "max": 10
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 5000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "A stage mic: works close; at desk distance it sounds thin and quiet."
       ],
@@ -2637,26 +1769,6 @@
         "max": 25
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 300,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the side with the logo, not the top. Most people talk into the top and sound thin and far away.",
         "Needs 48V phantom power turned on at the interface.",
@@ -2690,26 +1802,6 @@
         "max": 25
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 300,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Side-address: speak into the front, where the gold dot is.",
         "Needs 48V phantom power (on a GoXLR, set the mic type to Condenser).",
@@ -2743,26 +1835,6 @@
         "max": 25
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 300,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Speak into the front (gold dot side).",
         "XLR needs 48V phantom power; 5th gen also has USB-C.",
@@ -2818,26 +1890,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -2891,26 +1943,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -2962,26 +1994,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -3028,26 +2040,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -3093,26 +2085,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -3159,26 +2131,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it on your chest, about a hand's width below your chin, centred.",
         "Clothing rubbing on the mic makes rustling - clip it on a flat, still spot.",
@@ -3212,20 +2164,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3256,20 +2194,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3296,20 +2220,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Plugged into the PC jack: Windows only sees 'Realtek' - check Microphone Boost.",
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
@@ -3341,20 +2251,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3394,20 +2290,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3438,20 +2320,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3482,20 +2350,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3526,20 +2380,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Also has Bluetooth - over Bluetooth the mic drops to phone-call quality.",
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
@@ -3579,20 +2419,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3624,20 +2450,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3664,20 +2476,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3709,20 +2507,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3753,20 +2537,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3793,20 +2563,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3837,20 +2593,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3883,20 +2625,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Sonar adds its own virtual mic and processing - pick one place to process.",
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
@@ -3928,20 +2656,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -3975,20 +2689,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -4019,20 +2719,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -4059,20 +2745,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -4103,20 +2775,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],
@@ -4148,20 +2806,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Put the boom at the corner of your mouth, 1-2 finger widths away - not in front of your lips."
       ],

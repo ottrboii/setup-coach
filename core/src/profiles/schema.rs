@@ -173,28 +173,85 @@ pub struct DistanceCm {
     pub max: f32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+/// How the capsule's low end rises when the mouth is close (proximity effect).
+/// Ties to `pattern_b` in [`MicResponse`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EqKind {
-    #[default]
-    Peak,
-    LowShelf,
-    HighShelf,
-    /// High-pass; `gain_db` is ignored (0).
-    HighPass,
+pub enum Proximity {
+    /// Plain first-order pressure-gradient capsule (cardioid etc.): bass rises up close.
+    Gradient,
+    /// Variable-D style design (EV RE20): much reduced proximity effect.
+    Reduced,
+    /// Omni / headset: none.
+    None,
 }
 
-/// A gentle starting EQ move, before measurement corrects it. Capped at +/-6 dB.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct EqMove {
+/// Published on-axis frequency response of a mic, digitised from the maker's
+/// own chart or data sheet. Used at reduced weight while `verified` is false.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MicResponse {
+    /// `[freq_hz, db]` points, ascending frequency, third-octave spacing, 100 Hz-10 kHz.
+    pub points_hz_db: Vec<[f64; 2]>,
+    /// What the dB values are relative to, e.g. "dB re 1 kHz, on-axis, as published".
+    pub reference: String,
+    /// Distance the maker's chart was measured at, if stated.
     #[serde(default)]
-    pub kind: EqKind,
-    pub freq_hz: f32,
+    pub measured_at_cm: Option<f64>,
+    /// Gradient share of the first-order pattern (omni 0, cardioid 0.5, figure-8 1).
     #[serde(default)]
-    pub gain_db: f32,
-    pub q: f32,
+    pub pattern_b: Option<f64>,
+    #[serde(default)]
+    pub proximity: Option<Proximity>,
+    /// Per control key, per option index (as a string): the published curve for that position.
+    #[serde(default)]
+    pub switch_curves: std::collections::BTreeMap<String, std::collections::BTreeMap<String, Vec<[f64; 2]>>>,
+    /// Exact page/figure the curve was read from (the maker's own page, not a summary).
+    pub source: String,
+    #[serde(default)]
+    pub digitised_precision_db: Option<f64>,
+    /// True only after a check against a measurement mic on real hardware.
+    #[serde(default)]
+    pub verified: bool,
 }
 
+impl MicResponse {
+    /// Gain in dB at `freq_hz`, linear in log-frequency between points, clamped at the ends.
+    pub fn db_at(&self, freq_hz: f64) -> Option<f64> {
+        interp_log(&self.points_hz_db, freq_hz)
+    }
+}
+
+fn interp_log(pts: &[[f64; 2]], f: f64) -> Option<f64> {
+    let (first, last) = (pts.first()?, pts.last()?);
+    if f <= first[0] {
+        return Some(first[1]);
+    }
+    if f >= last[0] {
+        return Some(last[1]);
+    }
+    let i = pts.windows(2).position(|w| f >= w[0][0] && f <= w[1][0])?;
+    let (a, b) = (pts[i], pts[i + 1]);
+    let t = (f / a[0]).ln() / (b[0] / a[0]).ln();
+    Some(a[1] + t * (b[1] - a[1]))
+}
+
+/// Idealised first-order proximity boost in dB at `freq_hz` for a source `distance_cm`
+/// from the capsule: `10 log10(1 + (b / kr)^2)`, `k = 2 pi f / c`, `b` = `pattern_b`
+/// (see docs/voice-tuning-design.md section 4). `Reduced` is scaled to a quarter of the
+/// gradient boost (a deliberately modest placeholder until sourced); `None` is 0.
+pub fn proximity_boost_db(proximity: Proximity, pattern_b: f64, freq_hz: f64, distance_cm: f64) -> f64 {
+    const C: f64 = 343.0;
+    if freq_hz <= 0.0 || distance_cm <= 0.0 {
+        return 0.0;
+    }
+    let kr = 2.0 * std::f64::consts::PI * freq_hz / C * distance_cm / 100.0;
+    let full = 10.0 * (1.0 + (pattern_b / kr).powi(2)).log10();
+    match proximity {
+        Proximity::Gradient => full,
+        Proximity::Reduced => full * 0.25,
+        Proximity::None => 0.0,
+    }
+}
 /// Generic fallback classes for devices we don't have a specific profile for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -321,8 +378,9 @@ pub struct MicProfile {
     /// Ideal off-axis angle in degrees (0 = straight at the mouth).
     #[serde(default)]
     pub angle_deg: Option<f32>,
+    /// Published frequency response (replaces the old unsourced `eq_prior`).
     #[serde(default)]
-    pub eq_prior: Vec<EqMove>,
+    pub response: Option<MicResponse>,
     /// Plain-language things that commonly go wrong with this device.
     #[serde(default)]
     pub gotchas: Vec<String>,

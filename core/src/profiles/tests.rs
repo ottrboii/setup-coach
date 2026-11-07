@@ -51,12 +51,8 @@ fn mic_invariants() {
     for m in &db.mics {
         let d = m.distance_cm;
         assert!(d.min > 0.0 && d.min <= d.ideal && d.ideal <= d.max, "{}: distance {d:?}", m.id);
-        for e in &m.eq_prior {
-            assert!(e.gain_db.abs() <= 6.0, "{}: eq gain {} beyond +/-6 dB", m.id, e.gain_db);
-            assert!(e.q > 0.0 && (20.0..=20000.0).contains(&e.freq_hz), "{}: bad eq {e:?}", m.id);
-            if e.kind == EqKind::HighPass {
-                assert_eq!(e.gain_db, 0.0, "{}: high-pass with gain", m.id);
-            }
+        if let Some(r) = &m.response {
+            check_response(&m.id, r);
         }
         if let Some(g) = m.gain_needed_db {
             assert!((20.0..=80.0).contains(&g), "{}: gain {g}", m.id);
@@ -407,5 +403,67 @@ fn every_mic_question_is_exclusive_with_not_sure_and_switches_have_help() {
         for c in &m.controls {
             assert!(c.options.len() >= 2 && c.help.is_some() && c.source.is_some(), "{id} {}", c.key);
         }
+    }
+}
+
+// -------------------------------------------------------------- response --
+
+fn check_curve(id: &str, pts: &[[f64; 2]]) {
+    assert!(pts.len() >= 8, "{id}: too few curve points");
+    for w in pts.windows(2) {
+        assert!(w[0][0] < w[1][0], "{id}: frequencies must ascend");
+    }
+    assert!(pts.first().unwrap()[0] >= 100.0 && pts.last().unwrap()[0] <= 10000.0, "{id}: outside 100 Hz-10 kHz");
+    for p in pts {
+        assert!((-30.0..=15.0).contains(&p[1]), "{id}: {} dB at {} Hz out of sane range", p[1], p[0]);
+    }
+}
+
+fn check_response(id: &str, r: &MicResponse) {
+    check_curve(id, &r.points_hz_db);
+    assert!(r.source.starts_with("https://"), "{id}: response needs a source URL");
+    assert!(!r.reference.is_empty(), "{id}: response needs a reference");
+    // Nothing is verified without a measurement-mic check; none has been done.
+    assert!(!r.verified, "{id}: response must stay unverified");
+    if let Some(b) = r.pattern_b {
+        assert!((0.0..=1.0).contains(&b), "{id}: pattern_b {b}");
+    }
+    assert!(r.proximity.is_some(), "{id}: response needs a proximity type");
+    for (key, opts) in &r.switch_curves {
+        for (idx, pts) in opts {
+            check_curve(&format!("{id}/{key}/{idx}"), pts);
+        }
+    }
+}
+
+#[test]
+fn response_schema_parses_and_interpolates() {
+    let j = r#"{"points_hz_db":[[100,-4.0],[1000,0.0],[10000,2.0]],"reference":"dB re 1 kHz",
+        "pattern_b":0.5,"proximity":"gradient","source":"https://example.test/x"}"#;
+    let r: MicResponse = serde_json::from_str(j).unwrap();
+    assert!(!r.verified && r.switch_curves.is_empty() && r.measured_at_cm.is_none());
+    assert_eq!(r.db_at(50.0), Some(-4.0));
+    assert_eq!(r.db_at(1000.0), Some(0.0));
+    assert!((r.db_at(316.2278).unwrap() + 2.0).abs() < 1e-3, "half a decade up from 100 Hz");
+    assert_eq!(r.db_at(20000.0), Some(2.0));
+}
+
+#[test]
+fn proximity_boost_behaves() {
+    let g = |f, d| proximity_boost_db(Proximity::Gradient, 0.5, f, d);
+    assert!(g(100.0, 5.0) > g(100.0, 15.0), "closer = more bass");
+    assert!(g(100.0, 10.0) > g(1000.0, 10.0), "more at low frequencies");
+    assert!(g(8000.0, 15.0) < 0.1, "negligible at the top");
+    assert!(proximity_boost_db(Proximity::Reduced, 0.5, 100.0, 5.0) < g(100.0, 5.0));
+    assert_eq!(proximity_boost_db(Proximity::None, 0.0, 100.0, 5.0), 0.0);
+}
+
+#[test]
+fn design_list_mics_are_present_and_honest() {
+    // Mics the voice-tuning design lists: each exists, and any curve it has is sourced
+    // (checked in mic_invariants). Null is allowed when the maker's chart cannot be read.
+    let db = db();
+    for id in ["ev_re20", "rode_nt1a", "shure_sm7b", "blue_yeti", "hyperx_quadcast", "shure_mv7", "rode_podmic"] {
+        assert!(db.mic(id).is_some(), "{id} missing from mics.json");
     }
 }
