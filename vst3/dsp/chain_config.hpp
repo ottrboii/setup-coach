@@ -52,10 +52,17 @@ inline std::optional<ChainConfig> parseChainJson(const std::string& text) {
         }
         if (j.contains("deesser") && j["deesser"].is_object()) {
             const auto& d = j["deesser"];
+            // freq_hz is the centre of the 'ess' band (the core composer puts it on
+            // the measured "s" peak, 4.5-9 kHz). Missing, null or non-numeric
+            // values keep the fixed defaults, so older chain.json files behave as before.
+            auto numOr = [&d](const char* key, double def) {
+                auto it = d.find(key);
+                return (it != d.end() && it->is_number()) ? it->get<double>() : def;
+            };
             DeEsserConfig de;
-            de.freqHz = std::clamp(d.value("freq_hz", 6500.0), 2000.0, 12000.0);
-            de.thresholdDb = std::clamp(d.value("threshold_db", -8.0), -40.0, 0.0);
-            de.maxReductionDb = std::clamp(d.value("max_reduction_db", 4.0), 0.0, 12.0);
+            de.freqHz = std::clamp(numOr("freq_hz", kDefaultDeEsserHz), 2000.0, 12000.0);
+            de.thresholdDb = std::clamp(numOr("threshold_db", -8.0), -40.0, 0.0);
+            de.maxReductionDb = std::clamp(numOr("max_reduction_db", 4.0), 0.0, 12.0);
             c.deesser = de;
         }
         return c;

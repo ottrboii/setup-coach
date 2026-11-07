@@ -31,6 +31,12 @@ The plug-in reads `mono_downmix`, `highpass_hz`, `highpass_slope_db_oct`, `eq[]`
 `max_reduction_db`); every other field is ignored. Values are clamped to safe
 ranges and at most 5 EQ bands are used.
 
+The de-esser's `freq_hz` is the centre of its 'ess' band, so it can sit on the
+measured "s" peak (the core composer clamps it to 4.5-9 kHz; the plug-in accepts
+2-12 kHz). A `deesser` block without `freq_hz` (or with a null/non-numeric
+one, same for `threshold_db` and `max_reduction_db`) keeps the original 6.5 kHz
+centre, so older chain.json files sound as before.
+
 - A background thread checks the file's timestamp and size about twice a
   second. When it changes, the thread parses it and builds the new filter state
   off the audio thread, then hands it over lock-free. The audio thread

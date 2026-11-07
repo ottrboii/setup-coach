@@ -3,6 +3,7 @@
 #include "../dsp/voice_chain.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -301,6 +302,130 @@ static void test_rate_independent_deesser_timing() {
     CHECK(red > 4.0, "44.1 kHz de-esser reduction %.2f dB", red);
 }
 
+static const char* kDeEsserJsonHead = "{\"highpass_hz\": 20, \"deesser\": ";
+
+static std::optional<DeEsserConfig> parseDe(const std::string& deJson) {
+    auto c = parseChainJson(kDeEsserJsonHead + deJson + "}");
+    if (!c) return std::nullopt;
+    return c->deesser;
+}
+
+static void test_deesser_centre_in_chain_json() {
+    auto a = parseDe("{\"freq_hz\": 4500, \"threshold_db\": -9, \"max_reduction_db\": 5}");
+    CHECK(a && a->freqHz == 4500.0 && a->thresholdDb == -9.0 && a->maxReductionDb == 5.0, "4.5 kHz centre read");
+    auto b = parseDe("{\"freq_hz\": 9000, \"threshold_db\": -9, \"max_reduction_db\": 5}");
+    CHECK(b && b->freqHz == 9000.0, "9 kHz centre read");
+    // Old files without freq_hz (or with a useless one) keep the fixed centre.
+    for (const char* old : {"{\"threshold_db\": -8, \"max_reduction_db\": 6}", "{}", "{\"freq_hz\": null}",
+                            "{\"freq_hz\": \"high\"}"}) {
+        auto d = parseDe(old);
+        CHECK(d && d->freqHz == 6500.0 && d->freqHz == kDefaultDeEsserHz, "default centre for %s", old);
+    }
+    auto lo = parseDe("{\"freq_hz\": 100}");
+    auto hi = parseDe("{\"freq_hz\": 40000}");
+    CHECK(lo && lo->freqHz == 2000.0 && hi && hi->freqHz == 12000.0, "centre clamped to 2-12 kHz");
+    // A de-esser block with a bad threshold type must not invalidate the chain.
+    auto t = parseDe("{\"freq_hz\": 7000, \"threshold_db\": \"x\"}");
+    CHECK(t && t->freqHz == 7000.0 && t->thresholdDb == -8.0, "bad threshold keeps default");
+
+    // Old chain without freq_hz renders exactly like an explicit 6.5 kHz centre.
+    auto oldCfg = parseChainJson("{\"highpass_hz\": 20, \"deesser\": {\"threshold_db\": -8, \"max_reduction_db\": 6}}");
+    ChainConfig explicitCfg = baseConfig();
+    explicitCfg.deesser = DeEsserConfig{6500.0, -8.0, 6.0};
+    VoiceChain va, vb;
+    prepared(va, oldCfg);
+    prepared(vb, explicitCfg);
+    auto ess = hfNoise(1.0, 0.3, 3);
+    auto ya = runMono(va, ess), yb = runMono(vb, ess);
+    bool same = true;
+    for (size_t i = 0; i < ya.size(); ++i) same &= (ya[i] == yb[i]);
+    CHECK(same, "chain.json without freq_hz must match the 6.5 kHz default exactly");
+}
+
+static void test_deesser_centre_selects_band() {
+    // Threshold -3 dB: only a tone inside the side-chain band counts as an 'ess'.
+    // The Q=1 band-pass is -5 dB one octave away, so the wrong centre stays quiet.
+    struct Case { double tone, centre; bool expectCut; };
+    for (Case cs : {Case{4500, 4500, true}, Case{4500, 9000, false}, Case{9000, 9000, true}, Case{9000, 4500, false},
+                    Case{7000, 7000, true}}) {
+        ChainConfig with = baseConfig();
+        with.deesser = DeEsserConfig{cs.centre, -3.0, 6.0};
+        VoiceChain a, b;
+        prepared(a, with);
+        prepared(b, baseConfig());
+        auto tone = sine(cs.tone, 0.3, 1.5);
+        double cut = tailDb(runMono(b, tone)) - tailDb(runMono(a, tone));
+        if (cs.expectCut) CHECK(cut > 3.0, "tone %.0f Hz, centre %.0f Hz: only %.2f dB cut", cs.tone, cs.centre, cut);
+        else CHECK(cut < 0.1, "tone %.0f Hz, centre %.0f Hz: cut %.2f dB, expected none", cs.tone, cs.centre, cut);
+    }
+}
+
+// --- Plugin vs. core's offline renderer ------------------------------------
+// Deterministic synthetic sibilant voice, generated identically in Rust
+// (core/src/audio/process.rs rendering a chain with only HPF 20 Hz + de-esser
+// active; expander off, compressor ratio 1, limiter 0 dB). Voiced vowel
+// (120 Hz harmonics, 1/h) for 0.3 s, then 0.2 s of 4.5-9 kHz noise, repeating.
+static std::vector<float> sibilantVoice(double secs) {
+    uint64_t state = 12345;
+    auto next = [&state]() {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        return static_cast<double>(state >> 11) / 9007199254740992.0 * 2.0 - 1.0;
+    };
+    Biquad h1 = Biquad::highpass(SR, 4500, 0.707), h2 = Biquad::highpass(SR, 4500, 0.707);
+    Biquad lp = Biquad::lowpass(SR, 9000, 0.707);
+    std::vector<float> x(static_cast<size_t>(secs * SR));
+    for (size_t i = 0; i < x.size(); ++i) {
+        double t = static_cast<double>(i) / SR;
+        double noise = lp.process(h2.process(h1.process(next())));
+        double v = 0.0;
+        if (std::fmod(t, 0.5) < 0.3) {
+            for (int h = 1; h <= 30; ++h) v += std::sin(2.0 * kPi * 120.0 * h * t) * 0.1 / h;
+        } else {
+            v = 0.35 * noise;
+        }
+        x[i] = static_cast<float>(v);
+    }
+    return x;
+}
+
+// {loudness over the whole signal, level of the 5-9 kHz band during the 's' bursts}, dB, after 0.5 s.
+static std::pair<double, double> voiceMetrics(const std::vector<float>& x) {
+    size_t skip = static_cast<size_t>(0.5 * SR);
+    Biquad b1 = Biquad::highpass(SR, 5000, 0.707), b2 = Biquad::highpass(SR, 5000, 0.707), b3 = Biquad::lowpass(SR, 9000, 0.707);
+    double all = 0, ess = 0;
+    size_t nEss = 0;
+    for (size_t i = 0; i < x.size(); ++i) {
+        double band = b3.process(b2.process(b1.process(x[i])));
+        if (i < skip) continue;
+        all += double(x[i]) * x[i];
+        if (std::fmod(static_cast<double>(i) / SR, 0.5) >= 0.3) {
+            ess += band * band;
+            ++nEss;
+        }
+    }
+    return {10 * std::log10(all / (x.size() - skip)), 10 * std::log10(ess / std::max<size_t>(nEss, 1))};
+}
+
+static void test_plugin_matches_renderer() {
+    auto x = sibilantVoice(4.0);
+    auto dry = voiceMetrics(x);
+    // Values from coach_core::audio::process::render on the same signal.
+    CHECK(std::fabs(dry.first - -21.347) < 0.02 && std::fabs(dry.second - -26.451) < 0.02,
+          "synthetic voice differs from the Rust one: %.3f / %.3f", dry.first, dry.second);
+    struct Golden { double centre, loudDb, essDb; };
+    for (Golden g : {Golden{4500, -22.716, -33.350}, Golden{6500, -22.696, -33.433}, Golden{9000, -22.525, -31.884}}) {
+        ChainConfig c = baseConfig();
+        c.deesser = DeEsserConfig{g.centre, -8.0, 6.0};
+        VoiceChain vc;
+        prepared(vc, c);
+        auto m = voiceMetrics(runMono(vc, x));
+        std::printf("renderer-sync centre %.0f: loudness %.3f (dry %.3f), s band %.3f (dry %.3f) [renderer %.3f / %.3f]\n",
+                    g.centre, m.first, dry.first, m.second, dry.second, g.loudDb, g.essDb);
+        CHECK(std::fabs(m.first - g.loudDb) < 0.05, "centre %.0f: loudness %.3f vs renderer %.3f", g.centre, m.first, g.loudDb);
+        CHECK(std::fabs(m.second - g.essDb) < 0.05, "centre %.0f: s band %.3f vs renderer %.3f", g.centre, m.second, g.essDb);
+    }
+}
+
 int main() {
     test_highpass();
     test_eq_bands();
@@ -312,6 +437,9 @@ int main() {
     test_watcher_follows_file();
     test_config_change_has_no_click();
     test_rate_independent_deesser_timing();
+    test_deesser_centre_in_chain_json();
+    test_deesser_centre_selects_band();
+    test_plugin_matches_renderer();
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
