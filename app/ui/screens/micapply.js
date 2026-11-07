@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { esc, html, icons, scoreRing, toast, errorBanner, advanced } from '../components.js';
 import { state } from '../state.js';
 import { guidedFailures, guidedFixCard } from '../guided.js';
+import { isRouteHidden } from '../profilenav.js';
 
 /** Plain-language description of every stage in a ProcessingChain. */
 export function explainChain(c) {
@@ -115,7 +116,7 @@ export async function render(root, { go }) {
       const box = html('<div class="apply-error stack"></div>');
       box.append(errorBanner(new Error("Your settings are applied, but we couldn't check the result. " + (e && e.message ? e.message : '')), () => verify(btn, res)));
       const next = html('<div class="row"><button class="btn lg" id="skip">Continue without the check</button></div>');
-      next.querySelector('#skip').addEventListener('click', () => go('camera'));
+      next.querySelector('#skip').addEventListener('click', () => go(isRouteHidden('camera') ? 'home' : 'camera'));
       box.append(next);
       page.append(box);
       btn.disabled = false;
@@ -164,8 +165,9 @@ export async function render(root, { go }) {
     </div>`);
     page.append(res2);
 
-    const next = html(`<div class="row"><button class="btn primary lg" id="cam">Next: your camera</button><button class="btn lg" id="ab">Hear my new sound</button><button class="btn lg" id="again">Retest my mic</button></div>`);
-    next.querySelector('#cam').addEventListener('click', () => go('camera'));
+    const noCam = isRouteHidden('camera');
+    const next = html(`<div class="row"><button class="btn primary lg" id="cam">${noCam ? 'Done: see my setup' : 'Next: your camera'}</button><button class="btn lg" id="ab">Hear my new sound</button><button class="btn lg" id="again">Retest my mic</button></div>`);
+    next.querySelector('#cam').addEventListener('click', () => go(noCam ? 'home' : 'camera'));
     next.querySelector('#ab').addEventListener('click', () => go('ab-record'));
     next.querySelector('#again').addEventListener('click', () => go('mic'));
     page.append(next);

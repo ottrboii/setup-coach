@@ -4,6 +4,7 @@
 import { api } from './api.js';
 import { esc, html, errorBanner, toast, advanced, kvTable } from './components.js';
 import { state } from './state.js';
+import { profileChanged } from './profilenav.js';
 
 const FALLBACK_LABEL = { streaming: 'Streaming', voiceover: 'Recording / voiceover', call: 'Call / meeting' };
 export const profileLabel = (id) => state.profileInfos?.find((p) => p.id === id)?.label || FALLBACK_LABEL[id] || 'Streaming';
@@ -103,6 +104,7 @@ export function profileCard(mic, { mode = 'start', go, onSwitched } = {}) {
       if (mic) { try { state.micContext = await api.micContext(mic.id, state.answers); } catch (_) { /* next test asks again */ } }
       if (id !== was) { state.micVerify = null; state.profileSwitchedAt = Date.now(); }
       drawOptions(infos);
+      profileChanged();
       opts.querySelector('[aria-checked=true]')?.focus();
       showPlacement(infos.find((p) => p.id === sw.profile), mode === 'switch' && id !== was ? sw : null);
       if (id !== was && onSwitched) onSwitched(sw);

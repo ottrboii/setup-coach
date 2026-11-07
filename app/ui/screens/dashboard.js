@@ -2,16 +2,18 @@
 import { api } from '../api.js';
 import { esc, html, scoreRing, findingCard, toast, loading } from '../components.js';
 import { state } from '../state.js';
+import { isRouteHidden, ensureProfileForNav } from '../profilenav.js';
 import { guidedFailures, plainFailures, guidedFixCard, runtimeWarningBanners } from '../guided.js';
 
 export async function render(root, { go, refreshNav }) {
+  await ensureProfileForNav();
   const sys = state.quick?.score?.find((s) => s.area === 'system');
   const tiles = [
     { label: 'Mic', score: state.micVerify?.after?.score?.value ?? state.micReport?.score?.value, route: 'mic', cta: 'Test my mic' },
     { label: 'Camera', score: state.cameraReport?.score?.value, route: 'camera', cta: 'Check my camera' },
     { label: 'Stream', score: state.healthReport?.score?.value, route: 'health', cta: 'Watch a stream' },
     { label: 'Settings', score: sys?.value, route: 'scan', cta: 'Run quick scan' },
-  ];
+  ].filter((t) => !isRouteHidden(t.route));
   const page = html(`
     <section class="stack-lg">
       <div class="spread"><div class="stack" style="gap:6px"><span class="eyebrow">Home</span><h1>Your setup</h1>
@@ -34,7 +36,7 @@ export async function render(root, { go, refreshNav }) {
   const syncBtn = html('<button class="btn sm" style="margin-left:auto">Run the clap test</button>');
   syncBtn.addEventListener('click', () => go('sync'));
   sync.append(syncBtn);
-  page.querySelector('#recheck-box').after(sync);
+  if (!isRouteHidden('sync')) page.querySelector('#recheck-box').after(sync);
 
   const grid = page.querySelector('#tiles');
   for (const t of tiles) {
