@@ -5,6 +5,7 @@ import { state, MIC_CONSTRAINT, selectedMic } from '../state.js';
 import { openMicChoice, yourMicLine } from '../micpicker.js';
 import { profileCard, profileLine } from '../profilepicker.js';
 import { cleanAnswers } from './mictest.js';
+import { attachLevelFix } from '../levelfix.js';
 
 const STATUS = { met: ['ok', 'On target'], close: ['major', 'Close'], missed: ['critical', 'Off target'], not_measured: ['', 'Not measured'] };
 
@@ -70,7 +71,9 @@ export async function render(root, { go }) {
       const list = html('<div class="findings"></div>');
       const shownUpgrades = new Set();
       for (const f of open) {
-        list.append(findingCard(f, { onDone: () => retest(), onCant: (fd, btn) => cant(fd, btn) }));
+        const card = findingCard(f, { onDone: () => retest(), onCant: (fd, btn) => cant(fd, btn) });
+        attachLevelFix(card, f, { deviceId: state.micId, reason: 'We can fix this one for you', onFixed: () => retest() });
+        list.append(card);
         if (f.suggest_product && !shownUpgrades.has(f.suggest_product)) {
           shownUpgrades.add(f.suggest_product);
           const u = upgradeCard(f.suggest_product);

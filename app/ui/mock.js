@@ -286,8 +286,18 @@ function chain(constraints) {
   };
 }
 
+// ?mock_level=quiet|hot|clipping adds a level finding and makes the gain "software" (GoXLR); add &mock_gain=knob to keep the old advice.
+const mockParam = (k) => { try { return new URLSearchParams(location.search).get(k); } catch { return null; } };
+const LEVEL_MOCK = {
+  quiet: ['mic.too_quiet', 'major', "You're too quiet — viewers have to turn you up", 'Your voice is reaching the computer at a low level.', 'Turn your mic gain up a little while you talk.'],
+  hot: ['mic.too_hot', 'major', 'Your normal talking is too loud for the mic', "There's no room left for laughs and shouts, so those will distort.", 'Turn your mic gain down a little.'],
+  clipping: ['mic.clipping', 'major', 'You crackle and distort when you get loud', "Loud moments hit the mic's maximum level and get cut off.", 'Turn your mic gain down a good bit.'],
+};
+
 function micReport(constraints, after = false) {
   const findings = micFindings(constraints, after);
+  const lv = LEVEL_MOCK[mockParam('mock_level')];
+  if (lv && !after) findings.unshift(finding(lv[0], 'mic', lv[1], lv[2], lv[3], lv[4], 'guided'));
   return { metrics: micMetrics(after), findings, chain: chain(constraints), score: scoreOf('mic', findings), targets: targets(after) };
 }
 
@@ -349,6 +359,7 @@ export function createMock() {
   const listeners = new Map();
   const emit = (ev, payload) => (listeners.get(ev) || []).forEach((h) => h(payload));
   let micStep = null;
+  let levelFixRuns = 0;
   let micTimer = null;
   let camTimer = null;
   let camStep = 'neutral';
@@ -590,7 +601,8 @@ export function createMock() {
       const sm7 = answers && answers.mic_model_id === 'Shure SM7B';
       const name = sm7 ? 'Shure SM7B' : picked ? picked.display_name : null;
       const facts = (sm7 && MIC_FACTS.shure_sm7b) || (picked && MIC_FACTS[picked.profile_id]) || null;
-      return { profile: activeProfile, mic_name: name, capsule: 'dynamic', address: facts?.address || 'end', connection: 'xlr', gain_needed_db: facts ? facts.gain_needed_db : null,
+      const gain = mockParam('mock_gain') || (LEVEL_MOCK[mockParam('mock_level')] ? 'software' : 'unknown');
+      return { gain, gain_where: gain === 'software' ? 'the GoXLR app' : null, profile: activeProfile, mic_name: name, capsule: 'dynamic', address: facts?.address || 'end', connection: 'xlr', gain_needed_db: facts ? facts.gain_needed_db : null,
         interface_max_gain_db: 56, booster_db: answers && answers.booster ? 25 : null, gain_at_max: answers ? answers.gain_at_max ?? null : null,
         onboard_auto_level: null, distance_cm: facts ? facts.distance_cm : [3, 10] };
     },
@@ -732,8 +744,23 @@ export function createMock() {
     async open_for_user() { await wait(300); coachSim.open(); return null; },
     // Settings vault and real A/B recordings (API.md "Settings vault & A/B")
     async list_backups() { await wait(250); return backups.map((b) => ({ ...b })); },
+    // Fix my level: ?mock_levelfix=fixed|couldnt|needs_you; without it the three scenarios take turns.
+    async fix_mic_level() {
+      const order = ['fixed', 'couldnt', 'needs_you'];
+      const status = order.includes(mockParam('mock_levelfix')) ? mockParam('mock_levelfix') : order[levelFixRuns++ % 3];
+      const steps = ['Listening to how loud you are...', 'Moving your mic level a little...', 'Listening again...', 'Almost there. One more small step...'];
+      if (status === 'needs_you') steps.splice(1);
+      const lvl = setInterval(() => emit('mic-level', { rms_db: -40 + Math.random() * 18, peak_db: -24 + Math.random() * 10, clipped: false }), 60);
+      try {
+        for (const text of steps) { emit('level-fix-progress', { text }); await wait(1300); }
+      } finally { clearInterval(lvl); }
+      if (status === 'fixed') return { status, line: 'Your level is now right. You were a bit quiet, so we turned your GoXLR mic gain up a little.', changed: 'GoXLR mic gain', gain_before_db: 22, gain_after_db: 29, peak_before_dbfs: -29.4, peak_after_dbfs: -15.2, steps: 2, backup_id: '20261107T101500Z-000' };
+      if (status === 'couldnt') return { status, line: 'We turned it up but you did not get any louder, so we put it back. Check that the GoXLR is the mic you picked.', changed: null, gain_before_db: 22, gain_after_db: 22, peak_before_dbfs: -29.4, peak_after_dbfs: -29.1, steps: 2, backup_id: null };
+      return { status, line: 'Open GoXLR Utility so we can reach the gain, or turn the gain up in the GoXLR app yourself. Nothing was changed.', changed: null, gain_before_db: null, gain_after_db: null, peak_before_dbfs: null, peak_after_dbfs: null, steps: 0, backup_id: null };
+    },
     async restore_backup({ id }) {
       await wait(1100);
+      if (id === '20261107T101500Z-000') return { applied: ['goxlr:S123'], failed: [], restart_obs_needed: false, skipped: [] };
       const b = backups.find((x) => x.id === id);
       if (!b) throw new Error("We couldn't find that backup any more.");
       const needsFiles = b.items.some((i) => i.kind === 'obs_scene_file');

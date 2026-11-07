@@ -95,6 +95,7 @@ export const api = {
   reapplySavedSetup: () => call('reapply_saved_setup'),
   // Settings vault and A/B recordings
   listBackups: () => call('list_backups'),
+  fixMicLevel: (deviceId) => call('fix_mic_level', { deviceId }),
   restoreBackup: (id) => call('restore_backup', { id }),
   previewRestore: (id) => call('preview_restore', { id }),
   obsRunning: () => call('obs_running'),

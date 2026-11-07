@@ -6,6 +6,7 @@ import { state, MIC_CONSTRAINT, CAMERA_CONSTRAINT } from '../state.js';
 import { TASKS, HINT_TEXT, PHASE_TEXT, TASK_AREA, readingLabel } from '../coach/copy.js';
 import { mountIllustration, domainFor, reducedMotion } from '../coach/anim.js';
 import { gauge, holdRing, cameraOverlay } from '../coach/widgets.js';
+import { levelFixPanel, canFixLevel } from '../levelfix.js';
 
 const AREA_TEXT = { mic: 'Microphone', camera: 'Camera' };
 const SUCCESS_MS = 1200;
@@ -137,6 +138,11 @@ export async function render(root, { go, refreshNav }) {
         <div class="card stack" style="gap:10px"><h3>${isCamera ? 'What good looks like' : 'What good sounds like'}</h3><p class="muted">${esc(sentence(copy.good.replace(/^Good (sounds|looks) like: /, '')))}</p></div>
       </div>`);
     page.append(how);
+    if (step.task === 'set_gain' && canFixLevel()) {
+      const lf = html('<div class="card"></div>');
+      lf.append(levelFixPanel({ deviceId: state.micId, reason: 'Or let us set the level for you', beforeStart: stopLive, onFixed: () => showStep(), onUndone: () => {} }));
+      how.before(lf);
+    }
     const readingsBox = html('<table class="kv"><tbody></tbody></table>');
     page.append(advanced('Advanced: live numbers', readingsBox));
 
