@@ -352,10 +352,18 @@ Otto's answers to the open questions above:
   sibilant voice, de-esser at 7 kHz / -8 dB: "s" 1.4 -> 2.7 dB with the tone RMS down).
 - The summed mic-band response is held to +-3 dB (`limit_mic_sum`, one scale factor on all mic bands),
   not only each band.
-- Deviations from section 6, with reasons: "before" is the same chain **without** the tune (same HPF and
-  dynamics), so only the tune is judged. V2's "s" rule counts as harm only when the "s" also reaches the
+- "Before" is the chain the user has now (`VoiceTune::base`: its EQ, de-esser, HPF and dynamics), as in
+  section 6, so a tune is judged and reported against what they hear today. (An earlier build compared with
+  the chain without EQ and de-esser; with no mic chart R equals the scan's EQ, so Before/After were identical
+  yet "improved". That deviation is removed.) A tune equal to the current chain, or a candidate with no
+  moves, is `NothingToChange` (no verification, nothing applied); one that does not beat the current chain
+  by the existing bars (tone RMS down more than 0.05 dB; for a de-esser-only change the "s" down more than
+  0.5 dB) is `NotImproved`. Consequence: without a mic chart the tune is usually `NothingToChange`; tunes
+  only apply when the mic chart (or a profile delta) adds something the scan does not already do, or the
+  -6/+3 dB cap leaves the tune closer to target than today's EQ.
+- Deviations from section 6, with reasons: V2's "s" rule counts as harm only when the "s" also reaches the
   strong range (> -3 dB): a soft "s" rising from -28 to -24 dB is not harm. V3 also passes within 1 dB of
-  the untuned chain, because the make-up loop itself accepts 1.5 dB under target. V1 failing alone gives
+  the current chain, because the make-up loop itself accepts 1.5 dB under target. V1 failing alone gives
   "Close" (applied, kept gentle), not a rejection. The do-no-harm loop drops a harmful de-esser first.
 - R is skipped when the `mic.reflection` finding fires (comb filtering is not EQ'd), not only on low confidence.
 - Mic features are judged on the raw chart (>= 2 dB over >= 3 third-octaves), then smoothed, so smoothing

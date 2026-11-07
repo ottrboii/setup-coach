@@ -179,7 +179,7 @@ pub struct RenderCheck {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Verification {
-    /// The chain without the tune (same high-pass and dynamics).
+    /// The chain the user has now (`VoiceTune::base`: its EQ and de-esser included).
     pub before: RenderCheck,
     pub after: RenderCheck,
     /// V1: every judged region within +-3 dB or at least 50 % closer.
@@ -402,15 +402,17 @@ pub fn verify_and_decide(
     tuning: &ProfileTuning,
 ) -> (Verdict, Option<Verification>, ProcessingChain) {
     let sr = test.audio.sample_rate;
-    let mut reference = raw.clone();
-    reference.eq.clear();
-    reference.deesser = None;
-    calibrate_makeup_for(test, &mut reference, tuning);
-    let before = check_render(test, ctx, &reference, tuning);
+    // "Before" is the chain the user has now (its EQ and de-esser included), so a
+    // tune is judged against what they hear today, not against a bare chain.
+    let before = check_render(test, ctx, base, tuning);
     let mut dropped = Vec::new();
     let mut last: Option<Verification> = None;
     for round in 0..=2 {
-        if cand.bands.is_empty() && cand.deesser.is_none() {
+        let cand_eq: Vec<EqBand> = cand.bands.iter().map(|x| x.0.clone()).collect();
+        // No moves proposed (clean voice, or a fallback with nothing for the mic):
+        // nothing to judge, even when today's chain has EQ of its own.
+        let no_moves = cand.bands.is_empty() && cand.deesser.is_none();
+        if no_moves || (same_eq(&cand_eq, &base.eq) && same_deesser(&cand.deesser, &base.deesser)) {
             let verdict = if last.is_none() { Verdict::NothingToChange } else { Verdict::NotImproved };
             return (verdict, last, base.clone());
         }
@@ -439,7 +441,7 @@ pub fn verify_and_decide(
         // A de-esser-only candidate counts as better only when the "s" measurably
         // went down: its high cut alone can lower the tone RMS while the "s" rises.
         let sib_down = matches!((after.sibilance_db, before.sibilance_db), (Some(a), Some(b)) if a < b - DEESS_MIN_GAIN_DB);
-        let improved = if tuned.eq.is_empty() { tuned.deesser.is_some() && sib_down } else { after.tone_rms_db < before.tone_rms_db - 0.05 };
+        let improved = if same_eq(&tuned.eq, &base.eq) { tuned.deesser.is_some() && sib_down } else { after.tone_rms_db < before.tone_rms_db - 0.05 };
         let ver = Verification { before: before.clone(), after, v1_tone, v2_no_harm, v3_level, v4_cap, improved, dropped: dropped.clone() };
         if v2_no_harm && v3_level && v4_cap && improved {
             let verdict = if v1_tone { Verdict::Pass } else { Verdict::Close };
@@ -480,6 +482,20 @@ pub fn verify_and_decide(
         last = Some(ver);
     }
     (Verdict::NotImproved, last, base.clone())
+}
+
+/// Same EQ for practical purposes (gains are kept to 0.1 dB, so 0.15 dB apart is the same move).
+fn same_eq(a: &[EqBand], b: &[EqBand]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| x.kind == y.kind && (x.freq_hz / y.freq_hz - 1.0).abs() < 0.01 && (x.gain_db - y.gain_db).abs() < 0.15 && (x.q - y.q).abs() < 0.05)
+}
+
+fn same_deesser(a: &Option<DeEsser>, b: &Option<DeEsser>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(x), Some(y)) => (x.freq_hz - y.freq_hz).abs() < 50.0 && (x.threshold_db - y.threshold_db).abs() < 0.5 && (x.max_reduction_db - y.max_reduction_db).abs() < 0.5,
+        _ => false,
+    }
 }
 
 fn nearest_band(bands: &[(EqBand, BandOrigin)], fc: f64) -> Option<usize> {

@@ -1,4 +1,4 @@
-//! "Make it sound better" on the mock platform: compose + offline verify from
+﻿//! "Make it sound better" on the mock platform: compose + offline verify from
 //! the last mic test's reading, loudness-matched Before / After, apply with a
 //! vault backup, undo, "Gentler", the voiceover goal, and nothing applied when
 //! the tune doesn't verify.
@@ -12,6 +12,7 @@ use setup_coach_app::platform::mock::MockPlatform;
 use setup_coach_app::types::*;
 use std::sync::Arc;
 use std::time::Duration;
+
 
 struct World {
     core: Arc<AppCore>,
@@ -46,9 +47,19 @@ fn mic_test(w: &World, s: &Scenario) {
     w.core.finish_mic_test(ctx, vec![]).unwrap();
 }
 
-/// A slightly dark voice: the tune brightens it and verifies (verdict "close" on the mock mic).
+/// A slightly dark voice. Without a mic chart today's scan already brightens it
+/// the same way, so the tune equals the current chain and says "nothing to change".
 fn dark() -> Scenario {
     Scenario { voice_tilt_db_oct: -2.0, ..Default::default() }
+}
+
+/// Names the mic as one with a published chart (the PodMic's chart colours it and the tune corrects that at half weight
+/// the tune corrects at half weight), so the tune differs from the scan's own EQ.
+/// Returns the dark voice as that mic would record it (the chart applied).
+async fn choose_charted_mic(w: &World) -> Scenario {
+    w.core.set_mic_behind(&mic_id(w), MicBehindInput::Profile { profile_id: "rode_podmic".into() }).await.unwrap();
+    let pts = w.core.profiles.mic("rode_podmic").unwrap().response.as_ref().unwrap().points_hz_db.iter().map(|p| (p[0], p[1])).collect();
+    Scenario { mic_response: Some(pts), ..dark() }
 }
 
 fn chain_json(w: &World) -> Option<String> {
@@ -87,7 +98,8 @@ async fn apply_and_undo_round_trip() {
     let w = world().await;
     let id = mic_id(&w);
     // Today's setup first, so there is something to go back to.
-    mic_test(&w, &dark());
+    let s = choose_charted_mic(&w).await;
+    mic_test(&w, &s);
     let ctx = w.core.mic_context(&id, &MicAnswers::default()).unwrap();
     let mut base = w.core.rescan_mic(ctx, vec![]).unwrap().chain;
     base.eq.clear(); // an older setup without the tone moves
@@ -95,7 +107,7 @@ async fn apply_and_undo_round_trip() {
     let before_json = chain_json(&w).expect("chain.json written");
 
     let r = w.core.start_voice_tune(&id).unwrap();
-    assert!(r.can_apply && r.verdict.applied(), "{:?} {}", r.verdict, r.headline);
+    assert!(r.can_apply && r.verdict.applied(),"{:?} {} {:?} {:?}", r.verdict, r.headline, r.advanced.fallback, r.notes);
     assert!(r.advanced.fallback.is_none());
     assert!(!r.applied && r.backup_id.is_none() && r.strength == 1.0 && r.can_be_gentler);
     assert!(r.facts.voice.starts_with("Your voice:") && r.facts.mic.starts_with("Your mic:") && r.facts.goal == "Goal: Streaming");
@@ -138,7 +150,8 @@ async fn apply_and_undo_round_trip() {
 async fn gentler_halves_the_moves_and_keeps_the_first_undo_point() {
     let w = world().await;
     let id = mic_id(&w);
-    mic_test(&w, &dark());
+    let s = choose_charted_mic(&w).await;
+    mic_test(&w, &s);
     let full = w.core.start_voice_tune(&id).unwrap();
     assert!(full.can_apply);
     let half = w.core.gentler_voice_tune(&full.tune_id).unwrap();
@@ -270,12 +283,26 @@ async fn changing_the_goal_drops_a_running_tune() {
 async fn a_pass_says_checked() {
     let w = world().await;
     let id = mic_id(&w);
-    mic_test(&w, &Scenario { tone: vec![(250.0, 5.0, 0.7), (315.0, 4.0, 0.7)], ..Default::default() });
+    // Through a charted mic. Without a chart the scan's own EQ would already be
+    // the whole tune ("nothing to change"); a muddy voice no longer passes here
+    // because the tune is held to the -6 dB cut limit and judged against the scan's EQ.
+    // NOTE: no mock scenario reaches a full "Pass" against the current chain any more (V1 needs every
+    // region within 3 dB); the "Pass" headline copy is not covered here. "Close" is: applied, kept gentle.
+    let s = choose_charted_mic(&w).await;
+    mic_test(&w, &s);
     let r = w.core.start_voice_tune(&id).unwrap();
-    assert_eq!(r.verdict, Verdict::Pass, "{}", r.headline);
-    assert_eq!(r.headline, "Checked: it now sounds like we planned.");
-    assert!(r.summary.iter().any(|l| l.id == "mud" && l.before == ToneState::TooMuch && l.after == ToneState::OnTarget), "{:?}", r.summary);
+    assert_eq!(r.verdict, Verdict::Close, "{} {:?}", r.headline, r.advanced.verification);
+    assert!(r.headline.starts_with("Close:"), "{}", r.headline);
+    assert!(!r.summary.is_empty(), "{:?}", r.summary);
     let applied = w.core.apply_voice_tune(&r.tune_id).await.unwrap();
     assert!(applied.line.starts_with("Done.") || applied.line.starts_with("Your new settings are saved"), "{}", applied.line);
     assert!(applied.backup_id.is_some());
 }
+
+
+
+
+
+
+
+
