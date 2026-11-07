@@ -748,8 +748,7 @@ pub fn cap_bands(bands: &mut [(EqBand, BandOrigin)], sr: u32) -> bool {
     let within = |b: &[(EqBand, BandOrigin)]| {
         let eq: Vec<EqBand> = b.iter().map(|x| x.0.clone()).collect();
         freqs.iter().all(|f| {
-            let g = net_response(&eq, sr, *f);
-            g >= NET_CUT_LIMIT_DB + 0.1 && g <= NET_BOOST_LIMIT_DB - 0.1
+            (NET_CUT_LIMIT_DB + 0.1..=NET_BOOST_LIMIT_DB - 0.1).contains(&net_response(&eq, sr, *f))
         })
     };
     if within(bands) {
