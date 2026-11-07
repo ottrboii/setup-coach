@@ -4,6 +4,7 @@
 //! Every struct is serde-friendly and has sensible defaults so a partial
 //! snapshot (e.g. OBS not running) still audits cleanly.
 
+use crate::audio::findings::GainAccess;
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------- Windows audio
@@ -379,6 +380,33 @@ pub struct MicContext {
     pub measured_quiet_speech_dbfs: Option<f32>,
     /// On-mic DSP from the profile that is active, e.g. `auto_level`.
     pub onboard_dsp_active: Vec<String>,
+    /// What can raise or lower this mic's level at the source (from its device
+    /// profile and what the app detected). Decides how level advice is worded.
+    pub gain: GainAccess,
+    /// For software gain: where it lives ("the GoXLR app", "Windows sound settings").
+    pub gain_where: Option<String>,
+}
+
+impl MicContext {
+    /// Where the user gets the mic's level from, as a clause that fits after
+    /// "get your level from" (never promises a gain control that is not there).
+    pub(crate) fn level_source(&self) -> String {
+        match self.gain {
+            GainAccess::Knob => "the mic or interface gain instead".into(),
+            GainAccess::Software => format!("the mic gain in {} instead", self.gain_where.as_deref().unwrap_or("the mic's own app")),
+            GainAccess::None => "how close the mic is to your mouth instead (this mic has no gain control)".into(),
+            GainAccess::Unknown => "the mic or interface gain if it has one, otherwise from how close the mic is to your mouth, instead".into(),
+        }
+    }
+    /// How to raise the level cleanly (used when several boosts are stacked).
+    pub(crate) fn raise_clean(&self) -> String {
+        match self.gain {
+            GainAccess::Knob => "turn up the gain on your mic or interface".into(),
+            GainAccess::Software => format!("raise the mic gain in {}", self.gain_where.as_deref().unwrap_or("the mic's own app")),
+            GainAccess::None => "move the mic a bit closer to your mouth (this mic has no gain control)".into(),
+            GainAccess::Unknown => "if your mic or interface has a gain control, turn it up; if not, move the mic a bit closer to your mouth".into(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------- Hardware / network

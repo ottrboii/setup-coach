@@ -98,7 +98,7 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
                         if boost >= 20.0 { Severity::Major } else { Severity::Minor },
                         "Windows \"Microphone Boost\" is adding hiss",
                         "Microphone Boost is digital gain added after your mic. It turns up the hiss together with your voice.",
-                        "Set Microphone Boost to 0 dB and get your level from the mic or interface gain instead. We can set it for you.",
+                        &format!("Set Microphone Boost to 0 dB and get your level from {}. We can set it for you.", s.mic.level_source()),
                         FixKind::Auto,
                     )
                     .with_evidence("mic_boost_db", boost as f64),

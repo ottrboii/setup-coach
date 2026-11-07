@@ -646,7 +646,37 @@ pub struct CameraOverlay {
 }
 
 /// Event names (keep in sync with API.md).
+/// Outcome of `fix_mic_level`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LevelFixStatus {
+    /// Changed and the new level was measured: it is in the safe zone.
+    Fixed,
+    /// Tried and it did not work (or could not be stored/changed); settings are as before.
+    Couldnt,
+    /// Nothing more we can do alone: the user has to do something (`line` says what).
+    NeedsYou,
+}
+
+/// `fix_mic_level` result. `line` is the plain-language result; the numbers are for "Advanced".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LevelFixResult {
+    pub status: LevelFixStatus,
+    pub line: String,
+    /// Where the gain lives ("GoXLR", "Windows level") or null when we can't change it.
+    pub changed: Option<String>,
+    pub gain_before_db: Option<f64>,
+    pub gain_after_db: Option<f64>,
+    pub peak_before_dbfs: Option<f64>,
+    pub peak_after_dbfs: Option<f64>,
+    pub steps: u32,
+    /// Vault id holding the previous gain; pass to `restore_backup` to undo. Null when nothing was changed.
+    pub backup_id: Option<String>,
+}
+
 pub mod events {
+    /// `{ text: string }` – plain-language progress while `fix_mic_level` runs.
+    pub const LEVEL_FIX_PROGRESS: &str = "level-fix-progress";
     pub const COACH_UPDATE: &str = "coach-update";
     pub const COACH_CAMERA_OVERLAY: &str = "coach-camera-overlay";
     pub const MIC_LEVEL: &str = "mic-level";
