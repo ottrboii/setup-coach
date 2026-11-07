@@ -55,6 +55,16 @@ pub struct Scenario {
     pub auto_level: bool,
     /// Completely silent recording.
     pub silent: bool,
+    /// Voice brightness: spectral slope in dB per octave around 1 kHz, applied to
+    /// the voice only (not noise). Negative = darker, positive = brighter.
+    pub voice_tilt_db_oct: f64,
+    /// Centre of the "s" sound (Hz). `None` = the broad 4.5-9 kHz default.
+    pub sib_peak_hz: Option<f64>,
+    /// Scale of the pitch movement between syllables (1 = default, 0 = monotone).
+    pub f0_spread: f64,
+    /// "This voice through that mic": published-style response points (Hz, dB re 1 kHz),
+    /// applied as a smoothed filter to everything acoustic.
+    pub mic_response: Option<Vec<(f64, f64)>>,
 }
 
 impl Default for Scenario {
@@ -84,6 +94,10 @@ impl Default for Scenario {
             moving_drop_db: 1.0,
             auto_level: false,
             silent: false,
+            voice_tilt_db_oct: 0.0,
+            sib_peak_hz: None,
+            f0_spread: 1.0,
+            mic_response: None,
         }
     }
 }
@@ -96,8 +110,20 @@ const VOWELS: [[f64; 3]; 5] = [
     [570.0, 840.0, 2410.0],
 ];
 
-/// Generate `secs` of speech-like signal with vowel RMS ≈ 1.
-fn voice(rng: &mut Rng, sr: u32, secs: f64, f0: f64, sib_db: f64, plos_db: f64) -> Vec<f64> {
+/// Generate `secs` of speech-like signal with vowel RMS â‰ˆ 1.
+/// Optional shaping of the voice beyond the defaults.
+#[derive(Clone, Copy)]
+struct Shape {
+    /// Centre of the "s" (Hz); `None` = broad default.
+    sib_peak: Option<f64>,
+    /// Pitch movement scale (1 = default).
+    f0_spread: f64,
+}
+
+const NEUTRAL: Shape = Shape { sib_peak: None, f0_spread: 1.0 };
+
+fn voice(rng: &mut Rng, sr: u32, secs: f64, f0: f64, sib_db: f64, plos_db: f64, shape: Shape) -> Vec<f64> {
+    let Shape { sib_peak, f0_spread } = shape;
     let n = (secs * sr as f64) as usize;
     let mut out = vec![0.0f64; n + sr as usize];
     let srf = sr as f64;
@@ -127,7 +153,11 @@ fn voice(rng: &mut Rng, sr: u32, secs: f64, f0: f64, sib_db: f64, plos_db: f64) 
             let len = (dur * srf) as usize;
             let formants = VOWELS[(rng.uniform() * VOWELS.len() as f64) as usize % VOWELS.len()];
             let mut exc = vec![0.0f64; len + (0.04 * srf) as usize];
-            let base = f0 * rng.range(0.9, 1.12);
+            let mut jitter = rng.range(0.9, 1.12);
+            if f0_spread != 1.0 {
+                jitter = 1.0 + (jitter - 1.0) * f0_spread;
+            }
+            let base = f0 * jitter;
             let mut phase = 0.0;
             for i in 0..len {
                 let tt = i as f64 / srf;
@@ -174,10 +204,20 @@ fn voice(rng: &mut Rng, sr: u32, secs: f64, f0: f64, sib_db: f64, plos_db: f64) 
                 let sdur = rng.range(0.08, 0.12);
                 let slen = (sdur * srf) as usize;
                 let s0 = (t * srf) as usize;
-                let mut hp1 = Biquad::highpass(sr, 4500.0, 0.707);
-                let mut hp2 = Biquad::highpass(sr, 4500.0, 0.707);
-                let mut lp = Biquad::lowpass(sr, 9000.0, 0.707);
-                let noise: Vec<f64> = (0..slen).map(|_| lp.process(hp2.process(hp1.process(rng.bipolar())))).collect();
+                let noise: Vec<f64> = match sib_peak {
+                    // A narrower "s" centred on the requested frequency.
+                    Some(peak) => {
+                        let mut b1 = Biquad::bandpass(sr, peak, 2.5);
+                        let mut b2 = Biquad::bandpass(sr, peak, 2.5);
+                        (0..slen).map(|_| b2.process(b1.process(rng.bipolar()))).collect()
+                    }
+                    None => {
+                        let mut hp1 = Biquad::highpass(sr, 4500.0, 0.707);
+                        let mut hp2 = Biquad::highpass(sr, 4500.0, 0.707);
+                        let mut lp = Biquad::lowpass(sr, 9000.0, 0.707);
+                        (0..slen).map(|_| lp.process(hp2.process(hp1.process(rng.bipolar())))).collect()
+                    }
+                };
                 let nrms = (noise.iter().map(|v| v * v).sum::<f64>() / slen as f64).sqrt().max(1e-9);
                 let ramp = (0.02 * srf) as usize;
                 for (i, v) in noise.iter().enumerate() {
@@ -228,6 +268,15 @@ fn match_reference(x: &mut [f64], sr: u32, f0: f64) -> Vec<Biquad> {
     all
 }
 
+/// A spectral slope of `db_oct` dB per octave around 1 kHz as third-octave peaking
+/// filters (gain clamped to +-14 dB at the ends).
+fn tilt_filters(sr: u32, db_oct: f64) -> Vec<Biquad> {
+    BAND_CENTERS
+        .iter()
+        .map(|fc| Biquad::peaking(sr, *fc, 4.3, (db_oct * (fc / 1000.0).log2()).clamp(-14.0, 14.0)))
+        .collect()
+}
+
 fn rms_active(x: &[f64], sr: u32) -> f64 {
     let n = (0.02 * sr as f64) as usize;
     let mut levels: Vec<f64> = x.chunks(n).map(|c| (c.iter().map(|v| v * v).sum::<f64>() / c.len() as f64).sqrt()).collect();
@@ -268,12 +317,15 @@ pub fn build(s: &Scenario) -> MicTest {
                 // pitch, default consonants) so injected faults survive.
                 let base = Scenario::default();
                 let mut crng = Rng::new(s.seed ^ 0xC0FFEE);
-                let mut cal = voice(&mut crng, sr, 9.0, s.f0_hz, base.sibilance_db, base.plosive_db);
+                let mut cal = voice(&mut crng, sr, 9.0, s.f0_hz, base.sibilance_db, base.plosive_db, NEUTRAL);
                 correction = Some(match_reference(&mut cal, sr, s.f0_hz));
             }
-            let mut v = voice(&mut rng, sr, dur, s.f0_hz, s.sibilance_db, s.plosive_db);
+            let mut v = voice(&mut rng, sr, dur, s.f0_hz, s.sibilance_db, s.plosive_db, Shape { sib_peak: s.sib_peak_hz, f0_spread: s.f0_spread });
             let mut c = correction.clone().unwrap();
             apply(&mut c, &mut v);
+            if s.voice_tilt_db_oct != 0.0 {
+                apply(&mut tilt_filters(sr, s.voice_tilt_db_oct), &mut v);
+            }
             let r = rms_active(&v, sr).max(1e-9);
             let mut g = speech_amp / r;
             if kind == SegmentKind::Loud {
@@ -345,9 +397,14 @@ pub fn build(s: &Scenario) -> MicTest {
         t0 += dur;
     }
 
-    // Mic colouration (proximity, capsule character, wrong side…).
+    // Mic colouration (proximity, capsule character, wrong sideâ€¦).
     let mut tone: Vec<Biquad> = s.tone.iter().map(|(f, g, q)| Biquad::peaking(sr, *f, *q, *g)).collect();
     apply(&mut tone, &mut acoustic);
+    if let Some(points) = &s.mic_response {
+        // Smoothed: wide peaking filters (Q 2.5) at the published points.
+        let mut mic: Vec<Biquad> = points.iter().map(|(f, g)| Biquad::peaking(sr, *f, 2.5, *g)).collect();
+        apply(&mut mic, &mut acoustic);
+    }
 
     // Room: early reflection + reverb tail.
     if let Some((ms, g)) = s.reflection {

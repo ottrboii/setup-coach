@@ -112,6 +112,29 @@ to typing/quiet-step evidence for desk vibration), cable_wiggle 4 s, moving 5 s.
 `vibration` (`#[serde(default)]`, old saved metrics still load); `Constraint`
 gained one variant. No command changes.
 
+`AudioMetrics` gained `voice: VoiceType` (2026-11-07, `#[serde(default)]`, additive;
+old saved metrics load as `confidence: "insufficient"`). It is measured from the
+read step and is not used by the chain or the findings yet (voice tuning piece P1,
+`docs/voice-tuning-design.md`). The UI may ignore it until the "Make it sound
+better" screen exists.
+```ts
+VoiceType = {
+  f0_median_hz: number | null, f0_p10_hz: number | null, f0_p90_hz: number | null,
+  pitch: "deep" | "low_mid" | "high_mid" | "high" | "unknown",
+  tilt_db_per_oct: number | null,      // 0 = average speech balance; + brighter, - darker
+  tilt: "dark" | "neutral" | "bright" | "unknown",
+  sib_level_db: number | null,         // same as AudioMetrics.sibilance_db
+  sib_peak_hz: number | null,          // centre of the "s" sound, 4-10 kHz
+  sibilance: "soft" | "normal" | "strong" | "unknown",
+  plosives_per_min: number | null,
+  plosives: "none" | "some" | "many" | "unknown",
+  voiced_s: number,                    // seconds of voiced speech measured
+  confidence: "insufficient" | "low" | "good",   // insufficient: every number above is null/unknown
+  confidence_reason: "too_little_speech" | "noisy" | "band_limited" | "clipped" | null
+}
+```
+Show nothing voice-based unless `confidence` is `"good"`.
+
 `apply_mic_chain`'s `obsInput` may be empty or unknown: the backend then uses
 the OBS input capturing the mic from the last test (or OBS's main mic). It writes the chain atomically (temp file + rename) to `%APPDATA%\SetupCoach\chain.json` (read
 live by our VST3: mono, HPF, EQ, de-esser), makes sure our VST3 filter exists on
