@@ -131,8 +131,12 @@ struct EqBandConfig {
     double q = 1.0;
 };
 
+/// Centre of the 'ess' band when chain.json does not say (the original fixed value).
+constexpr double kDefaultDeEsserHz = 6500.0;
+
 struct DeEsserConfig {
-    double freqHz = 6500.0;
+    /// Centre of the 'ess' side-chain band; the high-pass split sits at 0.7x this.
+    double freqHz = kDefaultDeEsserHz;
     /// Share (dB) of total energy in the 'ess' band above which highs are reduced.
     double thresholdDb = -8.0;
     double maxReductionDb = 4.0;
