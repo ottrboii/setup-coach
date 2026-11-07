@@ -54,7 +54,7 @@ impl CoachSession {
 
 /// Where auto mode moves the gain.
 #[derive(Clone)]
-enum GainSource {
+pub(super) enum GainSource {
     Windows { endpoint: String },
     GoXlr { api: Arc<dyn GoXlrApi>, serial: String, mic_type: MicType },
 }
@@ -168,7 +168,7 @@ impl AppCore {
         last.filter(|id| inputs.iter().any(|d| &d.id == id)).or_else(|| inputs.iter().find(|d| d.is_default).or(inputs.first()).map(|d| d.id.clone()))
     }
 
-    fn is_goxlr_device(&self, id: &str) -> bool {
+    pub(super) fn is_goxlr_device(&self, id: &str) -> bool {
         self.device_name(id).is_some_and(|n| n.to_ascii_lowercase().contains("goxlr"))
     }
 
@@ -191,7 +191,7 @@ impl AppCore {
     }
 
     /// The software gain auto mode may move for this device, if any.
-    async fn gain_source(&self, device_id: &str) -> Option<GainSource> {
+    pub(super) async fn gain_source(&self, device_id: &str) -> Option<GainSource> {
         if self.is_goxlr_device(device_id) {
             if let Some((api, dev)) = self.goxlr_device().await {
                 return Some(GainSource::GoXlr { api, serial: dev.serial, mic_type: dev.mic_type });
@@ -202,7 +202,7 @@ impl AppCore {
         (hw && self.platform.system.endpoint_gain_db(device_id).is_some()).then(|| GainSource::Windows { endpoint: device_id.to_string() })
     }
 
-    async fn gain_get(&self, src: &GainSource) -> Option<GainControl> {
+    pub(super) async fn gain_get(&self, src: &GainSource) -> Option<GainControl> {
         match src {
             GainSource::Windows { endpoint } => self.platform.system.endpoint_gain_db(endpoint),
             GainSource::GoXlr { api, .. } => {

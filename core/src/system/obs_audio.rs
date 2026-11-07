@@ -5,6 +5,7 @@ use super::state::{
     MonitoringType, ObsAudioInput, ObsFilter, SystemSnapshot, OBS_KIND_APP_AUDIO,
     OBS_KIND_DESKTOP, OBS_KIND_MIC,
 };
+use crate::audio::findings::GainAccess;
 use crate::finding::{Area, Finding, FixKind, Severity};
 use serde_json::{json, Value};
 
@@ -441,7 +442,15 @@ pub(crate) fn check(s: &SystemSnapshot, out: &mut Vec<Finding>) {
                 if total > 20.0 { Severity::Major } else { Severity::Minor },
                 "Your mic is turned up in several places, adding hiss",
                 "Extra digital boost in Windows and OBS turns up noise as much as your voice. Clean gain only comes from the mic or interface.",
-                "Turn up the gain on your mic or interface, then remove the extra Windows/OBS boosts. If the interface is already maxed, your mic needs more clean gain (see suggestion).",
+                &format!(
+                    "Remove the extra Windows/OBS boosts, then {}. {}",
+                    s.mic.raise_clean(),
+                    if s.mic.gain == GainAccess::None {
+                        "If that is not enough, an inline booster adds clean gain (see suggestion)."
+                    } else {
+                        "If the gain is already maxed, your mic needs more clean gain (see suggestion)."
+                    }
+                ),
                 FixKind::Guided,
             )
             .with_evidence("digital_gain_db", total)

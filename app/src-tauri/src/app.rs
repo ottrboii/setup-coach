@@ -26,6 +26,7 @@ mod avsync_ops;
 pub use avsync_ops::{SyncApplyResult, SyncReport};
 mod camera_busy;
 mod drift_ops;
+mod gain_fix;
 pub use drift_ops::{DriftPoint, DriftReport, DriftStatus, DriftVerdictView};
 mod coaching;
 mod micchoice;
@@ -145,6 +146,8 @@ pub struct AppCore {
     pub grab_timeout: Duration,
     /// Interval between live-coaching ticks (~8 updates/s).
     pub coach_tick: Duration,
+    /// How long each level measurement of `fix_mic_level` listens (and the pause after a change).
+    pub level_fix_window: Duration,
     /// Look for the GoXLR Utility daemon on localhost (off in tests).
     pub goxlr_autodetect: AtomicBool,
     obs: tokio::sync::Mutex<Option<Arc<dyn ObsApi>>>,
@@ -166,6 +169,7 @@ impl AppCore {
             frame_interval: Duration::from_millis(250),
             grab_timeout: Duration::from_secs(6),
             coach_tick: Duration::from_millis(125),
+            level_fix_window: Duration::from_millis(3500),
             goxlr_autodetect: AtomicBool::new(cfg!(windows)),
             obs: tokio::sync::Mutex::new(None),
             goxlr: tokio::sync::Mutex::new(None),
@@ -382,12 +386,23 @@ impl AppCore {
             snap.mic.single_live_channel = r.metrics.dead_channel.is_some();
         }
         // Interface input 1 arriving left-only, known from the profile.
-        if let Some(ep) = snap.mic_endpoint() {
-            if let Some(m) = self.profiles.match_input(&Self::identity(&ep.name, None)) {
+        if let Some(ep_name) = snap.mic_endpoint().map(|e| e.name.clone()) {
+            let matched = self.profiles.match_input(&Self::identity(&ep_name, None));
+            if matched.is_none() {
+                // Unknown gear is still a GoXLR by its Windows name.
+                let (gain, gain_where) = resolve_gain(&ep_name, None, None, None);
+                snap.mic.gain = gain;
+                snap.mic.gain_where = gain_where;
+            }
+            if let Some(m) = matched {
                 if m.interface.as_ref().is_some_and(|i| i.profile.input1_left_only) {
                     snap.mic.single_live_channel = true;
                 }
                 snap.mic.windows_slider_is_hardware_gain = m.mic.profile.windows_slider_is_hw_gain.unwrap_or(false);
+                let conn = mic_connection(&m.mic.profile.connection, m.interface.is_some());
+                let (gain, gain_where) = resolve_gain(&ep_name, Some(conn), m.interface.as_ref().map(|i| i.profile.family.as_str()), Some(m.mic.profile));
+                snap.mic.gain = gain;
+                snap.mic.gain_where = gain_where;
                 snap.mic.onboard_dsp_active = m.mic.profile.onboard_dsp.iter().map(|d| d.name.clone()).collect();
             }
         }
@@ -772,15 +787,7 @@ impl AppCore {
                 prof::Address::MultiPattern { facing, .. } => Some(if matches!(facing, prof::Facing::Side) { MAddr::Side } else { MAddr::End }),
                 prof::Address::Any => None,
             };
-            ctx.connection = Some(match &p.connection {
-                prof::MicConnection::Usb => MConn::Usb,
-                prof::MicConnection::Xlr => MConn::Xlr,
-                prof::MicConnection::UsbXlrHybrid => if iface.is_some() { MConn::Xlr } else { MConn::Usb },
-                prof::MicConnection::Headset { path: prof::HeadsetPath::BluetoothHfp } => MConn::Bluetooth,
-                prof::MicConnection::Headset { .. } => MConn::Headset,
-                prof::MicConnection::Wireless => MConn::Wireless,
-                prof::MicConnection::Builtin => MConn::BuiltIn,
-            });
+            ctx.connection = Some(mic_connection(&p.connection, iface.is_some()));
             ctx.gain_needed_db = p.gain_needed_db.map(f64::from);
             ctx.distance_cm = Some((p.distance_cm.min as f64, p.distance_cm.max as f64));
             if p.onboard_dsp.iter().any(|d| matches!(d.kind, prof::DspKind::AutoLevel | prof::DspKind::AutoGain)) {
@@ -794,15 +801,7 @@ impl AppCore {
         }
         ctx.interface_max_gain_db = iface.and_then(|i| i.max_gain_db).map(f64::from);
         // What can lower the level at the source decides how "too loud" is worded.
-        let interface = iface.map(|i| if i.family == "goxlr" { InterfaceGain::VendorApp("the GoXLR app".into()) } else { InterfaceGain::Preamp });
-        let controls = mic.map(|p| p.hardware_controls.as_slice()).unwrap_or(&[]);
-        let (gain, gain_where) = GainAccess::resolve(&GainFacts {
-            connection: ctx.connection,
-            hardware_controls: controls,
-            windows_slider_is_hw_gain: mic.and_then(|p| p.windows_slider_is_hw_gain),
-            profile_verified: mic.is_some_and(|p| p.verified),
-            interface,
-        });
+        let (gain, gain_where) = resolve_gain(&dev.name, ctx.connection, iface.map(|i| i.family.as_str()), mic);
         ctx.gain = gain;
         ctx.gain_where = gain_where;
         if answers.booster == Some(true) {
@@ -1550,4 +1549,43 @@ pub fn label_for(a: &Action) -> String {
         Action::DisableListen { .. } => "Turn off \"Listen to this device\"".into(),
         Action::DisableUsbSelectiveSuspend => "Stop Windows powering down USB audio".into(),
     }
+}
+
+fn mic_connection(c: &prof::MicConnection, behind_interface: bool) -> MConn {
+    match c {
+        prof::MicConnection::Usb => MConn::Usb,
+        prof::MicConnection::Xlr => MConn::Xlr,
+        prof::MicConnection::UsbXlrHybrid => {
+            if behind_interface {
+                MConn::Xlr
+            } else {
+                MConn::Usb
+            }
+        }
+        prof::MicConnection::Headset { path: prof::HeadsetPath::BluetoothHfp } => MConn::Bluetooth,
+        prof::MicConnection::Headset { .. } => MConn::Headset,
+        prof::MicConnection::Wireless => MConn::Wireless,
+        prof::MicConnection::Builtin => MConn::BuiltIn,
+    }
+}
+
+/// What can lower the level at the source for this Windows device. A GoXLR
+/// (matched by profile, or just by its Windows device name) keeps its mic gain
+/// in software, so the advice says "in the GoXLR app" whether or not GoXLR
+/// Utility is running; the app only needs Utility to change it for the user.
+pub(crate) fn resolve_gain(device_name: &str, connection: Option<MConn>, interface_family: Option<&str>, mic: Option<&prof::MicProfile>) -> (GainAccess, Option<String>) {
+    let by_name = device_name.to_ascii_lowercase().contains("goxlr");
+    let interface = match interface_family {
+        Some("goxlr") => Some(InterfaceGain::VendorApp("the GoXLR app".into())),
+        Some(_) => Some(InterfaceGain::Preamp),
+        None if by_name => Some(InterfaceGain::VendorApp("the GoXLR app".into())),
+        None => None,
+    };
+    GainAccess::resolve(&GainFacts {
+        connection,
+        hardware_controls: mic.map(|p| p.hardware_controls.as_slice()).unwrap_or(&[]),
+        windows_slider_is_hw_gain: mic.and_then(|p| p.windows_slider_is_hw_gain),
+        profile_verified: mic.is_some_and(|p| p.verified),
+        interface,
+    })
 }

@@ -124,6 +124,7 @@ pub fn run() {
             commands::open_for_user,
             commands::list_backups,
             commands::restore_backup,
+            commands::fix_mic_level,
             commands::preview_restore,
             commands::obs_running,
             commands::list_mic_profiles,

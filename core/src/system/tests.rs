@@ -471,6 +471,34 @@ fn gain_stacking_and_constraint() {
 }
 
 #[test]
+fn gain_stacked_and_mic_boost_tips_follow_gain_access() {
+    use crate::audio::findings::GainAccess;
+    let fix_for = |gain: GainAccess, wh: Option<&str>, id: &str| {
+        let mut s = good();
+        mic_ep(&mut s).mic_boost_db = Some(10.0);
+        mic_in(&mut s).filters.insert(0, filter("Gain", "gain_filter", json!({"db": 15.0})));
+        s.mic.gain = gain;
+        s.mic.gain_where = wh.map(String::from);
+        audit(&s, &[]).into_iter().find(|f| f.id == id).unwrap().fix
+    };
+    for id in [ids::GAIN_STACKED, ids::MIC_BOOST] {
+        // A mic with no gain control is never told to turn its gain up.
+        let none = fix_for(GainAccess::None, None, id);
+        assert!(!none.to_lowercase().contains("turn up the gain"), "{none}");
+        assert!(!none.contains("interface gain"), "{none}");
+        assert!(none.contains("no gain control") && none.contains("close"), "{none}");
+        // GoXLR: the gain lives in its app.
+        let sw = fix_for(GainAccess::Software, Some("the GoXLR app"), id);
+        assert!(sw.contains("in the GoXLR app"), "{sw}");
+        assert!(!sw.contains("interface"), "{sw}");
+        // A knob is still a knob.
+        assert!(fix_for(GainAccess::Knob, None, id).contains("gain"));
+        // Unknown gear: "if it has one".
+        assert!(fix_for(GainAccess::Unknown, None, id).contains("if"));
+    }
+}
+
+#[test]
 fn double_capture_app_audio() {
     let mut s = good();
     obs(&mut s).audio_inputs.push(ObsAudioInput {

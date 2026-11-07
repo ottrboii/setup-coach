@@ -291,6 +291,34 @@ MinBar = { met: number, close: number, major: number }                 // higher
   They decide whether advice may say "turn your gain down" (see `GainAccess` in core).
   `ProcessingChain.input_gain_db` can now be negative: for a mic with `gain: "none"` the level
   cut/boost goes into the software gain stage and `hardware_gain_change_db` is 0.
+
+**Fix my level / GoXLR gain (added 2026-11-07).**
+
+| Command | Args | Returns |
+|---|---|---|
+| `fix_mic_level` | `{ deviceId: string }` | `LevelFixResult` |
+
+```ts
+LevelFixResult = { status: "fixed" | "couldnt" | "needs_you", line: string,   // line = plain-language result, show as is
+                   changed: string | null,            // "GoXLR mic gain" | "mic level in Windows"; null = nothing changed
+                   gain_before_db, gain_after_db, peak_before_dbfs, peak_after_dbfs: number | null,   // Advanced only
+                   steps: number,
+                   backup_id: string | null }         // pass to restore_backup(id) = "Undo"
+```
+
+Event `level-fix-progress` `{ text }` (plain progress). The command takes ~5 to 30 s: it listens ~3.5 s, moves
+the real gain at most 4 dB per step (GoXLR through GoXLR Utility, or a Windows level that is the hardware
+gain), listens again after every step, and stops when speech peaks sit in -18..-12 dBFS. UI hook: call it from
+the "too loud / too quiet" finding when `context.gain` is `software`, tell the user to talk normally while it
+runs, show `line` with a status icon, and for `fixed`/`needs_you` with `backup_id` show an "Undo" button that
+calls `restore_backup(backup_id)`. `fixed` is only returned after a measurement; if the gain change makes no audible
+difference or the voice vanishes it is put back (`couldnt`, `line` says so). GoXLR Utility not running = `needs_you`
+with the words for opening it or lowering the gain in the GoXLR app; nothing is changed. The Utility gain write
+is backed up in the vault (`goxlr:<serial>`) first.
+- A GoXLR (by profile or by "GoXLR" in the Windows device name) now resolves to `gain: "software"`,
+  `gain_where: "the GoXLR app"` even when GoXLR Utility is not running (`"GoXLR Utility"` when it is).
+- `SystemSnapshot.mic` gained `gain` / `gain_where` (serde default); the `system.mic_boost_on` and
+  `mic.gain_stacked` tips use it, so mics without a gain control are never told to turn gain up.
 - `UsbLink` hub findings: `connection.behind_hub` is `info` for a self-powered hub with no dropouts and
   full speed (camera only), `minor` with dropouts or a slow link, `major` for a bus-powered hub.
 - `MicReport` gained `profile` (the bars its `targets` and findings used; `#[serde(default)]`).

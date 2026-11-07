@@ -303,6 +303,15 @@ pub async fn list_backups(app: S<'_>) -> R<Vec<crate::vault::BackupInfo>> {
 }
 
 #[tauri::command]
+pub async fn fix_mic_level(app: S<'_>, device_id: String) -> R<LevelFixResult> {
+    let core = app.inner().clone();
+    match tokio::spawn(async move { core.fix_mic_level(&device_id).await }).await {
+        Ok(r) => r,
+        Err(_) => Err("Changing the level hit a snag. Use Undo (Backups) if your mic level sounds different now.".into()),
+    }
+}
+
+#[tauri::command]
 pub async fn restore_backup(app: S<'_>, id: String) -> R<ApplyResult> {
     Ok(app.restore_backup(&id).await)
 }
