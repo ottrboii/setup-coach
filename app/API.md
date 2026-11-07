@@ -277,6 +277,9 @@ IrrelevantFindings = { areas: Area[],      // every finding in these areas is hi
 // The backend already applies it: the mic report (core `audio::scan`) and the quick scan
 // (`run_quick_checks`) never contain these findings, and hidden ones cost no score or fix.
 // The UI uses it to hide screens/tabs that only produce hidden findings (voiceover: camera, stream health).
+// UI (app/ui/profilenav.js): a route is hidden from the nav and Home when ALL its areas are in `areas` and no
+// `keep` id starts with "<area>.". Route -> area: camera -> "camera"; sync, health -> "stream". Hidden routes go
+// under "Not needed for <profile>" and still open by link or from a finding. `ids` only affects findings (backend).
 ProfileTargets = { speech_peak: [lo, hi], speech_peak_close: [lo, hi],
                    loud_peak: MaxBar, noise_floor: MaxBar, snr: MinBar, room_decay: MaxBar }
 MaxBar = { met: number, close: number, flag: number, major: number }   // lower is better; finding above `flag`
