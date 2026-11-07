@@ -95,7 +95,6 @@ fn applied_only_when_verified(t: &VoiceTune) {
     }
 }
 
-const PRESENCE: usize = 5;
 const AIR: usize = 6;
 
 // Section 9.2 do no harm: a clean average voice gets nothing.
@@ -118,11 +117,11 @@ fn dark_voice_brightened_gently_and_stays_dark() {
     assert!(t.origins.iter().all(|o| *o == BandOrigin::Voice));
     net_within_cap(&t);
     applied_only_when_verified(&t);
-    assert!(t.verdict.applied(), "{:?}", t.verification);
-    let v = t.verification.as_ref().unwrap();
-    assert!(v.after.regions_db[PRESENCE] > v.before.regions_db[PRESENCE] && v.after.regions_db[AIR] > v.before.regions_db[AIR]);
-    assert!(v.after.regions_db[PRESENCE] < 0.0 && v.after.regions_db[AIR] < 0.0, "still darker than average");
-    assert!(v.after.tone_rms_db < v.before.tone_rms_db);
+    // The scan already brightens this voice the same way: no news (see
+    // `no_mic_chart_tune_equal_to_current_is_nothing_to_change`). The character
+    // check moves to the mic-chart case below.
+    assert_eq!(t.verdict, Verdict::NothingToChange);
+    assert!(t.chain.eq.iter().any(|b| b.freq_hz >= 2000.0 && b.gain_db > 0.0), "today's chain keeps the lift");
 }
 
 // The synth's `voice_tilt_db_oct` is built from narrow (Q 4.3) third-octave
@@ -157,10 +156,67 @@ fn bright_voice_never_boosted_up_top() {
     assert!(t.proposed.eq.iter().zip(&t.origins).any(|(b, o)| *o == BandOrigin::Voice && b.freq_hz >= 2000.0 && b.gain_db < 0.0), "{:?}", t.proposed.eq);
     net_within_cap(&t);
     applied_only_when_verified(&t);
+    // "Before" is today's chain. With no mic chart the cap-limited tune (-4.8 dB
+    // at 8 kHz) is gentler than what the scan already applies (-5.7 dB), so it
+    // does not beat it: nothing is applied, today's chain stays.
+    assert_eq!(t.verdict, Verdict::NotImproved, "{:?}", t.verification);
+    let v = t.verification.as_ref().unwrap();
+    assert!(!v.improved && v.after.regions_db[AIR] > v.before.regions_db[AIR], "gentler than today, not better");
+    assert!(v.before.regions_db[AIR] > 0.0, "character kept");
+}
+
+// The tune is judged against the chain the user has now, EQ and de-esser included.
+// No mic chart: R equals the scan's own EQ, so there is nothing new to offer.
+#[test]
+fn no_mic_chart_tune_equal_to_current_is_nothing_to_change() {
+    for p in [SetupProfile::Streaming, SetupProfile::Call] {
+        let t = compose(&Scenario { voice_tilt_db_oct: -3.0, ..d() }, p, None);
+        assert!(!t.base.eq.is_empty(), "the scan already corrects this voice");
+        assert_eq!(t.proposed.eq, t.base.eq, "R equals today's EQ");
+        assert_eq!(t.verdict, Verdict::NothingToChange);
+        assert!(t.verification.is_none() && !t.verdict.applied());
+        assert_eq!(t.chain, t.base);
+    }
+}
+
+// A mic chart that adds bands: judged against today's chain, not a bare one.
+#[test]
+fn mic_chart_tune_is_verified_against_current_chain() {
+    let m = presence_mic();
+    let s = Scenario { voice_tilt_db_oct: -3.0, mic_response: Some(m.points_hz_db.iter().map(|p| (p[0], p[1])).collect()), ..d() };
+    let t = compose(&s, SetupProfile::Streaming, Some(&m));
+    assert!(t.origins.contains(&BandOrigin::Mic));
+    assert!(!t.base.eq.is_empty());
+    applied_only_when_verified(&t);
     assert!(t.verdict.applied(), "{:?}", t.verification);
     let v = t.verification.as_ref().unwrap();
-    assert!(v.after.regions_db[AIR] < v.before.regions_db[AIR], "air came down");
-    assert!(v.after.regions_db[AIR] > 0.0, "character kept");
+    assert!(v.improved && v.after.tone_rms_db < v.before.tone_rms_db - 0.05, "{} -> {}", v.before.tone_rms_db, v.after.tone_rms_db);
+    // "Before" is today's chain: it renders like `base`, not like a bare chain.
+    let test = build(&s);
+    let ctx = MicContext::default();
+    let bare = { let mut c = t.base.clone(); c.eq.clear(); c.deesser = None; coach_core::audio::process::calibrate_makeup(&test, &mut c); c };
+    let b = tune::check_render(&test, &ctx, &t.base, &SetupProfile::Streaming.tuning());
+    let r = tune::check_render(&test, &ctx, &bare, &SetupProfile::Streaming.tuning());
+    assert_eq!(v.before, b);
+    assert_ne!(v.before, r);
+}
+
+// A tune that is not better than what the user has now is never applied, however
+// the chart reads (flat voice through a chart that says the mic is coloured).
+#[test]
+fn tune_never_worse_than_current_chain() {
+    let m = presence_mic();
+    for s in [d(), Scenario { voice_tilt_db_oct: -3.0, ..d() }, Scenario { sibilance_db: -2.0, sib_peak_hz: Some(7000.0), ..d() }] {
+        let t = compose(&s, SetupProfile::Streaming, Some(&m));
+        applied_only_when_verified(&t);
+        if let Some(v) = &t.verification {
+            if t.verdict.applied() {
+                assert!(v.after.tone_rms_db < v.before.tone_rms_db || v.after.sibilance_db < v.before.sibilance_db, "{v:?}");
+            } else {
+                assert_eq!(t.chain, t.base);
+            }
+        }
+    }
 }
 
 // Sibilant voice: de-esser centred on the measured "s" peak (clamped 4.5-9 kHz),
@@ -180,7 +236,8 @@ fn sibilant_voice_deesser_follows_the_s_peak() {
     // this synthetic voice the tune is held back by V3, the level).
     let v = t.verification.as_ref().expect("a strong s is verified");
     let (before, after) = (v.before.sibilance_db.unwrap(), v.after.sibilance_db.unwrap());
-    assert!(after < before - 1.0, "s {before:.1} -> {after:.1}");
+    // Today's 6.5 kHz de-esser is part of "before" now, so the gain is smaller.
+    assert!(after < before - tune::DEESS_MIN_GAIN_DB, "s {before:.1} -> {after:.1}");
     assert!(v.v2_no_harm, "{v:?}");
 }
 
@@ -193,7 +250,12 @@ fn deesser_only_needs_the_s_to_drop() {
         let ctx = MicContext::default();
         let m = coach_core::audio::analyze(&test);
         let raw = coach_core::audio::compute_chain(&m, &ctx, &[]);
+        // The user's current chain has no EQ and no de-esser here, so the
+        // candidate is judged against a bare one (with today's 6.5 kHz de-esser
+        // already in the chain, the 5 kHz candidate leaves the "s" higher than today's: -2.1 -> -1.2 dB).
         let mut base = raw.clone();
+        base.eq.clear();
+        base.deesser = None;
         coach_core::audio::process::calibrate_makeup(&test, &mut base);
         let cand = Candidate { bands: vec![], deesser: Some(de) };
         let (verdict, ver, chain) = tune::verify_and_decide(&test, &ctx, &raw, &base, cand, &SetupProfile::Streaming.tuning());

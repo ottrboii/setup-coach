@@ -1,4 +1,4 @@
-//! "Make it sound better": tune the processing chain's EQ / de-esser to the
+﻿//! "Make it sound better": tune the processing chain's EQ / de-esser to the
 //! mic's published response and the user's voice (core `tune::compose`),
 //! check it offline, let the user hear a loudness-matched Before / After and
 //! apply it through the settings vault (undoable). Plain filters only: no AI
@@ -30,7 +30,7 @@ pub(super) struct TuneSession {
     ctx: MicContext,
     test: MicTest,
     tune: VoiceTune,
-    /// What the Before is rendered with: the verification's reference, i.e. the same chain without any EQ or de-esser (high-pass and dynamics as the tune).
+    /// What the Before is rendered with: the verification's reference: the chain the user has now (`tune.base`, its EQ and de-esser included).
     reference: ProcessingChain,
     mic: TuneMicInfo,
     strength: f64,
@@ -484,3 +484,4 @@ impl AppCore {
         })
     }
 }
+
