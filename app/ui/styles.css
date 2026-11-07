@@ -634,3 +634,58 @@ body.mini .coach-stepper { display: none; }
 @keyframes lf-breathe { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(0.95); } }
 @media (prefers-reduced-motion: reduce) { .lf-wave i { animation: none; transform: scaleY(0.6); } }
 @media (max-width: 480px) { .lf-idle .btn, .lf-actions { width: 100%; } .lf-idle .btn { justify-content: center; } }
+
+/* ---------- Make it sound better (tune) ---------- */
+.tune-cta { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.tune-fact-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.tune-fact { display: flex; align-items: flex-start; gap: 10px; color: var(--text); animation: tune-in 0.35s ease both; }
+.tune-fact svg { flex: none; color: var(--good); margin-top: 2px; }
+@keyframes tune-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tune-headline { align-items: flex-start; color: var(--text); }
+.tune-head-text { font-weight: 650; font-size: 17px; }
+.tune-ico { flex: none; display: grid; place-items: center; }
+.tune-headline.good .tune-ico { color: var(--good); }
+.tune-headline.warn .tune-ico { color: var(--warn); }
+.tune-headline.info .tune-ico { color: var(--info); }
+.plain-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text); }
+.tone-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tone { display: flex; gap: 10px; align-items: flex-start; color: var(--text); }
+.tone-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 7px; background: var(--good); }
+.tone.too_much .tone-dot, .tone.too_little .tone-dot { background: var(--warn); }
+.tune-hp { display: flex; gap: 8px; align-items: flex-start; }
+.tune-hp svg { flex: none; margin-top: 1px; }
+.tune-ab { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tune-seg { position: relative; display: block; cursor: pointer; }
+.tune-seg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.tune-seg > span { display: flex; flex-direction: column; gap: 2px; align-items: center; text-align: center; min-height: 72px; justify-content: center; padding: 12px 10px; border-radius: 14px; border: 2px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 18px; }
+.tune-seg small { font-size: 13px; color: var(--text-2); }
+.tune-seg input:checked + span { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+.tune-seg input:checked + span small { color: var(--accent-ink); opacity: 0.85; }
+.tune-seg input:focus-visible + span { outline: 3px solid var(--text); outline-offset: 2px; }
+.tune-seg:hover input:not(:checked) + span { background: var(--surface-3); }
+.tune-actions .btn { flex: 0 1 auto; }
+.tune-actions .btn:not(.primary) { color: var(--text); }
+.tune-targets { border: 1px solid var(--border); margin: 0; }
+.tune-legend { font-weight: 700; padding: 0 6px; color: var(--text); }
+.tune-target-list { display: flex; flex-direction: column; gap: 8px; }
+.tune-target { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; color: var(--text); }
+.tune-target:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(124, 140, 255, 0.25); }
+.tune-target:has(input:focus-visible) { outline: 3px solid var(--text); outline-offset: 2px; }
+.tune-target input { margin-top: 4px; width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+.tune-curve { margin: 0; }
+.tune-curve svg { width: 100%; height: auto; max-width: 480px; }
+.tune-curve .c-zero { stroke: var(--border); stroke-width: 1; }
+.tune-curve .c-mic { fill: none; stroke: var(--text-3); stroke-width: 2; }
+.tune-curve .c-net { fill: none; stroke: var(--accent); stroke-width: 2.4; }
+.tune-curve .c-t { fill: var(--text-3); font-size: 10px; }
+.tune-curve .key { display: inline-block; width: 18px; height: 3px; vertical-align: middle; border-radius: 2px; }
+.tune-curve .key.mic { background: var(--text-3); } .tune-curve .key.net { background: var(--accent); }
+@media (max-width: 480px) {
+  .tune-actions .btn { width: 100%; }
+  .tune-ab { gap: 8px; }
+  .tune-seg > span { font-size: 16px; padding: 10px 6px; }
+  .tune-cta .btn { width: 100%; }
+  .tune #play { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .tune-fact { animation: none; } }
+.tune-facts.settled .tune-fact { animation: none; }

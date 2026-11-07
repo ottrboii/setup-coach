@@ -1,5 +1,6 @@
 // 5. Apply the chain, then verify with a before/after comparison.
 import { api } from '../api.js';
+import { isTuneRelevant } from '../profilenav.js';
 import { esc, html, icons, scoreRing, toast, errorBanner, advanced } from '../components.js';
 import { state } from '../state.js';
 import { guidedFailures, guidedFixCard } from '../guided.js';
@@ -171,6 +172,11 @@ export async function render(root, { go }) {
     next.querySelector('#ab').addEventListener('click', () => go('ab-record'));
     next.querySelector('#again').addEventListener('click', () => go('mic'));
     page.append(next);
+    if (isTuneRelevant()) {
+      const t = html('<div class="card tune-cta"><div class="stack" style="gap:4px;flex:1;min-width:240px"><b>Want to tune your tone too?</b><span class="muted">We can adjust the tone of your voice to your mic. You hear Before and After first, and you can undo it.</span></div><button class="btn" id="tune">Make it sound better</button></div>');
+      t.querySelector('#tune').addEventListener('click', () => go('tune'));
+      page.append(t);
+    }
   }
 
   async function toggle(btn, ab, phone, keep = false) {

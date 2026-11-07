@@ -31,3 +31,7 @@ export function isRouteHidden(route) {
 }
 
 export function profileChanged() { window.dispatchEvent(new Event(PROFILE_EVENT)); }
+
+// "Make it sound better" suits the profiles that talk into the mic. Unknown profile: show it.
+const TUNE_PROFILES = ['streaming', 'voiceover', 'call'];
+export function isTuneRelevant() { return !state.profile || TUNE_PROFILES.includes(state.profile); }
