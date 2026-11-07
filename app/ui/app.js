@@ -15,17 +15,18 @@ import * as backups from './screens/backups.js';
 import * as ab from './screens/ab.js';
 import * as abrecord from './screens/abrecord.js';
 import * as sync from './screens/sync.js';
+import * as tune from './screens/tune.js';
 import { isRouteHidden, activeInfo, ensureProfileForNav, PROFILE_EVENT } from './profilenav.js';
 import { initFeedback } from './feedback.js';
 
 const ROUTES = {
-  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach, backups, ab, 'ab-record': abrecord, sync,
+  welcome, scan, mic: mictest, 'mic-report': micreport, 'mic-apply': micapply, camera, health, home: dashboard, coach, backups, ab, 'ab-record': abrecord, sync, tune,
 };
 
 const NAV = [
   { route: 'welcome', label: 'Welcome', done: () => !!state.env },
   { route: 'scan', label: 'Quick scan', done: () => !!state.quick },
-  { route: 'mic', label: 'Microphone', match: ['mic', 'mic-report', 'mic-apply'], done: () => !!state.micVerify },
+  { route: 'mic', label: 'Microphone', match: ['mic', 'mic-report', 'mic-apply', 'tune'], done: () => !!state.micVerify },
   { route: 'camera', label: 'Camera', done: () => state.cameraApplied },
   { route: 'sync', label: 'Lip sync', done: () => state.syncReport?.verdict === 'in_sync' },
   { route: 'health', label: 'Stream health', done: () => !!state.healthReport },

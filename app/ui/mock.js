@@ -60,6 +60,7 @@ let activeProfile = 'streaming';
 let voiceoverTarget = 'youtube';
 let tuneState = null;
 let tuneSeq = 0;
+let tuneReadDone = false; // ?mock_tune=needs_read asks for the Read step once, then behaves like "close"
 const tuneTuning = (lufs, ceil, measure = 'lufs', accept = [lufs - 1, lufs + 1]) => ({ loudness: { value: lufs, measure, accept }, limiter_ceiling_db: ceil, speech_peak_limit_db: ceil, compressor_ratio: 2, compressor_gr_db: 2.5, expander_ratio_max: 2, boost_above_7k: true, judge_hz: [80, 10000], tone_delta: null });
 const TUNE_TARGETS = {
   youtube: { id: 'youtube', label: 'YouTube video', summary: 'Loud and clear, the level video sites play at.', tuning: tuneTuning(-14, -1.5) },
@@ -659,9 +660,9 @@ export function createMock() {
     },
     async start_voice_tune({ deviceId }) {
       const kind = mockParam('mock_tune') || 'close';
-      if (kind === 'needs_read') throw { code: 'needs_read', message: 'Read the lines out loud first, so we can hear your voice.' };
+      if (kind === 'needs_read' && !tuneReadDone) throw { code: 'needs_read', message: 'Read the lines out loud first, so we can hear your voice.' };
       await wait(1800);
-      tuneState = { id: `tune-${++tuneSeq}`, deviceId, kind, strength: 1, applied: null, backup: null };
+      tuneState = { id: `tune-${++tuneSeq}`, deviceId, kind: kind === 'needs_read' ? 'close' : kind, strength: 1, applied: null, backup: null };
       return tuneResult();
     },
     async gentler_voice_tune({ tuneId }) {
@@ -695,7 +696,7 @@ export function createMock() {
     },
     async start_mic_test() { micStep = null; startMicLevels(); await wait(150); return null; },
     async mark_step({ kind, edge }) { micStep = edge === 'start' ? kind : null; return null; },
-    async finish_mic_test({ constraints: cs }) { clearInterval(micTimer); constraints = cs || []; await wait(1600); return micReport(constraints, coached.mic); },
+    async finish_mic_test({ constraints: cs }) { clearInterval(micTimer); constraints = cs || []; tuneReadDone = true; await wait(1600); return micReport(constraints, coached.mic); },
     async rescan_mic({ constraints: cs }) { constraints = cs || []; await wait(700); return micReport(constraints); },
     async apply_mic_chain() { storedSetups[`${activeProfile}|${lastMicDevice}`] = true; await wait(1100); return { applied: ['vst3_config', 'obs_filters'], failed: [], restart_obs_needed: false }; },
     async verify_mic() { await wait(1400); return { before: micReport(constraints), after: micReport(constraints, true) }; },

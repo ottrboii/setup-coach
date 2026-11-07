@@ -6,6 +6,7 @@ import { openMicChoice, yourMicLine } from '../micpicker.js';
 import { profileCard, profileLine } from '../profilepicker.js';
 import { cleanAnswers } from './mictest.js';
 import { attachLevelFix } from '../levelfix.js';
+import { isTuneRelevant } from '../profilenav.js';
 
 const STATUS = { met: ['ok', 'On target'], close: ['major', 'Close'], missed: ['critical', 'Off target'], not_measured: ['', 'Not measured'] };
 
@@ -88,6 +89,14 @@ export async function render(root, { go }) {
       const list = html('<div class="findings"></div>');
       handled.forEach((f) => list.append(findingCard(f, { visual: false })));
       page.append(list);
+    }
+
+    if (isTuneRelevant()) {
+      const tuneCard = html(`<div class="card tune-cta"><div class="stack" style="gap:4px;flex:1;min-width:240px"><h2>Make it sound better</h2>
+        <p class="muted">listen to your voice and your mic and gently adjust the tone toward the targets for your setup. You hear Before and After first, and you can undo it.</p></div>
+        <button class="btn lg" id="tune">Tune my voice</button></div>`);
+      tuneCard.querySelector('#tune').addEventListener('click', () => go('tune'));
+      page.append(tuneCard);
     }
 
     const cta = html(`
