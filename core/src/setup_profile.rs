@@ -1,9 +1,10 @@
 //! Setup profiles: what the user is setting up for in this session
 //! (streaming, recording a voiceover, or a call / meeting).
 //!
-//! A profile only moves the **pass bars** and the **physical guidance**. It
-//! never changes the audio: the processing chain is computed the same way for
-//! every profile, and "I can't do this" (`Constraint`) works the same.
+//! A profile moves the **pass bars**, the **physical guidance** and, only in
+//! the documented fields below (loudness, limiter, compressor, expander cap,
+//! no EQ boost above 7 kHz on calls), the **processing**. Tone is never moved
+//! by the profile yet. "I can't do this" (`Constraint`) works the same everywhere.
 //!
 //! Where each number comes from (re-run the evidence with
 //! `cargo run --release --example profile_sweep`):
@@ -57,6 +58,29 @@
 //! Anything not in the table is shown in every profile. A mic-side USB hub
 //! finding (`connection.behind_hub` on a mic) stays everywhere: it is in area
 //! `mic`, not `camera`.
+//!
+//! # How a profile changes the processing (voice tuning, design section 3.3)
+//!
+//! Deliberately, and only in these fields of the chain ([`ProfileTuning`]):
+//! loudness target, limiter ceiling, compressor ratio / gain reduction,
+//! expander ratio cap (voiceover), and whether EQ may boost above 7 kHz (not on
+//! a call: wideband call codecs stop at 7-8 kHz, RFC 6716 / G.722). Streaming is
+//! the chain as it was before profiles. The profile tone deltas (+1 dB
+//! presence for streaming and calls) have no published number behind them and
+//! ship at 0 until a listening test (decision 2026-11-07).
+//!
+//! | | Streaming | Voiceover (YouTube / Podcast / Audiobook) | Call |
+//! |---|---|---|---|
+//! | Loudness | -16 LUFS | -14 LUFS / -16 LUFS / -20 dB RMS | -16 LUFS |
+//! | Limiter ceiling | -1.5 dBFS | -1.5 / -1.5 / -3.5 dBFS | -1.5 dBFS |
+//! | Compressor | 3:1, 4 dB | 2:1, 2.5 dB | 4:1, 5 dB |
+//! | Expander ratio | as measured | at most 2:1 | as measured |
+//! | EQ boosts above 7 kHz | yes | yes | no |
+//!
+//! Sources: Apple Podcasts -16 LKFS / true peak -1; YouTube -14 LUFS / -1 dBTP;
+//! ACX RMS -23...-18 dB, peaks under -3 dB (0.5 dB margin because the OBS
+//! limiter has no look-ahead; the same margin turns -1 dBTP into -1.5 dBFS).
+//! Voiceover and call compressor settings are starting values.
 
 use crate::audio::findings::{Capsule, Connection, MicContext};
 use crate::finding::{Area, Finding};
@@ -140,6 +164,64 @@ pub struct IrrelevantFindings {
     pub ids: Vec<String>,
 }
 
+/// Loudness goal for a voiceover: the user's choice (decision 2026-11-07).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VoiceoverTarget {
+    /// YouTube video: -14 LUFS integrated, true peak <= -1 dBTP.
+    #[default]
+    Youtube,
+    /// Podcast: -16 LUFS (Apple Podcasts), true peak <= -1 dBTP.
+    Podcast,
+    /// Audiobook (ACX): -20 dB RMS (inside -23...-18), peaks <= -3 dBFS.
+    Audiobook,
+}
+
+/// How a loudness target is measured.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LoudnessMeasure {
+    /// ITU-R BS.1770 integrated loudness of the read.
+    Lufs,
+    /// Plain RMS of the read (what ACX checks).
+    Rms,
+}
+
+/// A loudness goal and the window that counts as "on target".
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LoudnessTarget {
+    pub value: f64,
+    pub measure: LoudnessMeasure,
+    /// Accepted range (inclusive). ACX publishes one; elsewhere value +-1.
+    pub accept: (f64, f64),
+}
+
+/// A profile tone delta. Off (0 dB) until a listening test shows it helps.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ToneDelta {
+    pub lo_hz: f64,
+    pub hi_hz: f64,
+    /// Always 0 for now; the design's proposal is +1 dB (unverified).
+    pub db: f64,
+}
+
+/// Every way a profile changes the processing (module docs, design section 3.3).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ProfileTuning {
+    pub loudness: LoudnessTarget,
+    pub limiter_ceiling_db: f64,
+    pub compressor_ratio: f64,
+    /// Gain reduction on normal speech (dB).
+    pub compressor_gr_db: f64,
+    /// Upper bound on the expander ratio, if the profile sets one.
+    pub expander_ratio_max: Option<f64>,
+    /// EQ may boost above 7 kHz.
+    pub boost_above_7k: bool,
+    /// Frequency range the tone is judged on (Hz).
+    pub judge_hz: (f64, f64),
+    pub tone_delta: Option<ToneDelta>,
+}
+
 impl IrrelevantFindings {
     /// True when the finding does not apply.
     pub fn hides(&self, f: &Finding) -> bool {
@@ -172,6 +254,45 @@ impl SetupProfile {
                     "connection.capture_card_behind_hub",
                     "connection.capture_card_shares_controller",
                 ]),
+            },
+        }
+    }
+
+    /// The processing this profile asks for, voiceover at its default goal (YouTube).
+    pub fn tuning(self) -> ProfileTuning {
+        self.tuning_for(VoiceoverTarget::default())
+    }
+
+    /// The processing this profile asks for; `vo` only matters for voiceover.
+    pub fn tuning_for(self, vo: VoiceoverTarget) -> ProfileTuning {
+        let lufs = |v: f64| LoudnessTarget { value: v, measure: LoudnessMeasure::Lufs, accept: (v - 1.0, v + 1.0) };
+        let base = ProfileTuning {
+            loudness: lufs(-16.0),
+            limiter_ceiling_db: -1.5,
+            compressor_ratio: 3.0,
+            compressor_gr_db: 4.0,
+            expander_ratio_max: None,
+            boost_above_7k: true,
+            judge_hz: (80.0, 10000.0),
+            tone_delta: None,
+        };
+        match self {
+            SetupProfile::Streaming => ProfileTuning { tone_delta: Some(ToneDelta { lo_hz: 2000.0, hi_hz: 4000.0, db: 0.0 }), ..base },
+            SetupProfile::Voiceover => {
+                let (loudness, limiter_ceiling_db) = match vo {
+                    VoiceoverTarget::Youtube => (lufs(-14.0), -1.5),
+                    VoiceoverTarget::Podcast => (lufs(-16.0), -1.5),
+                    VoiceoverTarget::Audiobook => (LoudnessTarget { value: -20.0, measure: LoudnessMeasure::Rms, accept: (-23.0, -18.0) }, -3.5),
+                };
+                ProfileTuning { loudness, limiter_ceiling_db, compressor_ratio: 2.0, compressor_gr_db: 2.5, expander_ratio_max: Some(2.0), ..base }
+            }
+            SetupProfile::Call => ProfileTuning {
+                compressor_ratio: 4.0,
+                compressor_gr_db: 5.0,
+                boost_above_7k: false,
+                judge_hz: (100.0, 7000.0),
+                tone_delta: Some(ToneDelta { lo_hz: 1000.0, hi_hz: 4000.0, db: 0.0 }),
+                ..base
             },
         }
     }

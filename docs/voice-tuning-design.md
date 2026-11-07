@@ -335,6 +335,27 @@ Otto's answers to the open questions above:
   passed yet.
 - Display classes (tilt +-1.5 dB/oct, "s" > -3 strong / < -20 soft, plosives >= 6 per min "many") are
   placeholders for wording; nothing is tuned from them.
+- P3 (composer + verify) is `core/src/audio/tune.rs` (`tune::compose` -> `VoiceTune`); profile tuning is
+  `SetupProfile::tuning_for(VoiceoverTarget)`; `MicContext::voiceover_target` carries the voiceover choice.
+  `cargo run --release --example voice_tune [scenario]` prints M/P/R, fit error, HPF comparison, V1-V4.
+- The scan chain now follows the profile in the documented dynamics fields only (3.3); Streaming is
+  unchanged. The make-up loop keeps normal peaks 1.5 dB under the ceiling (was a fixed -3 dBFS; same for
+  the -1.5 ceiling).
+- Deviations from section 6, with reasons: "before" is the same chain **without** the tune (same HPF and
+  dynamics), so only the tune is judged. V2's "s" rule counts as harm only when the "s" also reaches the
+  strong range (> -3 dB): a soft "s" rising from -28 to -24 dB is not harm. V3 also passes within 1 dB of
+  the untuned chain, because the make-up loop itself accepts 1.5 dB under target. V1 failing alone gives
+  "Close" (applied, kept gentle), not a rejection. The do-no-harm loop drops a harmful de-esser first.
+- R is skipped when the `mic.reflection` finding fires (comb filtering is not EQ'd), not only on low confidence.
+- Mic features are judged on the raw chart (>= 2 dB over >= 3 third-octaves), then smoothed, so smoothing
+  can't widen a one-band wiggle into a correction.
+- Fit error on the synthetic presence-lift mic: 0.43 dB RMS (< 1 dB), so `kMaxEqBands` can stay 5.
+- HPF `f0_p10 / 1.5` (reported, not switched): f0 120 Hz voice, p10 106 Hz: today 80 Hz loses 1.2 dB at p10,
+  proposal 71 Hz loses 0.8 dB. Dark voice with today's boom raise (95 Hz): 4.3 dB vs 1.6 dB.
+- Found, not fixed (follow-ups): the offline de-esser alone *raises* the measured "s" (+1.3 dB) and costs
+  ~3.5 dB of loudness on the sibilant synth voice; verification rejects it, but the renderer/VST3 de-esser
+  needs a look. A +3 dB/oct bright synth voice trips `mic.reflection`, so bright voices currently fall
+  back to mic-only correction.
 
 ## Sources
 

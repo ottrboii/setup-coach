@@ -137,7 +137,9 @@ pub fn calibrate_makeup(test: &MicTest, chain: &mut ProcessingChain) {
         (lufs, super::dsp::percentile(&peaks, 95.0))
     };
     let set = |chain: &mut ProcessingChain, v: f64| chain.compressor.makeup_db = ((v.clamp(-12.0, 30.0)) * 10.0).round() / 10.0;
-    const PEAK_LIMIT: f64 = -3.0;
+    // Normal speech peaks stay 1.5 dB under the limiter ceiling (-3 dBFS for
+    // the usual -1.5 ceiling; lower for an audiobook's -3.5).
+    let peak_limit = (-3.0f64).min(chain.limiter.ceiling_db - 1.5);
     // Gentle chains (distant mic, untreated room) stay gentle.
     let max_ratio = if chain.compressor.ratio <= 2.5 { 3.0 } else { 4.0 };
     for tighten in 0..=3 {
@@ -154,8 +156,8 @@ pub fn calibrate_makeup(test: &MicTest, chain: &mut ProcessingChain) {
         // 2) Back off until normal speech peaks stay clear of the limiter.
         let (mut lufs, mut p95) = measure(chain);
         let mut steps = 0;
-        while p95 > PEAK_LIMIT && steps < 8 {
-            let v = chain.compressor.makeup_db - (p95 - PEAK_LIMIT).max(1.0);
+        while p95 > peak_limit && steps < 8 {
+            let v = chain.compressor.makeup_db - (p95 - peak_limit).max(1.0);
             set(chain, v);
             (lufs, p95) = measure(chain);
             steps += 1;

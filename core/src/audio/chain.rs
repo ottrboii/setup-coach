@@ -93,6 +93,7 @@ pub const EQ_LIMIT_DB: f64 = 6.0;
 
 pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constraint]) -> ProcessingChain {
     let has = |c: Constraint| constraints.contains(&c);
+    let tuning = ctx.profile.tuning_for(ctx.voiceover_target);
     let mut notes = Vec::new();
 
     // --- Gain staging: hardware first, digital only for what's left -------------
@@ -162,7 +163,11 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
     let highpass_slope_db_oct = if steep_for_desk || m.plosive_events > 2 || m.noise_character == NoiseCharacter::Rumble { 24 } else { 12 };
 
     // --- EQ from the deviation curve -----------------------------------------------
-    let eq = derive_eq(m, has(Constraint::CantMoveMicCloser) || has(Constraint::CantTreatRoom), highpass_hz);
+    let eq = derive_eq(
+        &m.band_deviation_db,
+        m.tone.body_db,
+        EqRules { distant: has(Constraint::CantMoveMicCloser) || has(Constraint::CantTreatRoom), hpf_hz: highpass_hz, boost_above_7k: tuning.boost_above_7k },
+    );
     if has(Constraint::CantMoveMicCloser) {
         notes.push("Mic stays where it is: no bass boost (it would boost room mud), small clarity lift instead.".into());
     }
@@ -181,6 +186,9 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
         exp_ratio = exp_ratio.min(2.0);
         exp_thr -= 3.0;
     }
+    if let Some(max) = tuning.expander_ratio_max {
+        exp_ratio = exp_ratio.min(max);
+    }
     let expander = Expander { threshold_db: round1(exp_thr), ratio: exp_ratio, attack_ms: 3.0, release_ms: 150.0 };
 
     // --- Compressor: ~3–6 dB of reduction on normal speech -----------------------------
@@ -189,12 +197,12 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
     } else if has(Constraint::CantMoveMicCloser) || has(Constraint::CantTreatRoom) {
         (2.5, 3.0)
     } else {
-        (3.0, 4.0)
+        (tuning.compressor_ratio, tuning.compressor_gr_db)
     };
     let threshold = speech_rms - gr / (1.0 - 1.0 / ratio);
     // Approximate loudness after compression: speech loses ~gr dB.
     let lufs_after_gain = m.speech_lufs + gain_after;
-    let makeup = (TARGET_VOICE_LUFS - (lufs_after_gain - gr)).clamp(-6.0, 18.0);
+    let makeup = (tuning.loudness.value - (lufs_after_gain - gr)).clamp(-6.0, 18.0);
     let compressor = Compressor { threshold_db: round1(threshold), ratio, attack_ms: 3.0, release_ms: 100.0, makeup_db: round1(makeup) };
 
     // --- De-esser only when measured -----------------------------------------------------
@@ -214,8 +222,11 @@ pub fn compute_chain(m: &AudioMetrics, ctx: &MicContext, constraints: &[Constrai
         expander,
         compressor,
         deesser,
-        limiter: Limiter { ceiling_db: -1.5, release_ms: 60.0 },
-        target_lufs: TARGET_VOICE_LUFS,
+        limiter: Limiter { ceiling_db: tuning.limiter_ceiling_db, release_ms: 60.0 },
+        // Audiobook (ACX) is an RMS goal; the make-up loop steers on LUFS,
+        // which is within ~1-2 dB of RMS on speech, and the composer's
+        // verification checks the real RMS window.
+        target_lufs: tuning.loudness.value,
         notes,
     }
 }
@@ -224,10 +235,22 @@ fn round1(x: f64) -> f64 {
     (x * 10.0).round() / 10.0
 }
 
-/// Up to 5 gentle, broad moves. Cuts preferred; boosts small and only where
-/// physics allows (no low boosts when the mic must stay far / room is bad).
-fn derive_eq(m: &AudioMetrics, distant: bool, hpf: f64) -> Vec<EqBand> {
-    let dev = &m.band_deviation_db;
+/// What limits the EQ moves `derive_eq` may make.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EqRules {
+    /// Mic must stay far / room is bad: no low boosts.
+    pub distant: bool,
+    pub hpf_hz: f64,
+    /// False on calls: no boost above 7 kHz (call codecs drop it).
+    pub boost_above_7k: bool,
+}
+
+/// Up to 5 gentle, broad moves from a deviation curve (`BAND_CENTERS`, dB re
+/// the voice-adjusted reference). Cuts regions above +3 dB by 0.7x, boosts
+/// below -4 dB by 0.5x within small caps, only where physics allows.
+/// `body_db` is the 125-250 Hz average of the same curve.
+pub fn derive_eq(dev: &[f64], body_db: f64, rules: EqRules) -> Vec<EqBand> {
+    let EqRules { distant, hpf_hz: hpf, boost_above_7k } = rules;
     let mut bands: Vec<EqBand> = Vec::new();
     // Regions: (lo, hi, label for cut, label for boost, allow boost, boost cap)
     let regions: [(f64, f64, &str, &str, bool, f64); 5] = [
@@ -235,8 +258,11 @@ fn derive_eq(m: &AudioMetrics, distant: bool, hpf: f64) -> Vec<EqBand> {
         (400.0, 900.0, "less boxy", "", false, 0.0),
         (800.0, 1600.0, "less nasal", "", false, 0.0),
         (2000.0, 5000.0, "less harsh", "more clarity", true, if distant { 3.0 } else { 2.5 }),
-        (6300.0, 10000.0, "less hiss/edge", "more air", true, 2.0),
+        (6300.0, 10000.0, "less hiss/edge", "more air", boost_above_7k, 2.0),
     ];
+    if dev.len() != BAND_CENTERS.len() {
+        return bands;
+    }
     for (lo, hi, cut_label, boost_label, allow_boost, cap) in regions {
         let idx: Vec<usize> = (0..BAND_CENTERS.len()).filter(|i| BAND_CENTERS[*i] >= lo && BAND_CENTERS[*i] <= hi).collect();
         if idx.is_empty() {
@@ -260,7 +286,7 @@ fn derive_eq(m: &AudioMetrics, distant: bool, hpf: f64) -> Vec<EqBand> {
         }
     }
     // Body boost only for thin voices close enough to the mic.
-    if !distant && m.tone.body_db < -8.0 {
+    if !distant && body_db < -8.0 {
         bands.push(EqBand { kind: EqKind::LowShelf, freq_hz: 180.0_f64.max(hpf * 1.8), gain_db: 2.0, q: 0.7, reason: "more warmth".into() });
     }
     bands.truncate(5);

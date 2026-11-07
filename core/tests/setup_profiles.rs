@@ -128,14 +128,56 @@ fn call_is_tolerant() {
     assert_ne!(status(&call, "room"), Status::Missed);
 }
 
+// Deliberate per-profile processing (voice-tuning design 3.3): chains differ
+// only in loudness, limiter, compressor, the voiceover expander cap and, on a
+// call, no EQ boost above 7 kHz. Tone is never moved by the profile (deltas off).
 #[test]
-fn profiles_never_change_the_audio() {
-    for s in [d(), Scenario { hiss_dbfs: -55.0, rt60_s: 0.5, ..d() }, Scenario { speech_level_dbfs: -38.0, ..d() }] {
+fn chains_differ_only_in_documented_fields() {
+    for s in [d(), Scenario { hiss_dbfs: -55.0, rt60_s: 0.5, ..d() }, Scenario { speech_level_dbfs: -38.0, ..d() }, Scenario { voice_tilt_db_oct: -3.0, ..d() }] {
         let base = report(&s, SetupProfile::Streaming).chain;
+        assert_eq!((base.target_lufs, base.limiter.ceiling_db), (-16.0, -1.5), "streaming unchanged");
         for p in SetupProfile::ALL {
-            assert_eq!(report(&s, p).chain, base, "{p:?}");
+            let t = p.tuning();
+            let mut c = report(&s, p).chain;
+            assert_eq!((c.target_lufs, c.limiter.ceiling_db), (t.loudness.value, t.limiter_ceiling_db), "{p:?}");
+            if let Some(max) = t.expander_ratio_max {
+                assert!(c.expander.ratio <= max);
+            }
+            if !t.boost_above_7k {
+                assert!(!c.eq.iter().any(|b| b.gain_db > 0.0 && b.freq_hz > 7000.0), "{p:?} {:?}", c.eq);
+            }
+            // Blank the documented fields: everything else must match streaming.
+            let mut b = base.clone();
+            if !t.boost_above_7k {
+                b.eq.retain(|x| !(x.gain_db > 0.0 && x.freq_hz > 7000.0));
+            }
+            c.target_lufs = b.target_lufs;
+            c.limiter = b.limiter.clone();
+            c.compressor = b.compressor.clone();
+            c.expander.ratio = b.expander.ratio;
+            c.notes = b.notes.clone();
+            assert_eq!(c, b, "{p:?}");
         }
     }
+    // Tone deltas ship off (decision 2026-11-07).
+    for p in SetupProfile::ALL {
+        assert!(p.tuning().tone_delta.is_none_or(|d| d.db == 0.0), "{p:?}");
+    }
+}
+
+#[test]
+fn voiceover_loudness_goal_is_the_users_choice() {
+    use coach_core::setup_profile::LoudnessMeasure;
+    use coach_core::VoiceoverTarget;
+    let t = |v| SetupProfile::Voiceover.tuning_for(v);
+    assert_eq!(SetupProfile::Voiceover.tuning(), t(VoiceoverTarget::Youtube));
+    assert_eq!((t(VoiceoverTarget::Youtube).loudness.value, t(VoiceoverTarget::Youtube).limiter_ceiling_db), (-14.0, -1.5));
+    assert_eq!((t(VoiceoverTarget::Podcast).loudness.value, t(VoiceoverTarget::Podcast).limiter_ceiling_db), (-16.0, -1.5));
+    let ab = t(VoiceoverTarget::Audiobook);
+    assert_eq!((ab.loudness.value, ab.loudness.measure, ab.loudness.accept, ab.limiter_ceiling_db), (-20.0, LoudnessMeasure::Rms, (-23.0, -18.0), -3.5));
+    let ctx = MicContext { profile: SetupProfile::Voiceover, voiceover_target: VoiceoverTarget::Audiobook, ..Default::default() };
+    let r = audio::scan(&build(&d()), &ctx, &[]);
+    assert_eq!((r.chain.target_lufs, r.chain.limiter.ceiling_db), (-20.0, -3.5));
 }
 
 #[test]
