@@ -2,6 +2,7 @@
 
 use super::dsp::{self, Biquad, BAND_CENTERS, Spectrum};
 use super::vibration::{self, VibrationInfo};
+use super::voice::{self, VoiceInputs, VoiceType};
 use super::{MicTest, SegmentKind};
 use serde::{Deserialize, Serialize};
 
@@ -141,6 +142,10 @@ pub struct AudioMetrics {
     pub loud_vs_read_db: Option<f64>,
     /// Noise in speech pauses minus the silence-step noise (dB): gain riding.
     pub pause_floor_rise_db: Option<f64>,
+    /// Voice type from the read: pitch, tilt, "s" and plosive stats, with a confidence
+    /// (older saved metrics load with the "insufficient" default).
+    #[serde(default)]
+    pub voice: VoiceType,
 }
 
 fn segment_mono(test: &MicTest, kind: SegmentKind, live: &[usize]) -> Option<Vec<f32>> {
@@ -244,8 +249,10 @@ pub fn analyze(test: &MicTest) -> AudioMetrics {
     });
 
     // --- Noise character & hum --------------------------------------------
+    let mut noise_band_db: Option<Vec<f64>> = None;
     let (noise_character, hum) = match &silence {
         Some(s) => {
+            noise_band_db = Some(dsp::third_octave_db(&dsp::welch(s, sr, 8192)));
             let spec = dsp::welch(s, sr, 16384);
             let low = spec.band_db(100.0, 500.0) - 10.0 * (400.0f64).log10();
             let high = spec.band_db(4000.0, 8000.0) - 10.0 * (4000.0f64).log10();
@@ -309,6 +316,23 @@ pub fn analyze(test: &MicTest) -> AudioMetrics {
     // --- Plosives & sibilance ----------------------------------------------
     let (plosive_events, plosive_worst_db) = plosives(&read, sr, speech_rms_dbfs);
     let sibilance_db = sibilance(&read, sr, speech_rms_dbfs, noise_floor_dbfs);
+
+    let voice = voice::measure_read(
+        &read,
+        &VoiceInputs {
+            sr,
+            noise_floor_dbfs,
+            snr_db,
+            clipped_fraction,
+            upper_bandwidth_hz,
+            band_deviation_db: &band_deviation_db,
+            band_levels_db: &band_levels_db,
+            noise_band_db: noise_band_db.as_deref(),
+            sibilance_db,
+            plosive_events,
+        },
+        None,
+    );
 
     // --- Other steps ------------------------------------------------------------
     let typing_seg = segment_mono(test, SegmentKind::Typing, &live);
@@ -389,6 +413,7 @@ pub fn analyze(test: &MicTest) -> AudioMetrics {
         moving_spread_db,
         loud_vs_read_db,
         pause_floor_rise_db,
+        voice,
     }
 }
 

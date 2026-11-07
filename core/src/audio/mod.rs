@@ -12,6 +12,7 @@ pub mod process;
 pub mod synth;
 pub mod targets;
 pub mod vibration;
+pub mod voice;
 
 use serde::{Deserialize, Serialize};
 

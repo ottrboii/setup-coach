@@ -6,6 +6,7 @@ fn show(name: &str, s: Scenario) {
     let m = &r.metrics;
     println!("== {name}: score {} | floor {:.1} rms {:.1} pk {:.1} quiet {:.1} lufs {:.1} snr {:.1} loud {:?} clip {:.5} f0 {:?} bw {} rev {:?} refl {:?} plos {} {:?} sib {:?} typ {:?} tap {:?} drop {} crk {} mv {:?}/{:?} lvr {:?} pause {:?} noise {:?}",
         r.score.value, m.noise_floor_dbfs, m.speech_rms_dbfs, m.speech_peak_dbfs, m.quiet_speech_dbfs, m.speech_lufs, m.snr_db, m.loud_peak_dbfs.map(|v| (v*10.0).round()/10.0), m.clipped_fraction, m.f0_hz.map(|v| v.round()), m.upper_bandwidth_hz, m.reverb_decay_s.map(|v| (v*100.0).round()/100.0), m.reflection.map(|r| ((r.delay_ms*100.0).round()/100.0, r.ripple_db.round())), m.plosive_events, m.plosive_worst_db.map(|v| v.round()), m.sibilance_db.map(|v| v.round()), m.typing_rel_db.map(|v| v.round()), m.tap_rel_db.map(|v| v.round()), m.dropouts, m.crackles, m.moving_drop_db.map(|v| v.round()), m.moving_spread_db.map(|v| v.round()), m.loud_vs_read_db.map(|v| v.round()), m.pause_floor_rise_db.map(|v| v.round()), m.noise_character);
+    println!("   voice {:?}", m.voice);
     println!("   tone {:?}", m.tone);
     println!("   vibration {:?}", m.vibration);
     println!("   dev {:?}", m.band_deviation_db.iter().map(|d| d.round() as i32).collect::<Vec<_>>());
@@ -41,4 +42,17 @@ fn main() {
     if want("moving") { show("moving", Scenario { moving_drop_db: 9.0, ..d() }); }
     if want("auto") { show("auto", Scenario { auto_level: true, ..d() }); }
     if want("silent") { show("silent", Scenario { silent: true, ..d() }); }
+    // Voice-type scenarios (run explicitly: `calibrate voice_deep`, or `calibrate voice`).
+    let voice = which.iter().any(|w| w == "voice");
+    let vw = |n: &str| voice || which.iter().any(|w| w == n);
+    for (name, f0) in [("voice_deep", 90.0), ("voice_lowmid", 130.0), ("voice_highmid", 170.0), ("voice_high", 230.0)] {
+        if vw(name) { show(name, Scenario { f0_hz: f0, ..d() }); }
+    }
+    if vw("voice_dark") { show("voice_dark", Scenario { voice_tilt_db_oct: -3.0, ..d() }); }
+    if vw("voice_bright") { show("voice_bright", Scenario { voice_tilt_db_oct: 3.0, ..d() }); }
+    for (name, hz) in [("voice_sib5", 5000.0), ("voice_sib7", 7000.0), ("voice_sib85", 8500.0)] {
+        if vw(name) { show(name, Scenario { sib_peak_hz: Some(hz), sibilance_db: -10.0, ..d() }); }
+    }
+    if vw("voice_nosib") { show("voice_nosib", Scenario { sibilance_db: -40.0, ..d() }); }
+    if vw("voice_noisy") { show("voice_noisy", Scenario { hiss_dbfs: -35.0, fan_dbfs: Some(-40.0), ..d() }); }
 }

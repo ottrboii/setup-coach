@@ -307,6 +307,35 @@ New synth knobs (P1): `voice_tilt_db_oct`, `sib_peak_hz`, `f0_spread` (pitch mov
 5. Verifying mic charts needs a measurement mic (~€100, e.g. miniDSP UMIK-1). Buy one, or keep all mic
    curves `verified: false` at half weight?
 
+## Decisions (2026-11-07)
+
+Otto's answers to the open questions above:
+
+1. **Profile tone deltas ship off** until a listening test shows they help. `SetupProfile::tuning()` carries
+   the delta fields at 0.
+2. **Voiceover loudness is the user's choice**, with three targets: **YouTube video** (default): -14 LUFS
+   integrated, true peak <= -1 dBTP. **Podcast**: -16 LUFS. **Audiobook (ACX)**: -20 dB RMS (inside
+   -23...-18), peaks <= -3 dBFS. This replaces the single -20 dB RMS / -3.5 ceiling in the Recording column
+   of 3.3; P3 builds the choice (and the limiter ceiling per target).
+3. **No live VST3 verification in v1.** Verification is offline only (re-render and re-analyse, section 6)
+   and says so in Advanced. The plugin spectrum report and chain hash in section 11 are dropped from P4.
+4. **No blind listener panel for now.** Instead: level-matched Before/After, Keep / Gentler / Undo, no
+   "sounds better" claim anywhere; the wording is "tuned toward published targets".
+5. **No measurement-mic purchase now.** All mic curves stay `verified: false` at half weight (5.2).
+
+## Build notes
+
+- P1 (voice measurement) is in `core/src/audio/voice.rs`. The module is `voice.rs` (3.1), `VoiceType` is on
+  `AudioMetrics::voice`. Class members gained `Unknown` (not in 3.1) so an insufficient result has no guess.
+- Confidence is on **voiced seconds** (frames with a clear pitch), not total speech: `Insufficient` below
+  1.5 s, `Low` below 2.5 s (not the 8 s of 3.1: a 9-10 s read holds ~4 s of voiced frames), and `Low` for
+  noise (SNR < 15 dB, or a tilt band < 10 dB over the silence step), band limit (< 7 kHz) or clipping.
+  Thresholds are calibrated on synthetic voices only.
+- Tilt takes an optional mic correction curve (Hz, dB re 1 kHz, already weighted by the caller); none is
+  passed yet.
+- Display classes (tilt +-1.5 dB/oct, "s" > -3 strong / < -20 soft, plosives >= 6 per min "many") are
+  placeholders for wording; nothing is tuned from them.
+
 ## Sources
 
 1. Byrne D. et al. (1994), "An international comparison of long-term average speech spectra", JASA 96(4):2108. https://doi.org/10.1121/1.410152
