@@ -121,7 +121,7 @@ pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint])
     crate::finding::rank(&mut findings);
     let mut chain = compute_chain(&metrics, ctx, constraints);
     if !metrics.no_signal {
-        process::calibrate_makeup(test, &mut chain);
+        process::calibrate_makeup_for(test, &mut chain, &ctx.profile.tuning_for(ctx.voiceover_target));
     }
     let score = crate::score::score_area(crate::Area::Mic, &findings);
     let targets = targets::check_targets_for(&metrics, ctx.profile);

@@ -339,8 +339,19 @@ Otto's answers to the open questions above:
   `SetupProfile::tuning_for(VoiceoverTarget)`; `MicContext::voiceover_target` carries the voiceover choice.
   `cargo run --release --example voice_tune [scenario]` prints M/P/R, fit error, HPF comparison, V1-V4.
 - The scan chain now follows the profile in the documented dynamics fields only (3.3); Streaming is
-  unchanged. The make-up loop keeps normal peaks 1.5 dB under the ceiling (was a fixed -3 dBFS; same for
-  the -1.5 ceiling).
+  unchanged. The make-up loop keeps normal speech peaks (95th-percentile 20 ms frame peak) at
+  `ProfileTuning::speech_peak_limit_db`: -3 dBFS for Streaming and Call (unchanged), the limiter ceiling for
+  Voiceover. With the old -3 dBFS rule a 2:1 voiceover chain stopped at about -20.6 LUFS, so the YouTube
+  -14 LUFS default was never reached; with the ceiling bounding peaks it lands at -14.2...-14.4 LUFS at
+  2:1 (synthetic average and dark voices), sample peak -1.5 dBFS (ceiling). ACX stays at -20 dB RMS,
+  peaks -3.5 dBFS (<= -3). Tests: `voiceover_youtube_reaches_minus_14`, `voiceover_acx_meets_rms_and_peaks`.
+  Cost: up to about 5 % of 20 ms speech frames may touch the limiter on a YouTube voiceover (none of this changes
+  Streaming or Call).
+- A de-esser-only candidate counts as "improved" only when the "s" drops by more than 0.5 dB
+  (`DEESS_MIN_GAIN_DB`): its high cut alone lowers the tone RMS even when the "s" rises (synthetic
+  sibilant voice, de-esser at 7 kHz / -8 dB: "s" 1.4 -> 2.7 dB with the tone RMS down).
+- The summed mic-band response is held to +-3 dB (`limit_mic_sum`, one scale factor on all mic bands),
+  not only each band.
 - Deviations from section 6, with reasons: "before" is the same chain **without** the tune (same HPF and
   dynamics), so only the tune is judged. V2's "s" rule counts as harm only when the "s" also reaches the
   strong range (> -3 dB): a soft "s" rising from -28 to -24 dB is not harm. V3 also passes within 1 dB of

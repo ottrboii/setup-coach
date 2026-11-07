@@ -210,6 +210,11 @@ pub struct ToneDelta {
 pub struct ProfileTuning {
     pub loudness: LoudnessTarget,
     pub limiter_ceiling_db: f64,
+    /// Where the make-up loop keeps normal speech peaks (95th-percentile 20 ms
+    /// frame peak, dBFS). Streaming and calls: 1.5 dB under the ceiling (-3).
+    /// Voiceover: the ceiling itself, so the limiter (not a fixed -3 dBFS rule)
+    /// bounds peaks and a gentle 2-3:1 chain can reach YouTube's -14 LUFS.
+    pub speech_peak_limit_db: f64,
     pub compressor_ratio: f64,
     /// Gain reduction on normal speech (dB).
     pub compressor_gr_db: f64,
@@ -269,6 +274,7 @@ impl SetupProfile {
         let base = ProfileTuning {
             loudness: lufs(-16.0),
             limiter_ceiling_db: -1.5,
+            speech_peak_limit_db: -3.0,
             compressor_ratio: 3.0,
             compressor_gr_db: 4.0,
             expander_ratio_max: None,
@@ -284,7 +290,7 @@ impl SetupProfile {
                     VoiceoverTarget::Podcast => (lufs(-16.0), -1.5),
                     VoiceoverTarget::Audiobook => (LoudnessTarget { value: -20.0, measure: LoudnessMeasure::Rms, accept: (-23.0, -18.0) }, -3.5),
                 };
-                ProfileTuning { loudness, limiter_ceiling_db, compressor_ratio: 2.0, compressor_gr_db: 2.5, expander_ratio_max: Some(2.0), ..base }
+                ProfileTuning { loudness, limiter_ceiling_db, speech_peak_limit_db: limiter_ceiling_db, compressor_ratio: 2.0, compressor_gr_db: 2.5, expander_ratio_max: Some(2.0), ..base }
             }
             SetupProfile::Call => ProfileTuning {
                 compressor_ratio: 4.0,

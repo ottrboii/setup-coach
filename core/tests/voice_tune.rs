@@ -8,7 +8,7 @@ use coach_core::audio::findings::MicContext;
 use coach_core::audio::synth::{build, Scenario};
 use coach_core::audio::tune::{self, BandOrigin, Candidate, FallbackReason, TuneInput, Verdict, VoiceTune, CAP_FREQS};
 use coach_core::profiles::{MicResponse, Proximity};
-use coach_core::SetupProfile;
+use coach_core::{SetupProfile, VoiceoverTarget};
 
 fn d() -> Scenario {
     Scenario::default()
@@ -43,10 +43,45 @@ fn compose(s: &Scenario, p: SetupProfile, m: Option<&MicResponse>) -> VoiceTune 
     tune::compose(&TuneInput { test: &test, ctx: &ctx, constraints: &[], mic: m, switch: None })
 }
 
+/// Log sweep 80 Hz-16 kHz, 24 points per octave.
+fn dense_sweep() -> impl Iterator<Item = f64> {
+    (0..=(24.0 * (16000f64 / 80.0).log2()) as usize).map(|k| 80.0 * 2f64.powf(k as f64 / 24.0))
+}
+
 fn net_within_cap(t: &VoiceTune) {
     for (f, g) in CAP_FREQS.iter().zip(&t.curves.net_db) {
         assert!(*g >= -6.0 - 1e-9 && *g <= 3.0 + 1e-9, "net {g:+.2} dB at {f} Hz");
     }
+    // Between the third-octave points too, on the bands actually proposed.
+    let sr = d().sample_rate;
+    for f in dense_sweep() {
+        let g = tune::net_response(&t.proposed.eq, sr, f);
+        assert!((-6.0..=3.0).contains(&g), "net {g:+.2} dB at {f:.0} Hz: {:?}", t.proposed.eq);
+        let mic: Vec<EqBand> = t.proposed.eq.iter().zip(&t.origins).filter(|x| *x.1 == BandOrigin::Mic).map(|x| x.0.clone()).collect();
+        let gm = tune::net_response(&mic, sr, f);
+        assert!(gm.abs() <= tune::MIC_LIMIT_DB + 0.1, "mic sum {gm:+.2} dB at {f:.0} Hz: {mic:?}");
+    }
+}
+
+// Overlapping mic bands can add past +-3 dB each; the sum is held to +-3 dB.
+#[test]
+fn mic_sum_is_limited() {
+    let sr = 48000;
+    let peak = |f: f64, g: f64| EqBand { kind: EqKind::Peak, freq_hz: f, gain_db: g, q: 0.7, reason: String::new() };
+    let mut bands = vec![peak(3000.0, -3.0), peak(4500.0, -3.0), EqBand { kind: EqKind::HighShelf, freq_hz: 6000.0, gain_db: -2.0, q: 0.7, reason: String::new() }];
+    let worst = CAP_FREQS.iter().map(|f| tune::net_response(&bands, sr, *f)).fold(0.0f64, f64::min);
+    assert!(worst < -4.0, "setup overlaps: {worst}");
+    assert!(tune::limit_mic_sum(&mut bands, sr));
+    for f in CAP_FREQS {
+        let g = tune::net_response(&bands, sr, f);
+        assert!(g.abs() <= tune::MIC_LIMIT_DB, "{g} at {f}");
+    }
+    let worst = CAP_FREQS.iter().map(|f| tune::net_response(&bands, sr, *f)).fold(0.0f64, f64::min);
+    assert!(worst < -2.8, "scaled to the limit, not past it: {worst}");
+    // Already inside: untouched.
+    let mut one = vec![peak(3000.0, -2.0)];
+    assert!(!tune::limit_mic_sum(&mut one, sr));
+    assert_eq!(one[0].gain_db, -2.0);
 }
 
 /// Whatever the verdict: applied only when verified, otherwise today's chain.
@@ -90,19 +125,42 @@ fn dark_voice_brightened_gently_and_stays_dark() {
     assert!(v.after.tone_rms_db < v.before.tone_rms_db);
 }
 
-// Bright voice: never boosted up top; whatever is applied keeps it brighter than average.
+// The synth's `voice_tilt_db_oct` is built from narrow (Q 4.3) third-octave
+// peaks; on a bright tilt that staircase ripples like a comb and the analyser
+// reports `mic.reflection`. Then the voice rules must not run: mic-only bands.
 #[test]
-fn bright_voice_never_boosted_up_top() {
+fn bright_tilt_with_reflection_is_mic_only() {
+    let m = presence_mic();
     for tilt in [2.0, 3.0] {
-        let t = compose(&Scenario { voice_tilt_db_oct: tilt, ..d() }, SetupProfile::Streaming, None);
-        assert!(!t.proposed.eq.iter().any(|b| b.freq_hz >= 2000.0 && b.gain_db > 0.0), "{tilt}: {:?}", t.proposed.eq);
-        assert!(t.voice.tilt_db_per_oct.unwrap() > 1.0);
+        let s = Scenario { voice_tilt_db_oct: tilt, ..d() };
+        let t = compose(&s, SetupProfile::Streaming, None);
+        assert_eq!(t.fallback, Some(FallbackReason::Reflection), "{tilt}");
+        assert!(t.proposed.eq.is_empty(), "{tilt}: {:?}", t.proposed.eq);
+        assert!(t.notes.iter().any(|n| n.contains("only corrected the mic")));
+        let t = compose(&s, SetupProfile::Streaming, Some(&m));
+        assert_eq!(t.fallback, Some(FallbackReason::Reflection));
+        assert!(!t.origins.is_empty() && t.origins.iter().all(|o| *o == BandOrigin::Mic), "{tilt}: {:?}", t.origins);
         net_within_cap(&t);
         applied_only_when_verified(&t);
-        if let (true, Some(v)) = (t.verdict.applied(), t.verification.as_ref()) {
-            assert!(v.after.regions_db[AIR] > 0.0, "character kept");
-        }
     }
+}
+
+// Bright voice the voice rules do judge (broad brightness, no comb): never
+// boosted up top, a cut is proposed, and what is applied keeps it brighter than average.
+#[test]
+fn bright_voice_never_boosted_up_top() {
+    let s = Scenario { tone: vec![(4000.0, 4.0, 0.7), (8000.0, 6.0, 0.7)], ..d() };
+    let t = compose(&s, SetupProfile::Streaming, None);
+    assert_eq!(t.fallback, None, "voice rules must run");
+    assert!(t.voice.tilt_db_per_oct.unwrap() > 1.0, "{:?}", t.voice.tilt_db_per_oct);
+    assert!(!t.proposed.eq.iter().any(|b| b.freq_hz >= 2000.0 && b.gain_db > 0.0), "{:?}", t.proposed.eq);
+    assert!(t.proposed.eq.iter().zip(&t.origins).any(|(b, o)| *o == BandOrigin::Voice && b.freq_hz >= 2000.0 && b.gain_db < 0.0), "{:?}", t.proposed.eq);
+    net_within_cap(&t);
+    applied_only_when_verified(&t);
+    assert!(t.verdict.applied(), "{:?}", t.verification);
+    let v = t.verification.as_ref().unwrap();
+    assert!(v.after.regions_db[AIR] < v.before.regions_db[AIR], "air came down");
+    assert!(v.after.regions_db[AIR] > 0.0, "character kept");
 }
 
 // Sibilant voice: de-esser centred on the measured "s" peak (clamped 4.5-9 kHz),
@@ -118,10 +176,47 @@ fn sibilant_voice_deesser_follows_the_s_peak() {
     assert_eq!(t.base.deesser.as_ref().map(|d| d.freq_hz), Some(6500.0));
     net_within_cap(&t);
     applied_only_when_verified(&t);
-    if t.verdict.applied() {
-        let v = t.verification.as_ref().unwrap();
-        assert!(v.after.sibilance_db.unwrap() <= v.before.sibilance_db.unwrap() + 1.0);
-    }
+    // The verified candidate lowers the "s" (checked whatever the verdict: on
+    // this synthetic voice the tune is held back by V3, the level).
+    let v = t.verification.as_ref().expect("a strong s is verified");
+    let (before, after) = (v.before.sibilance_db.unwrap(), v.after.sibilance_db.unwrap());
+    assert!(after < before - 1.0, "s {before:.1} -> {after:.1}");
+    assert!(v.v2_no_harm, "{v:?}");
+}
+
+// A de-esser on its own counts as better only when the "s" measurably went down.
+#[test]
+fn deesser_only_needs_the_s_to_drop() {
+    use coach_core::audio::chain::DeEsser;
+    let run = |s: &Scenario, de: DeEsser| {
+        let test = build(s);
+        let ctx = MicContext::default();
+        let m = coach_core::audio::analyze(&test);
+        let raw = coach_core::audio::compute_chain(&m, &ctx, &[]);
+        let mut base = raw.clone();
+        coach_core::audio::process::calibrate_makeup(&test, &mut base);
+        let cand = Candidate { bands: vec![], deesser: Some(de) };
+        let (verdict, ver, chain) = tune::verify_and_decide(&test, &ctx, &raw, &base, cand, &SetupProfile::Streaming.tuning());
+        (verdict, ver.unwrap(), chain, base)
+    };
+    let de = |f: f64, t: f64| DeEsser { freq_hz: f, threshold_db: t, max_reduction_db: 8.0 };
+    let sibilant = Scenario { sibilance_db: -2.0, sib_peak_hz: Some(7000.0), ..d() };
+    // This one lowers the "s" (synthetic: 1.4 -> -1.2 dB): it counts as better.
+    let (_, v, _, _) = run(&sibilant, de(5000.0, -12.0));
+    let (b, a) = (v.before.sibilance_db.unwrap(), v.after.sibilance_db.unwrap());
+    assert!(a < b - tune::DEESS_MIN_GAIN_DB && v.improved, "s {b:.1} -> {a:.1}");
+    // This one raises it (1.4 -> 2.7 dB) although its high cut lowers the tone
+    // RMS: not better, so not applied.
+    let (verdict, v, _, _) = run(&sibilant, de(7000.0, -8.0));
+    let (b, a) = (v.before.sibilance_db.unwrap(), v.after.sibilance_db.unwrap());
+    assert!(a >= b && v.after.tone_rms_db < v.before.tone_rms_db, "s {b:.1} -> {a:.1}");
+    assert!(!v.improved && !verdict.applied(), "{verdict:?}");
+    // Soft "s": nothing for the de-esser to take down, so not applied.
+    let (verdict, v, chain, base) = run(&Scenario { sibilance_db: -25.0, ..d() }, de(7000.0, -8.0));
+    let (b, a) = (v.before.sibilance_db, v.after.sibilance_db);
+    assert!(!v.improved, "s {b:?} -> {a:?}");
+    assert_eq!(verdict, Verdict::NotImproved);
+    assert_eq!(chain, base);
 }
 
 // Low confidence (noisy read): no voice-based moves, mic correction only, reason reported.
@@ -234,6 +329,56 @@ fn call_has_no_boost_above_7k() {
     // Streaming does use the air shelf on the same voice.
     let st = compose(&s, SetupProfile::Streaming, None);
     assert!(st.proposed.eq.iter().any(|b| b.gain_db > 0.0 && b.freq_hz >= 7000.0));
+}
+
+/// Loudness (LUFS and plain RMS) and sample peak of the read rendered through `chain`.
+fn read_levels(test: &coach_core::audio::MicTest, chain: &coach_core::audio::chain::ProcessingChain) -> (f64, f64, f64) {
+    use coach_core::audio::{dsp, process, AudioBuffer, SegmentKind};
+    let seg = test.segments.iter().find(|s| s.kind == SegmentKind::Read).unwrap();
+    let r = test.range(seg);
+    let read = AudioBuffer { sample_rate: test.audio.sample_rate, channels: test.audio.channels.iter().map(|c| c[r.clone()].to_vec()).collect() };
+    let out = process::render(&read, chain);
+    let x = &out.channels[0];
+    (dsp::integrated_lufs(x, out.sample_rate), dsp::level_db(x), dsp::db_amp(dsp::peak_abs(x)))
+}
+
+fn compose_vo(s: &Scenario, vo: VoiceoverTarget) -> (coach_core::audio::MicTest, VoiceTune) {
+    let test = build(s);
+    let ctx = MicContext { profile: SetupProfile::Voiceover, voiceover_target: vo, ..Default::default() };
+    let t = tune::compose(&TuneInput { test: &test, ctx: &ctx, constraints: &[], mic: None, switch: None });
+    (test, t)
+}
+
+// Voiceover / YouTube end to end: the chain lands on -14 LUFS (+-1), the
+// compressor stays at most 3:1 and nothing passes the -1.5 dBFS ceiling.
+#[test]
+fn voiceover_youtube_reaches_minus_14() {
+    for s in [d(), Scenario { voice_tilt_db_oct: -3.0, ..d() }] {
+        let (test, t) = compose_vo(&s, VoiceoverTarget::Youtube);
+        for c in [&t.base, &t.chain] {
+            let (lufs, _, peak) = read_levels(&test, c);
+            eprintln!("YouTube: {lufs:.1} LUFS, peak {peak:.2} dBFS, {:?}", c.compressor);
+            assert!((-15.0..=-13.0).contains(&lufs), "YouTube read at {lufs:.1} LUFS: {:?}", c.compressor);
+            assert!(peak <= -1.5 + 1e-6, "peak {peak:.2} dBFS");
+            assert!(c.compressor.ratio <= 3.0, "{:?}", c.compressor);
+            assert_eq!(c.limiter.ceiling_db, -1.5);
+        }
+    }
+}
+
+// Voiceover / Audiobook (ACX) end to end: RMS -23...-18 dB, peaks <= -3 dBFS.
+#[test]
+fn voiceover_acx_meets_rms_and_peaks() {
+    for s in [d(), Scenario { voice_tilt_db_oct: -3.0, ..d() }] {
+        let (test, t) = compose_vo(&s, VoiceoverTarget::Audiobook);
+        for c in [&t.base, &t.chain] {
+            let (_, rms, peak) = read_levels(&test, c);
+            eprintln!("ACX: {rms:.1} dB RMS, peak {peak:.2} dBFS, {:?}", c.compressor);
+            assert!((-23.0..=-18.0).contains(&rms), "ACX RMS {rms:.1} dB");
+            assert!(peak <= -3.0, "ACX peak {peak:.2} dBFS");
+            assert!(c.compressor.ratio <= 3.0, "{:?}", c.compressor);
+        }
+    }
 }
 
 // HPF rule f0_p10 / 1.5 is reported (not switched): it keeps the fundamental within 0.8 dB.

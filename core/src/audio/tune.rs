@@ -29,7 +29,7 @@ use super::analyze::analyze;
 use super::chain::{compute_chain, derive_eq, DeEsser, EqBand, EqKind, EqRules, ProcessingChain};
 use super::dsp::{self, Biquad, BAND_CENTERS};
 use super::findings::{mic_findings, MicContext};
-use super::process::{calibrate_makeup, render, render_test};
+use super::process::{calibrate_makeup_for, render, render_test};
 use super::voice::{self, Confidence, ConfidenceReason, VoiceType};
 use super::{AudioBuffer, MicTest, SegmentKind};
 use crate::profiles::{proximity_boost_db, MicResponse};
@@ -58,6 +58,8 @@ pub const DEESS_MIN_HZ: f64 = 4500.0;
 pub const DEESS_MAX_HZ: f64 = 9000.0;
 /// Today's de-esser trigger on the "s" level (dB).
 pub const DEESS_ON_ABOVE_DB: f64 = -3.0;
+/// A de-esser on its own must lower the measured "s" by more than this (dB).
+pub const DEESS_MIN_GAIN_DB: f64 = 0.5;
 
 /// Third-octave points the cap is checked on: the analysis bands plus 12.5 kHz.
 pub const CAP_FREQS: [f64; 23] = [
@@ -233,7 +235,7 @@ pub fn compose(input: &TuneInput) -> VoiceTune {
     let raw = compute_chain(&m, input.ctx, input.constraints);
     let mut base = raw.clone();
     if !m.no_signal {
-        calibrate_makeup(test, &mut base);
+        calibrate_makeup_for(test, &mut base, &tuning);
     }
     let mut notes = Vec::new();
 
@@ -249,7 +251,8 @@ pub fn compose(input: &TuneInput) -> VoiceTune {
     if low_limit {
         notes.push("Your mic's bass changes a lot with distance, so we keep low-end changes small.".into());
     }
-    let mic_bands = fit_curve(&mic_want, sr, MAX_BANDS, MIC_LIMIT_DB);
+    let mut mic_bands = fit_curve(&mic_want, sr, MAX_BANDS, MIC_LIMIT_DB);
+    limit_mic_sum(&mut mic_bands, sr);
 
     // --- Voice measurement, with what we know about the mic removed -----------
     let mut v = m.voice.clone();
@@ -402,7 +405,7 @@ pub fn verify_and_decide(
     let mut reference = raw.clone();
     reference.eq.clear();
     reference.deesser = None;
-    calibrate_makeup(test, &mut reference);
+    calibrate_makeup_for(test, &mut reference, tuning);
     let before = check_render(test, ctx, &reference, tuning);
     let mut dropped = Vec::new();
     let mut last: Option<Verification> = None;
@@ -414,7 +417,7 @@ pub fn verify_and_decide(
         let mut tuned = raw.clone();
         tuned.eq = cand.bands.iter().map(|x| x.0.clone()).collect();
         tuned.deesser = cand.deesser.clone();
-        calibrate_makeup(test, &mut tuned);
+        calibrate_makeup_for(test, &mut tuned, tuning);
         let after = check_render(test, ctx, &tuned, tuning);
         let judged = judged_regions(tuning);
         let v1_tone = judged.iter().all(|&i| after.regions_db[i].abs() <= 3.0 || after.regions_db[i].abs() <= 0.5 * before.regions_db[i].abs());
@@ -433,7 +436,10 @@ pub fn verify_and_decide(
         let v3_level = peaks_ok && (in_window(&after) || (after.level - before.level).abs() <= 1.0);
         let net: Vec<f64> = CAP_FREQS.iter().filter(|f| **f < 0.45 * sr as f64).map(|f| net_response(&tuned.eq, sr, *f)).collect();
         let v4_cap = net.iter().all(|g| *g >= NET_CUT_LIMIT_DB - 1e-6 && *g <= NET_BOOST_LIMIT_DB + 1e-6);
-        let improved = after.tone_rms_db < before.tone_rms_db - 0.05 || (tuned.eq.is_empty() && !sib_worse);
+        // A de-esser-only candidate counts as better only when the "s" measurably
+        // went down: its high cut alone can lower the tone RMS while the "s" rises.
+        let sib_down = matches!((after.sibilance_db, before.sibilance_db), (Some(a), Some(b)) if a < b - DEESS_MIN_GAIN_DB);
+        let improved = if tuned.eq.is_empty() { tuned.deesser.is_some() && sib_down } else { after.tone_rms_db < before.tone_rms_db - 0.05 };
         let ver = Verification { before: before.clone(), after, v1_tone, v2_no_harm, v3_level, v4_cap, improved, dropped: dropped.clone() };
         if v2_no_harm && v3_level && v4_cap && improved {
             let verdict = if v1_tone { Verdict::Pass } else { Verdict::Close };
@@ -456,17 +462,17 @@ pub fn verify_and_decide(
         let worst_region = worse.iter().copied().max_by(|a, b| {
             let da = ver.after.regions_db[*a].abs() - before.regions_db[*a].abs();
             let db = ver.after.regions_db[*b].abs() - before.regions_db[*b].abs();
-            da.partial_cmp(&db).unwrap()
+            da.total_cmp(&db)
         });
         let idx = if let Some(r) = worst_region {
             let fc = (REGIONS[r].1 * REGIONS[r].2).sqrt();
             nearest_band(&cand.bands, fc)
         } else if sib_worse {
-            cand.bands.iter().enumerate().filter(|(_, x)| x.0.freq_hz >= 2000.0 && x.0.gain_db > 0.0).max_by(|a, b| a.1 .0.gain_db.partial_cmp(&b.1 .0.gain_db).unwrap()).map(|x| x.0)
+            cand.bands.iter().enumerate().filter(|(_, x)| x.0.freq_hz >= 2000.0 && x.0.gain_db > 0.0).max_by(|a, b| a.1 .0.gain_db.total_cmp(&b.1 .0.gain_db)).map(|x| x.0)
         } else {
             None
         }
-        .or_else(|| cand.bands.iter().enumerate().max_by(|a, b| a.1 .0.gain_db.abs().partial_cmp(&b.1 .0.gain_db.abs()).unwrap()).map(|x| x.0));
+        .or_else(|| cand.bands.iter().enumerate().max_by(|a, b| a.1 .0.gain_db.abs().total_cmp(&b.1 .0.gain_db.abs())).map(|x| x.0));
         match idx {
             Some(i) => dropped.push(cand.bands.remove(i).0),
             None => return (Verdict::NotImproved, Some(ver), base.clone()),
@@ -480,7 +486,7 @@ fn nearest_band(bands: &[(EqBand, BandOrigin)], fc: f64) -> Option<usize> {
     bands
         .iter()
         .enumerate()
-        .min_by(|a, b| (a.1 .0.freq_hz / fc).log2().abs().partial_cmp(&(b.1 .0.freq_hz / fc).log2().abs()).unwrap())
+        .min_by(|a, b| (a.1 .0.freq_hz / fc).log2().abs().total_cmp(&(b.1 .0.freq_hz / fc).log2().abs()))
         .map(|x| x.0)
 }
 
@@ -543,7 +549,7 @@ fn mean_over(dev: &[f64], lo: f64, hi: f64) -> f64 {
 }
 
 fn band_index(f: f64) -> usize {
-    (0..BAND_CENTERS.len()).min_by(|a, b| (BAND_CENTERS[*a] / f).log2().abs().partial_cmp(&(BAND_CENTERS[*b] / f).log2().abs()).unwrap()).unwrap()
+    (0..BAND_CENTERS.len()).min_by(|a, b| (BAND_CENTERS[*a] / f).log2().abs().total_cmp(&(BAND_CENTERS[*b] / f).log2().abs())).unwrap()
 }
 
 /// Response (dB) of one EQ band at `f`, exactly as the renderer builds it.
@@ -687,7 +693,7 @@ pub fn fit_curve(target: &[f64], sr: u32, max: usize, limit: f64) -> Vec<EqBand>
             i = j + 1;
         }
         let Some((a, b, _)) = best else { break };
-        let p = (a..=b).max_by(|x, y| err[*x].abs().partial_cmp(&err[*y].abs()).unwrap()).unwrap();
+        let p = (a..=b).max_by(|x, y| err[*x].abs().total_cmp(&err[*y].abs())).unwrap();
         let first = target.iter().position(|t| *t != 0.0).unwrap_or(0);
         let last = target.iter().rposition(|t| *t != 0.0).unwrap_or(n - 1);
         let reason = |g: f64| if g < 0.0 { "mic correction (less)" } else { "mic correction (more)" }.to_string();
@@ -720,6 +726,31 @@ pub fn fit_curve(target: &[f64], sr: u32, max: usize, limit: f64) -> Vec<EqBand>
     bands
 }
 
+/// Hold the summed mic-band response within +-`MIC_LIMIT_DB` on every
+/// `CAP_FREQS` point (overlapping bands can add past the per-band limit):
+/// scale all mic bands by one factor, found by bisection. True when scaled.
+pub fn limit_mic_sum(bands: &mut [EqBand], sr: u32) -> bool {
+    let freqs: Vec<f64> = CAP_FREQS.iter().copied().filter(|f| *f < 0.45 * sr as f64).collect();
+    let within = |b: &[EqBand]| freqs.iter().all(|f| net_response(b, sr, *f).abs() <= MIC_LIMIT_DB - 0.05);
+    if within(bands) {
+        return false;
+    }
+    let orig: Vec<f64> = bands.iter().map(|b| b.gain_db).collect();
+    let scale = |b: &mut [EqBand], s: f64| b.iter_mut().zip(&orig).for_each(|(x, g)| x.gain_db = g * s);
+    let (mut lo, mut hi) = (0.0, 1.0);
+    for _ in 0..20 {
+        let mid = (lo + hi) / 2.0;
+        scale(bands, mid);
+        if within(bands) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    scale(bands, lo);
+    true
+}
+
 /// Keep at most `MAX_BANDS`: drop the smallest moves, voice first, then
 /// profile, then mic.
 fn limit_band_count(bands: &mut Vec<(EqBand, BandOrigin)>) {
@@ -733,7 +764,7 @@ fn limit_band_count(bands: &mut Vec<(EqBand, BandOrigin)>) {
             .min_by(|a, b| {
                 let ka = (rank(bands[*a].1), bands[*a].0.gain_db.abs() / bands[*a].0.q);
                 let kb = (rank(bands[*b].1), bands[*b].0.gain_db.abs() / bands[*b].0.q);
-                ka.partial_cmp(&kb).unwrap()
+                ka.0.cmp(&kb.0).then(ka.1.total_cmp(&kb.1))
             })
             .unwrap();
         bands.remove(i);

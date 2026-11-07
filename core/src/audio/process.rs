@@ -118,6 +118,19 @@ pub fn render_test(test: &MicTest, chain: &ProcessingChain) -> MicTest {
 /// its loudness, so the processed voice actually lands on the LUFS target
 /// (EQ cuts, compression and limiting all eat level in ways a formula misses).
 pub fn calibrate_makeup(test: &MicTest, chain: &mut ProcessingChain) {
+    // Normal speech peaks stay 1.5 dB under the limiter ceiling (-3 dBFS for
+    // the usual -1.5 ceiling; lower for an audiobook's -3.5).
+    let peak_limit = (-3.0f64).min(chain.limiter.ceiling_db - 1.5);
+    calibrate_makeup_to(test, chain, peak_limit);
+}
+
+/// `calibrate_makeup` with the profile's speech-peak limit
+/// (`ProfileTuning::speech_peak_limit_db`, never above the limiter ceiling).
+pub fn calibrate_makeup_for(test: &MicTest, chain: &mut ProcessingChain, tuning: &crate::setup_profile::ProfileTuning) {
+    calibrate_makeup_to(test, chain, tuning.speech_peak_limit_db.min(chain.limiter.ceiling_db));
+}
+
+fn calibrate_makeup_to(test: &MicTest, chain: &mut ProcessingChain, peak_limit: f64) {
     let Some(seg) = test.segments.iter().find(|s| s.kind == super::SegmentKind::Read) else { return };
     let r = test.range(seg);
     if r.len() < test.audio.sample_rate as usize {
@@ -137,9 +150,6 @@ pub fn calibrate_makeup(test: &MicTest, chain: &mut ProcessingChain) {
         (lufs, super::dsp::percentile(&peaks, 95.0))
     };
     let set = |chain: &mut ProcessingChain, v: f64| chain.compressor.makeup_db = ((v.clamp(-12.0, 30.0)) * 10.0).round() / 10.0;
-    // Normal speech peaks stay 1.5 dB under the limiter ceiling (-3 dBFS for
-    // the usual -1.5 ceiling; lower for an audiobook's -3.5).
-    let peak_limit = (-3.0f64).min(chain.limiter.ceiling_db - 1.5);
     // Gentle chains (distant mic, untreated room) stay gentle.
     let max_ratio = if chain.compressor.ratio <= 2.5 { 3.0 } else { 4.0 };
     for tighten in 0..=3 {
