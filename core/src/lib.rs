@@ -19,4 +19,4 @@ pub mod video;
 
 pub use constraints::Constraint;
 pub use finding::{Area, Finding, FixKind, Severity};
-pub use setup_profile::SetupProfile;
+pub use setup_profile::{SetupProfile, VoiceoverTarget};

@@ -11,6 +11,7 @@ pub mod findings;
 pub mod process;
 pub mod synth;
 pub mod targets;
+pub mod tune;
 pub mod vibration;
 pub mod voice;
 
@@ -110,7 +111,8 @@ pub struct MicReport {
 
 /// One call for the app: analyse → findings (with constraints applied) →
 /// processing chain → score → target checks. The pass bars follow
-/// `ctx.profile`; the chain does not depend on the profile.
+/// `ctx.profile`; so do the chain's documented dynamics fields
+/// (`SetupProfile::tuning_for`). Voice tuning is a separate step (`tune::compose`).
 pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint]) -> MicReport {
     let metrics = analyze(test);
     let mut findings = mic_findings(&metrics, ctx);
@@ -119,7 +121,7 @@ pub fn scan(test: &MicTest, ctx: &MicContext, constraints: &[crate::Constraint])
     crate::finding::rank(&mut findings);
     let mut chain = compute_chain(&metrics, ctx, constraints);
     if !metrics.no_signal {
-        process::calibrate_makeup(test, &mut chain);
+        process::calibrate_makeup_for(test, &mut chain, &ctx.profile.tuning_for(ctx.voiceover_target));
     }
     let score = crate::score::score_area(crate::Area::Mic, &findings);
     let targets = targets::check_targets_for(&metrics, ctx.profile);

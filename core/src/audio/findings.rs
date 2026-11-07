@@ -121,10 +121,14 @@ pub struct MicContext {
     pub onboard_auto_level: Option<bool>,
     /// Ideal distance range from the profile (cm).
     pub distance_cm: Option<(f64, f64)>,
-    /// What this session is set up for; moves the pass bars and the placement
-    /// advice, never the processing. Old saved contexts load as streaming.
+    /// What this session is set up for; moves the pass bars, the placement
+    /// advice and the documented dynamics fields of the chain
+    /// (`SetupProfile::tuning_for`). Old saved contexts load as streaming.
     #[serde(default)]
     pub profile: SetupProfile,
+    /// Loudness goal when `profile` is voiceover (YouTube by default).
+    #[serde(default)]
+    pub voiceover_target: crate::setup_profile::VoiceoverTarget,
     /// Whether anything on this mic path can lower the level at the source.
     #[serde(default)]
     pub gain: GainAccess,
