@@ -22,26 +22,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Most USB desk mics are spoken into from the side (logo side), not the top."
       ],
@@ -69,26 +49,6 @@
         "max": 20
       },
       "angle_deg": 10,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 400,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "verified": false,
       "generic_class": "usb_condenser_end"
     },
@@ -113,26 +73,6 @@
         "max": 10
       },
       "angle_deg": 20,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Dynamic mics need to be close: about a fist away, talking into the end."
       ],
@@ -161,26 +101,6 @@
         "max": 10
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 250,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 4500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Low-output dynamics need lots of clean gain (around 60 dB); small interfaces may hiss when maxed."
       ],
@@ -209,26 +129,6 @@
         "max": 25
       },
       "angle_deg": 15,
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 80,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 300,
-          "gain_db": -2,
-          "q": 1.0
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 7000,
-          "gain_db": -1.5,
-          "q": 2.0
-        }
-      ],
       "gotchas": [
         "Needs 48V phantom power.",
         "Condensers hear the whole room - closer and a pop filter help."
@@ -257,20 +157,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Shows as 'Realtek' in Windows. Check that Microphone Boost isn't adding hiss.",
         "Boom at the corner of the mouth, 1-2 fingers away."
@@ -299,20 +185,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 100,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3000,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Some wireless dongles limit the mic to 16-32 kHz - fine for voice, but it won't sound like a desk mic.",
         "Boom at the corner of the mouth, 1-2 fingers away."
@@ -341,14 +213,6 @@
         "ideal": 2,
         "max": 3
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 120,
-          "gain_db": 0,
-          "q": 0.707
-        }
-      ],
       "gotchas": [
         "Bluetooth Hands-Free mode turns the mic into phone-call quality and makes your game audio worse too. Use a cable, a 2.4 GHz dongle or a separate mic for streaming."
       ],
@@ -375,20 +239,6 @@
         "ideal": 60,
         "max": 80
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 120,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 300,
-          "gain_db": -2,
-          "q": 1.0
-        }
-      ],
       "gotchas": [
         "Built-in mics are far away and pick up fans and keyboard. Any headset or USB mic will be a big upgrade."
       ],
@@ -415,26 +265,6 @@
         "ideal": 20,
         "max": 25
       },
-      "eq_prior": [
-        {
-          "kind": "high_pass",
-          "freq_hz": 90,
-          "gain_db": 0,
-          "q": 0.707
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 750,
-          "gain_db": -2,
-          "q": 1.2
-        },
-        {
-          "kind": "peak",
-          "freq_hz": 3500,
-          "gain_db": 2,
-          "q": 0.8
-        }
-      ],
       "gotchas": [
         "Clip it centred on your chest, a hand's width below the chin.",
         "Turn off on-device noise cancellation and auto gain for streaming (if the system has them)."
