@@ -467,3 +467,41 @@ fn design_list_mics_are_present_and_honest() {
         assert!(db.mic(id).is_some(), "{id} missing from mics.json");
     }
 }
+#[test]
+fn digitised_design_mic_curves_are_consistent() {
+    let db = db();
+    // (id, proximity, has switch curves)
+    let filled = [
+        ("shure_sm7b", Proximity::Gradient),
+        ("ev_re20", Proximity::Reduced),
+        ("rode_nt1a", Proximity::Gradient),
+        ("shure_mv7", Proximity::Gradient),
+        ("rode_podmic", Proximity::Gradient),
+    ];
+    for (id, prox) in filled {
+        let m = db.mic(id).unwrap();
+        let r = m.response.as_ref().unwrap_or_else(|| panic!("{id}: expected a digitised response"));
+        assert_eq!(r.proximity, Some(prox), "{id}");
+        assert_eq!(r.points_hz_db.len(), 21, "{id}: 100 Hz-10 kHz at 1/3 octave is 21 points");
+        // Curves are stored re 1 kHz.
+        assert!(r.db_at(1000.0).unwrap().abs() < 1e-9, "{id}: must be 0 dB at 1 kHz");
+        assert!(r.digitised_precision_db.is_some(), "{id}: state the digitising error");
+        // Every switch curve belongs to a control the profile really has, and shares the 1 kHz reference.
+        for (key, opts) in &r.switch_curves {
+            assert!(m.controls.iter().any(|c| &c.key == key), "{id}: switch curve for unknown control {key}");
+            for pts in opts.values() {
+                assert_eq!(pts.len(), r.points_hz_db.len(), "{id}/{key}");
+            }
+        }
+    }
+    // Bass cuts must really cut the low end versus the flat curve.
+    for (id, key) in [("shure_sm7b", "bass_rolloff"), ("ev_re20", "bass_tilt")] {
+        let r = db.mic(id).unwrap().response.clone().unwrap();
+        let cut = &r.switch_curves[key]["1"];
+        assert!(cut[0][1] < r.points_hz_db[0][1] - 3.0, "{id}: {key} should be well below flat at 100 Hz");
+    }
+    // No chart from the maker was readable/found: stays null rather than guessed.
+    for id in ["blue_yeti", "hyperx_quadcast"] {
+        assert!(db.mic(id).unwrap().response.is_none(), "{id}: no maker chart, must stay null");
+    }
+}
