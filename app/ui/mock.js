@@ -55,6 +55,62 @@ const PROFILE_INFO = {
     irrelevant: { areas: ['stream'], keep: [], ids: [] } },
 };
 let activeProfile = 'streaming';
+
+// ---- Make it sound better: mock data shaped like API.md VoiceTuneResult
+let voiceoverTarget = 'youtube';
+let tuneState = null;
+let tuneSeq = 0;
+const tuneTuning = (lufs, ceil, measure = 'lufs', accept = [lufs - 1, lufs + 1]) => ({ loudness: { value: lufs, measure, accept }, limiter_ceiling_db: ceil, speech_peak_limit_db: ceil, compressor_ratio: 2, compressor_gr_db: 2.5, expander_ratio_max: 2, boost_above_7k: true, judge_hz: [80, 10000], tone_delta: null });
+const TUNE_TARGETS = {
+  youtube: { id: 'youtube', label: 'YouTube video', summary: 'Loud and clear, the level video sites play at.', tuning: tuneTuning(-14, -1.5) },
+  podcast: { id: 'podcast', label: 'Podcast', summary: 'A little quieter, the level podcast apps aim for.', tuning: tuneTuning(-16, -1.5) },
+  audiobook: { id: 'audiobook', label: 'Audiobook (ACX)', summary: 'Quiet and even, with extra room at the loud moments, as audiobook stores ask.', tuning: tuneTuning(-20, -3.5, 'rms', [-23, -18]) },
+};
+function tuneTargetInfo() {
+  return { selected: voiceoverTarget, options: [TUNE_TARGETS.youtube, TUNE_TARGETS.podcast, TUNE_TARGETS.audiobook], applies_now: activeProfile === 'voiceover', needs_rescan: false };
+}
+function tuneResult() {
+  const t = tuneState;
+  const ok = t.kind === 'close' || t.kind === 'pass';
+  const s = t.strength;
+  const g = (x) => Math.round(x * s * 10) / 10;
+  const TONE = [['boom', 'Boominess', 'too_much', 'on_target', 'a bit much, now about right'], ['body', 'Body', 'on_target', 'on_target', 'about right'], ['mud', 'Muddiness', 'too_much', 'on_target', 'a bit much, now about right'], ['box', 'Boxiness', 'on_target', 'on_target', 'about right'], ['nasal', 'Nasal tone', 'on_target', 'on_target', 'about right'], ['presence', 'Clarity', 'too_little', t.kind === 'pass' ? 'on_target' : 'too_little', t.kind === 'pass' ? 'a bit dull, now about right' : 'a bit dull'], ['air', 'Air', 'on_target', 'on_target', 'about right']];
+  const headlines = {
+    pass: 'Checked: it now sounds like we planned.',
+    close: 'Close: we kept it gentle because the room adds echo - something soft on the wall would help.',
+    nothing: 'Nothing to change: your voice already matches the targets for this setup.',
+    not_improved: "We tried a change, but it didn't measure better, so your settings stay as they are.",
+  };
+  const bands = ok ? [{ kind: 'peak', freq_hz: 250, gain_db: g(-2.9), q: 1, reason: 'less mud' }, { kind: 'peak', freq_hz: 4000, gain_db: g(2.5), q: 0.8, reason: 'more clarity' }, { kind: 'high_shelf', freq_hz: 8000, gain_db: g(2), q: 0.8, reason: 'more air' }] : [];
+  const freqs = [80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500];
+  const net = freqs.map((f) => (ok ? Math.round(s * (-2.9 * Math.exp(-Math.pow(Math.log2(f / 250), 2) * 2) + 2.5 * Math.exp(-Math.pow(Math.log2(f / 4000), 2) * 3) + 2 / (1 + Math.pow(8000 / f, 4))) * 10) / 10 : 0));
+  const check = (rms, regions) => ({ regions_db: regions, tone_rms_db: rms, sibilance_db: -12, plosive_events: 1, level: -16.1, peak_dbfs: -1.5, tonal_findings: [] });
+  return {
+    tune_id: t.id, device_id: t.deviceId, profile: activeProfile, voiceover_target: activeProfile === 'voiceover' ? voiceoverTarget : null,
+    verdict: t.kind === 'nothing' ? 'nothing_to_change' : t.kind, can_apply: ok, strength: s, can_be_gentler: ok && s > 0.25,
+    headline: headlines[t.kind],
+    facts: { voice: 'Your voice: deep and warm', mic: "Your mic: Shure SM7B, we know how it colours sound (from the maker's chart)", goal: activeProfile === 'voiceover' ? `Goal: Voiceover, ${TUNE_TARGETS[voiceoverTarget].label}` : activeProfile === 'call' ? 'Goal: Calls and meetings' : 'Goal: Streaming' },
+    changes: ok ? ['Evens out how your mic colours your voice', 'Less mud', 'More clarity'] : [],
+    summary: ok ? TONE.map(([id, label, before, after, text]) => ({ id, label, before, after, text: `${label}: ${text}` })) : [],
+    notes: ok ? ['Tuned toward published targets and checked.'] : [],
+    before_path: ok ? 'C:\\Users\\you\\AppData\\Roaming\\SetupCoach\\voice-tune\\before.wav' : null,
+    after_path: ok ? 'C:\\Users\\you\\AppData\\Roaming\\SetupCoach\\voice-tune\\after.wav' : null,
+    applied: t.applied === s, backup_id: t.backup,
+    advanced: {
+      voice: { f0_median_hz: 118, f0_p10_hz: 98, f0_p90_hz: 141, pitch: 'deep', tilt_db_per_oct: -1.8, tilt: 'dark', sib_level_db: -9, sib_peak_hz: 7200, sibilance: 'normal', plosives_per_min: 4, plosives: 'some', voiced_s: 5.1, confidence: 'good', confidence_reason: null },
+      curves: { freqs_hz: freqs, mic_db: freqs.map((f) => (f < 200 ? 1.2 : f > 3000 && f < 7000 ? -1.5 : 0)), profile_db: freqs.map(() => 0), voice_db: net, net_db: net, fit_error_db: 0.4, mic_weight: 0.5, proximity_swing_db: 3.1 },
+      hpf: { current_hz: 95, proposed_hz: 71, f0_p10_hz: 98, current_loss_db: -3.9, proposed_loss_db: -1.5 },
+      bands: bands.map((b, i) => ({ band: b, origin: i === 0 ? 'mic' : 'voice' })), deesser: null,
+      verification: t.kind === 'nothing' ? null : { before: check(5.6, [3.9, 4.2, 2.6, 1.7, 1, -5, -3.4]), after: check(ok ? 3.2 : 5.2, ok ? [3.2, 2.5, 0.8, 1, 1, -3.1, -1.4] : [3.9, 4.2, 2.6, 1.7, 1, -5, -3.4]), v1_tone: t.kind === 'pass', v2_no_harm: ok, v3_level: true, v4_cap: true, improved: ok, dropped: [] },
+      after_check: ok ? check(3.2 + (1 - s) * 2, [3.2, 2.5, 0.8, 1, 1, -3.1, -1.4]) : null,
+      mic: { name: 'Shure SM7B', has_curve: true, verified: false, source: 'Shure SM7B data sheet, frequency response figure (maker chart)' },
+      tuning: TUNE_TARGETS[voiceoverTarget].tuning,
+      fallback: t.kind === 'close' ? 'reflection' : null,
+      loudness_match_db: ok ? 0.6 : 0,
+      verification_note: 'Checked offline: we re-rendered your recording through the new settings and measured it again. We did not measure the live signal.',
+    },
+  };
+}
 let lastMicDevice = null;
 const storedSetups = {}; // `${profile}|${deviceId}` -> true once a mic flow finished under that profile
 const MIC_FACTS = { ev_re20: { gain_needed_db: 55, distance_cm: [3, 15], address: 'end' }, shure_sm7b: { gain_needed_db: 60, distance_cm: [3, 10], address: 'end' } };
@@ -593,6 +649,37 @@ export function createMock() {
       const has = !!storedSetups[`${profile}|${lastMicDevice}`];
       return { profile, applied: has ? { applied: ['obs_filters'], failed: [], restart_obs_needed: false } : null, needs_scan: !has };
     },
+    // ---- Make it sound better (API.md "Make it sound better"); ?mock_tune=close|pass|nothing|not_improved|needs_read picks the outcome
+    async get_voiceover_target() { return tuneTargetInfo(); },
+    async set_voiceover_target({ target }) {
+      if (!TUNE_TARGETS[target]) throw new Error('That goal does not exist.');
+      const changed = voiceoverTarget !== target;
+      voiceoverTarget = target;
+      return { ...tuneTargetInfo(), needs_rescan: changed && activeProfile === 'voiceover' };
+    },
+    async start_voice_tune({ deviceId }) {
+      const kind = mockParam('mock_tune') || 'close';
+      if (kind === 'needs_read') throw { code: 'needs_read', message: 'Read the lines out loud first, so we can hear your voice.' };
+      await wait(1800);
+      tuneState = { id: `tune-${++tuneSeq}`, deviceId, kind, strength: 1, applied: null, backup: null };
+      return tuneResult();
+    },
+    async gentler_voice_tune({ tuneId }) {
+      if (!tuneState || tuneState.id !== tuneId) throw { code: 'stale', message: 'That result is out of date. Please start again.' };
+      if (tuneState.kind === 'nothing' || tuneState.kind === 'not_improved') throw { code: 'nothing_to_apply', message: "There's nothing to make gentler: no changes were needed." };
+      await wait(400);
+      tuneState.strength = tuneState.strength > 0.5 ? 0.5 : 0.25;
+      return tuneResult();
+    },
+    async apply_voice_tune({ tuneId }) {
+      if (!tuneState || tuneState.id !== tuneId) throw { code: 'stale', message: 'That result is out of date. Please start again.' };
+      if (tuneState.kind === 'nothing' || tuneState.kind === 'not_improved') throw { code: 'nothing_to_apply', message: "Nothing was changed: the new settings didn't measure better than your current ones." };
+      await wait(900);
+      tuneState.applied = tuneState.strength;
+      tuneState.backup = tuneState.backup || `2026-11-07T10-00-00-tune`;
+      return { tune_id: tuneId, strength: tuneState.strength, applied: { applied: ['chain_json', 'obs_filters'], failed: [], restart_obs_needed: false, skipped: [] }, backup_id: tuneState.backup, line: 'Done. Your voice is tuned toward the targets. You can undo this any time.' };
+    },
+    async undo_voice_tune() { await wait(600); if (tuneState) { tuneState.applied = null; tuneState.backup = null; } return { applied: ['chain_json', 'obs_filters'], failed: [], restart_obs_needed: false, skipped: [] }; },
     async mic_context({ deviceId, answers }) {
       await wait(200);
       lastMicDevice = deviceId;

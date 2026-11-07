@@ -143,6 +143,9 @@ pub struct SavedProfile {
     /// One stored mic setup per profile (key = `streaming`|`voiceover`|`call`) per device id.
     #[serde(default)]
     pub mic_setups: std::collections::BTreeMap<String, std::collections::BTreeMap<String, StoredMicSetup>>,
+    /// Loudness goal of the voiceover profile (YouTube by default). Added 2026-11-07.
+    #[serde(default)]
+    pub voiceover_target: coach_core::VoiceoverTarget,
 }
 
 /// The mic setup a finished flow left for one (profile, device). Switching profiles re-applies it.
@@ -307,6 +310,10 @@ pub enum PreviewWhich {
     Original,
     /// The final take through the applied settings (loudness-matched).
     Final,
+    /// Voice tune: the reading as is, loudness-matched to the After.
+    TuneBefore,
+    /// Voice tune: the reading through the tuned chain, loudness-matched to the Before.
+    TuneAfter,
 }
 
 /// One side of the A/B (`get_ab`).
@@ -675,7 +682,7 @@ pub struct LevelFixResult {
 }
 
 pub mod events {
-    /// `{ text: string }` – plain-language progress while `fix_mic_level` runs.
+    /// `{ text: string }` â€“ plain-language progress while `fix_mic_level` runs.
     pub const LEVEL_FIX_PROGRESS: &str = "level-fix-progress";
     pub const COACH_UPDATE: &str = "coach-update";
     pub const COACH_CAMERA_OVERLAY: &str = "coach-camera-overlay";
@@ -689,4 +696,193 @@ pub mod events {
     pub const DRIFT_DUE: &str = "drift-due";
     pub const HEALTH_ALERT: &str = "health-alert";
     pub const HEALTH_SAMPLE: &str = "health-sample";
+}
+
+
+// ---------------------------------------------------------------- Make it sound better (voice tune)
+
+/// One loudness goal for a voiceover, for the picker (`get_voiceover_target` / `set_voiceover_target`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceoverTargetOption {
+    pub id: coach_core::VoiceoverTarget,
+    /// "YouTube video", "Podcast", "Audiobook (ACX)".
+    pub label: String,
+    /// One plain sentence for the picker.
+    pub summary: String,
+    /// Advanced only: loudness goal, limiter ceiling, speech-peak bound (core `ProfileTuning`) for the voiceover profile at this goal.
+    pub tuning: coach_core::setup_profile::ProfileTuning,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceoverTargetInfo {
+    pub selected: coach_core::VoiceoverTarget,
+    pub options: Vec<VoiceoverTargetOption>,
+    /// True when the session profile is Recording / voiceover, so the goal changes the settings now.
+    pub applies_now: bool,
+    /// True when the last scan was made with another goal: scan again before applying.
+    pub needs_rescan: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VoiceTuneErrorCode {
+    /// No fresh reading of this mic (older than 10 min, other mic or other profile): run the Read step first.
+    NeedsRead,
+    /// The mic isn't connected any more.
+    MicMissing,
+    /// `tune_id` is not the current tune (a newer one was started, the goal changed, or the app restarted).
+    Stale,
+    /// The tune did not verify (or there was nothing to change): nothing may be applied.
+    NothingToApply,
+    Other,
+}
+
+/// Rejection value of the voice tune commands: `{ code, message }` (message = plain English fallback).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceTuneError {
+    pub code: VoiceTuneErrorCode,
+    pub message: String,
+}
+
+impl VoiceTuneError {
+    pub fn new(code: VoiceTuneErrorCode, message: impl Into<String>) -> Self {
+        VoiceTuneError { code, message: message.into() }
+    }
+}
+
+impl std::fmt::Display for VoiceTuneError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl From<String> for VoiceTuneError {
+    fn from(message: String) -> Self {
+        VoiceTuneError { code: VoiceTuneErrorCode::Other, message }
+    }
+}
+
+impl From<&str> for VoiceTuneError {
+    fn from(message: &str) -> Self {
+        message.to_string().into()
+    }
+}
+
+/// Where a tone region stands against the target (plain words in `ToneLine::text`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToneState {
+    TooMuch,
+    OnTarget,
+    TooLittle,
+}
+
+/// One row of the before / after summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ToneLine {
+    /// Core region id: boom, body, mud, box, nasal, presence, air.
+    pub id: String,
+    /// "Boominess", "Clarity" ...
+    pub label: String,
+    pub before: ToneState,
+    pub after: ToneState,
+    /// Plain sentence, e.g. "Boominess: a bit much, now about right".
+    pub text: String,
+}
+
+/// The three plain facts shown while the tune runs.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TuneFacts {
+    /// "Your voice: deep and warm"
+    pub voice: String,
+    /// "Your mic: RE20, we know how it colours sound (from the maker's chart)"
+    pub mic: String,
+    /// "Goal: Streaming" / "Goal: Voiceover for YouTube video"
+    pub goal: String,
+}
+
+/// One EQ band of the tune with where it came from (Advanced table).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TuneBandView {
+    pub band: coach_core::audio::chain::EqBand,
+    pub origin: coach_core::audio::tune::BandOrigin,
+}
+
+/// Mic chart facts (Advanced).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TuneMicInfo {
+    pub name: Option<String>,
+    pub has_curve: bool,
+    pub verified: bool,
+    /// Link or page/figure the curve was read from.
+    pub source: Option<String>,
+}
+
+/// Everything the Advanced view shows.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceTuneAdvanced {
+    pub voice: coach_core::audio::voice::VoiceType,
+    pub curves: coach_core::audio::tune::TuneCurves,
+    pub hpf: coach_core::audio::tune::HpfComparison,
+    /// Bands of the chain that would be applied (after strength).
+    pub bands: Vec<TuneBandView>,
+    pub deesser: Option<coach_core::audio::chain::DeEsser>,
+    /// Offline re-render and re-analysis; null when there was no signal.
+    pub verification: Option<coach_core::audio::tune::Verification>,
+    /// "after" of the verification re-computed at the current strength (equals `verification.after` at strength 1).
+    pub after_check: Option<coach_core::audio::tune::RenderCheck>,
+    pub mic: TuneMicInfo,
+    /// Loudness goal, limiter ceiling and speech-peak bound used (core `ProfileTuning`, incl. `speech_peak_limit_db`).
+    pub tuning: coach_core::setup_profile::ProfileTuning,
+    pub fallback: Option<coach_core::audio::tune::FallbackReason>,
+    /// Gain (dB) the After was turned by so it is as loud as the Before.
+    pub loudness_match_db: f64,
+    /// Always says what was checked.
+    pub verification_note: String,
+}
+
+/// `start_voice_tune` / `gentler_voice_tune` result.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceTuneResult {
+    /// Pass to `apply_voice_tune` / `gentler_voice_tune`.
+    pub tune_id: String,
+    pub device_id: String,
+    pub profile: coach_core::SetupProfile,
+    /// Only for the voiceover profile.
+    pub voiceover_target: Option<coach_core::VoiceoverTarget>,
+    pub verdict: coach_core::audio::tune::Verdict,
+    /// `verdict` is pass or close: `apply_voice_tune` will do something. False = nothing will be changed.
+    pub can_apply: bool,
+    /// 1, 0.5 or 0.25 (share of the EQ / de-esser moves).
+    pub strength: f64,
+    pub can_be_gentler: bool,
+    /// The plain result line, show as is.
+    pub headline: String,
+    pub facts: TuneFacts,
+    /// What the change does, plain sentences (empty when nothing changes).
+    pub changes: Vec<String>,
+    /// Before / after by tone region (empty without a verification).
+    pub summary: Vec<ToneLine>,
+    /// Plain notes from the composer, show as is.
+    pub notes: Vec<String>,
+    /// Loudness-matched Before / After as mono WAV files; null when nothing changes. Also playable with
+    /// `play_preview { which: "tune_before" | "tune_after", phone }`.
+    pub before_path: Option<String>,
+    pub after_path: Option<String>,
+    /// Already applied in this session (Keep it pressed) and the vault id to undo it with.
+    pub applied: bool,
+    pub backup_id: Option<String>,
+    pub advanced: VoiceTuneAdvanced,
+}
+
+/// `apply_voice_tune` result.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VoiceTuneApplied {
+    pub tune_id: String,
+    pub strength: f64,
+    pub applied: ApplyResult,
+    /// Vault id from before the first apply of this tune; `undo_voice_tune(backup_id)`. Null when the backup failed (nothing was changed).
+    pub backup_id: Option<String>,
+    /// Plain result line.
+    pub line: String,
 }

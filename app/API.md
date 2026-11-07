@@ -399,6 +399,115 @@ StoredMicSetup = { profile: SetupProfile, device_id: string, saved_at: string,
   re-stamps the last `MicContext`.
 - Plain language in the picker and coaching; `targets`, `distance_cm` and dB numbers only in Advanced.
 
+## Make it sound better (voice tune, added 2026-11-07, backend done, UI = P5)
+
+Tunes the EQ and de-esser of the processing chain to the mic's published response and the user's voice
+(core `audio::tune::compose`, docs/voice-tuning-design.md), checks it **offline** (re-renders the recording and
+measures again; the live path is not measured, decision 3) and lets the user hear a loudness-matched Before / After.
+Plain filters only, no AI processing. Words to avoid: "studio quality", "perfect", "sounds better" as a claim; the
+result lines say "tuned toward published targets" / "checked". Numbers only in `advanced`.
+
+| Command | Args | Returns |
+|---|---|---|
+| `get_voiceover_target` | – | `VoiceoverTargetInfo` |
+| `set_voiceover_target` | `{ target: VoiceoverTarget }` | `VoiceoverTargetInfo` |
+| `start_voice_tune` | `{ deviceId: string }` | `VoiceTuneResult` – rejects with `VoiceTuneError` |
+| `gentler_voice_tune` | `{ tuneId: string }` | `VoiceTuneResult` (strength 1 -> 0.5 -> 0.25) – rejects with `VoiceTuneError` |
+| `apply_voice_tune` | `{ tuneId: string }` | `VoiceTuneApplied` – rejects with `VoiceTuneError` ("Keep it") |
+| `undo_voice_tune` | `{ backupId: string }` | `ApplyResult` ("Undo") |
+| `play_preview` (existing) | `{ which: "tune_before" \| "tune_after", phone: bool }` | – plays the matched Before / After; `phone: true` = "On a phone speaker" |
+
+UI flow: (1) the usual mic test (`start_mic_test`, marks, `finish_mic_test`): its **Read** step is the reading. A
+test younger than 10 min with the same mic and session profile is reused; otherwise `start_voice_tune` rejects with
+`needs_read` and the UI runs the Read step ("Read these lines out loud", about 20 s). (2) `start_voice_tune` (a second or two;
+nothing is changed) -> show `facts` in a short animation, then `headline`, `summary`, Before / After
+(`before_path`, `after_path`, or `play_preview`). (3) **Keep it** = `apply_voice_tune`; **Gentler** =
+`gentler_voice_tune` (a new result, still nothing applied; if the user already pressed Keep it, press `apply_voice_tune`
+again to switch to the gentler one, the undo point stays the first); **Undo** = `undo_voice_tune(backup_id)`. Never call
+apply when `can_apply` is false (the backend refuses with `nothing_to_apply`). The three `PreviewWhich` values
+`before|after|original|final` are unchanged.
+
+```ts
+VoiceoverTarget = "youtube" | "podcast" | "audiobook"        // core: coach_core::VoiceoverTarget; default "youtube"
+VoiceoverTargetOption = { id: VoiceoverTarget, label: string,            // "YouTube video" | "Podcast" | "Audiobook (ACX)"
+                          summary: string,                               // one plain sentence for the picker
+                          tuning: ProfileTuning }                        // Advanced: see below
+VoiceoverTargetInfo = { selected: VoiceoverTarget, options: VoiceoverTargetOption[],   // always 3, in the order above
+                        applies_now: boolean,      // session profile is "voiceover": the goal changes the settings
+                        needs_rescan: boolean }    // set_voiceover_target changed it while a scan exists: scan again before applying
+ProfileTuning = { loudness: { value, measure: "lufs"|"rms", accept: [lo, hi] },
+                  limiter_ceiling_db: number,
+                  speech_peak_limit_db: number,    // NEW: where the make-up loop keeps normal speech peaks (95th-percentile 20 ms
+                                                   // frame peak). Streaming/call -3; voiceover = limiter_ceiling_db
+                  compressor_ratio, compressor_gr_db: number, expander_ratio_max: number | null,
+                  boost_above_7k: boolean, judge_hz: [number, number],
+                  tone_delta: { lo_hz, hi_hz, db } | null }              // db is 0 (profile tone deltas ship off)
+```
+Voiceover goals (decision 2026-11-07): YouTube -14 LUFS (true peak <= -1 dBTP), Podcast -16 LUFS, Audiobook (ACX) -20 dB RMS
+(inside -23...-18, peaks <= -3 dBFS). Saved in `setup.json` as `voiceover_target` (`#[serde(default)]` = youtube;
+`SavedProfile` and `save_setup` keep it). `mic_context` and the live coach stamp it into `MicContext.voiceover_target`
+(new, `#[serde(default)]`), so `finish_mic_test`, `rescan_mic` and the chain use it. `set_voiceover_target` restamps the
+last context and drops a running voice tune (`tune_id` then answers `stale`). Show the picker only for the voiceover profile.
+
+```ts
+VoiceTuneResult = {
+  tune_id: string,                        // pass to apply/gentler
+  device_id: string, profile: SetupProfile,
+  voiceover_target: VoiceoverTarget | null,   // only for the voiceover profile
+  verdict: "pass" | "close" | "nothing_to_change" | "not_improved",   // core tune::Verdict
+  can_apply: boolean,                     // pass|close. false = nothing will ever be changed
+  strength: 1 | 0.5 | 0.25, can_be_gentler: boolean,
+  headline: string,                       // the result line, show as is ("Checked: it now sounds like we planned." / "Close: we kept
+                                          // it gentle because the room adds echo - something soft on the wall would help." /
+                                          // "Nothing to change: ..." / "We tried a change, but it didn't measure better, ...")
+  facts: { voice: string, mic: string, goal: string },   // "Your voice: deep and warm" / "Your mic: RE20, we know how it
+                                                         // colours sound (from the maker's chart)" / "Goal: Streaming"
+  changes: string[],                      // plain sentences ("Evens out how your mic colours your voice"); [] when nothing changes
+  summary: ToneLine[],                    // before/after per tone region; [] without a verification or when nothing changes
+  notes: string[],                        // plain notes from the composer, show as is
+  before_path: string | null, after_path: string | null,   // loudness-matched mono WAVs of the Read; null when nothing changes
+  applied: boolean,                       // this strength is applied now (Keep it was pressed)
+  backup_id: string | null,               // vault id from before the first apply of this tune; = Undo
+  advanced: VoiceTuneAdvanced }
+ToneLine = { id: "boom"|"body"|"mud"|"box"|"nasal"|"presence"|"air", label: string,   // "Boominess" ... "Clarity", "Air"
+             before: ToneState, after: ToneState,                                      // "too_much" | "on_target" | "too_little" (+-3 dB)
+             text: string }                                                            // "Boominess: a bit much, now about right"
+VoiceTuneAdvanced = {
+  voice: VoiceType,                       // core audio::voice::VoiceType: f0 stats, tilt, sibilance, plosives, confidence
+  curves: TuneCurves,                     // freqs_hz[], mic_db[], profile_db[], voice_db[], net_db[], fit_error_db, mic_weight, proximity_swing_db
+  hpf: HpfComparison,                     // today's high-pass vs the f0_p10/1.5 proposal (reported, not switched)
+  bands: { band: EqBand, origin: "mic"|"profile"|"voice" }[],   // what would be applied (after strength)
+  deesser: DeEsser | null,
+  verification: Verification | null,      // core: before/after RenderCheck, v1_tone, v2_no_harm, v3_level, v4_cap, improved, dropped[]
+  after_check: RenderCheck | null,        // `verification.after` at the current strength
+  mic: { name: string | null, has_curve: boolean, verified: boolean, source: string | null },   // source = page/figure of the maker's chart
+  tuning: ProfileTuning,                  // goal in force (loudness, limiter ceiling, speech_peak_limit_db)
+  fallback: FallbackReason | null,        // why the voice wasn't used: {voice_confidence:{confidence,reason}} | "reflection" | "no_signal"
+  loudness_match_db: number,              // dB the After was turned by to equal the Before
+  verification_note: string }             // "Checked offline: we re-rendered your recording ... did not measure the live signal."
+VoiceTuneApplied = { tune_id: string, strength: number, applied: ApplyResult,
+                     backup_id: string | null,     // null only when the backup failed (then nothing was changed)
+                     line: string }                // plain result line
+VoiceTuneError = { code: VoiceTuneErrorCode, message: string }   // rejection value of start/gentler/apply
+VoiceTuneErrorCode = "needs_read"         // no fresh Read of this mic/profile: run the Read step, call again
+                   | "mic_missing"        // the mic isn't connected
+                   | "stale"              // tune_id isn't the current tune (newer tune, goal changed, app restarted): start again
+                   | "nothing_to_apply"   // verdict is nothing_to_change / not_improved: nothing is applied or made gentler
+                   | "other"
+```
+- **Apply** writes the tuned chain exactly like `apply_mic_chain` (vault backup first, label "Before making your voice
+  sound better", `chain.json`, OBS filters/VST3) and stores it as the setup of the active profile and mic, so switching
+  profiles keeps it. Only the EQ bands and the de-esser differ from today's chain; the high-pass, dynamics and make-up
+  gain are the ones the scan computed. **Undo** restores that backup through the vault and also puts the previous stored
+  setup back. Nothing outside `chain.json` / OBS is touched; no Windows setting is changed.
+- **Not improved / nothing to change**: the result has `can_apply: false`, no files, and `apply_voice_tune` rejects with
+  `nothing_to_apply`; the current settings stay and no backup is made.
+- **Gentler** scales the EQ gains and the de-esser reduction (1 -> 0.5 -> 0.25) and re-measures the summary at that
+  strength; it does not re-run the composer.
+- Not done in v1 (decision 3): live verification through the VST3. The user's mic switch position is not asked for yet, so
+  switch-specific mic curves are not used (the main curve is).
+- No new events. The files `before.wav` / `after.wav` are in `%APPDATA%\SetupCoach\voice-tune\` and are overwritten by the next tune.
+
 ## Live coaching (added 2026-11-02)
 
 Coaching is a live loop: the user changes something physical (or in another

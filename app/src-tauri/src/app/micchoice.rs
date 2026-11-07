@@ -183,6 +183,7 @@ fn blank_setup() -> SavedProfile {
         obs_input: None,
         active_profile: Default::default(),
         mic_setups: Default::default(),
+        voiceover_target: Default::default(),
     }
 }
 
