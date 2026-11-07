@@ -271,6 +271,38 @@ pub async fn set_setup_profile(app: S<'_>, profile: coach_core::SetupProfile) ->
 }
 
 #[tauri::command]
+pub async fn get_voiceover_target(app: S<'_>) -> R<VoiceoverTargetInfo> {
+    Ok(app.voiceover_target_info())
+}
+
+#[tauri::command]
+pub async fn set_voiceover_target(app: S<'_>, target: coach_core::VoiceoverTarget) -> R<VoiceoverTargetInfo> {
+    app.set_voiceover_target(target)
+}
+
+#[tauri::command]
+pub async fn start_voice_tune(app: S<'_>, device_id: String) -> Result<VoiceTuneResult, VoiceTuneError> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.start_voice_tune(&device_id)).await.map_err(|e| VoiceTuneError::from(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn gentler_voice_tune(app: S<'_>, tune_id: String) -> Result<VoiceTuneResult, VoiceTuneError> {
+    let app = app.inner().clone();
+    tokio::task::spawn_blocking(move || app.gentler_voice_tune(&tune_id)).await.map_err(|e| VoiceTuneError::from(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn apply_voice_tune(app: S<'_>, tune_id: String) -> Result<VoiceTuneApplied, VoiceTuneError> {
+    app.apply_voice_tune(&tune_id).await
+}
+
+#[tauri::command]
+pub async fn undo_voice_tune(app: S<'_>, backup_id: String) -> R<ApplyResult> {
+    Ok(app.undo_voice_tune(&backup_id).await)
+}
+
+#[tauri::command]
 pub async fn reapply_saved_setup(app: S<'_>) -> R<ApplyResult> {
     Ok(app.reapply_saved_setup().await)
 }

@@ -246,7 +246,7 @@ impl AppCore {
             let i = self.inner.lock().unwrap();
             (i.last_report.clone(), i.last_context.clone(), i.last_snapshot.clone())
         };
-        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), ..Default::default() });
+        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), voiceover_target: self.voiceover_target(), ..Default::default() });
         let device = self.coach_mic_device();
         let mut out: Vec<CoachStep> = Vec::new();
         let push = |s: CoachStep, out: &mut Vec<CoachStep>| {
@@ -557,7 +557,7 @@ impl AppCore {
             let i = self.inner.lock().unwrap();
             (i.last_context.clone(), i.last_report.as_ref().map(|r| r.metrics.clone()))
         };
-        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), ..Default::default() });
+        let ctx = ctx.unwrap_or_else(|| MicContext { profile: self.active_profile(), voiceover_target: self.voiceover_target(), ..Default::default() });
         let source = if step.task == T::SetGain { self.gain_source(&device).await } else { None };
         let auto = source.is_some();
         // Audio thread → shared buffer (peak-preserving mono: a left-only

@@ -32,6 +32,7 @@ mod coaching;
 mod micchoice;
 mod setup_profiles;
 mod vault_ops;
+mod voice_tune;
 pub use ab::{match_gains, read_clip, slug, TakeMeta};
 pub use coaching::{NoWindow, RecordingWindow, WindowControl};
 pub use vault_ops::Target;
@@ -95,6 +96,13 @@ struct Inner {
     recording: Option<Arc<Mutex<RecBuf>>>,
     capture: Option<Box<dyn StreamHandle>>,
     last_test: Option<MicTest>,
+    /// When `last_test` was recorded (the voice tune reuses a reading younger than `voice_tune_max_age`).
+    last_test_at: Option<Instant>,
+    /// The voice tune in progress / applied (`start_voice_tune`).
+    voice_tune: Option<voice_tune::TuneSession>,
+    voice_tune_seq: u64,
+    /// What `undo_voice_tune` puts back besides the vault restore (the stored setup), per tune backup.
+    tune_undo: Vec<voice_tune::TuneUndo>,
     last_report: Option<MicReport>,
     last_context: Option<MicContext>,
     last_constraints: Vec<Constraint>,
@@ -148,6 +156,8 @@ pub struct AppCore {
     pub coach_tick: Duration,
     /// How long each level measurement of `fix_mic_level` listens (and the pause after a change).
     pub level_fix_window: Duration,
+    /// How old a mic test may be for "Make it sound better" to reuse its reading (10 min).
+    pub voice_tune_max_age: Duration,
     /// Look for the GoXLR Utility daemon on localhost (off in tests).
     pub goxlr_autodetect: AtomicBool,
     obs: tokio::sync::Mutex<Option<Arc<dyn ObsApi>>>,
@@ -170,6 +180,7 @@ impl AppCore {
             grab_timeout: Duration::from_secs(6),
             coach_tick: Duration::from_millis(125),
             level_fix_window: Duration::from_millis(3500),
+            voice_tune_max_age: Duration::from_secs(600),
             goxlr_autodetect: AtomicBool::new(cfg!(windows)),
             obs: tokio::sync::Mutex::new(None),
             goxlr: tokio::sync::Mutex::new(None),
@@ -814,6 +825,7 @@ impl AppCore {
             ctx.onboard_auto_level = answers.onboard_auto_level;
         }
         ctx.profile = self.active_profile();
+        ctx.voiceover_target = self.voiceover_target();
         Ok(ctx)
     }
 
@@ -906,6 +918,8 @@ impl AppCore {
         }
         let mut inner = self.inner.lock().unwrap();
         inner.last_test = Some(test);
+        inner.last_test_at = Some(Instant::now());
+        inner.voice_tune = None;
         inner.last_report = Some(report.clone());
         inner.last_context = Some(ctx);
         inner.last_constraints = constraints;
@@ -938,7 +952,14 @@ impl AppCore {
     /// `apply_mic_chain`; with a backup `label` it is a re-apply of an already
     /// stored setup (profile switch) and does not store anything new.
     pub(crate) async fn apply_mic_chain_labeled(&self, chain: ProcessingChain, obs_input: &str, label: Option<String>) -> ApplyResult {
-        let is_switch = label.is_some();
+        let remember = label.is_none();
+        self.apply_chain_with(chain, obs_input, label, remember).await.0
+    }
+
+    /// The write behind `apply_mic_chain`: backup (labelled), chain.json, OBS.
+    /// Returns the result and the vault id of the backup (None when it failed
+    /// and nothing was changed). `remember` stores the setup under the profile.
+    pub(crate) async fn apply_chain_with(&self, chain: ProcessingChain, obs_input: &str, label: Option<String>, remember: bool) -> (ApplyResult, Option<String>) {
         let mut res = ApplyResult::default();
         let obs_input = self.resolve_obs_input(obs_input).await;
         let obs_input = obs_input.as_str();
@@ -949,10 +970,13 @@ impl AppCore {
         let device = self.inner.lock().unwrap().last_device.clone();
         let mic = device.as_deref().and_then(|d| self.device_name(d)).map(|n| plain_device_name(&n)).unwrap_or_else(|| "mic".into());
         let label = label.clone().unwrap_or_else(|| format!("Before setting up your {mic}"));
-        if let Err(e) = self.backup_before(&label, &targets).await {
-            res.fail("backup", e);
-            return res;
-        }
+        let backup_id = match self.backup_before(&label, &targets).await {
+            Ok(id) => id,
+            Err(e) => {
+                res.fail("backup", e);
+                return (res, None);
+            }
+        };
         if let Some(d) = device {
             self.inner.lock().unwrap().applied_devices.insert(d);
         }
@@ -987,10 +1011,10 @@ impl AppCore {
             inner.applied_chain = Some(chain.clone());
             inner.applied_input = Some(obs_input.to_string());
         }
-        if !is_switch {
+        if remember {
             self.remember_mic_setup(&chain, obs_input);
         }
-        res
+        (res, backup_id)
     }
 
     /// The OBS mic input to use: `name` if OBS has it, otherwise the input
@@ -1025,6 +1049,10 @@ impl AppCore {
 
     /// The read + loud steps of the last recording, as heard before/after.
     pub fn preview_buffer(&self, which: PreviewWhich, phone: bool) -> R<AudioBuffer> {
+        if matches!(which, PreviewWhich::TuneBefore | PreviewWhich::TuneAfter) {
+            let buf = self.tune_preview(which == PreviewWhich::TuneAfter)?;
+            return Ok(if phone { process::phone_speaker(&buf) } else { buf });
+        }
         if matches!(which, PreviewWhich::Original | PreviewWhich::Final) {
             let buf = self.ab_preview(which == PreviewWhich::Final)?;
             return Ok(if phone { process::phone_speaker(&buf) } else { buf });
@@ -1044,7 +1072,7 @@ impl AppCore {
                 // Play the raw take in both ears so a left-only input is audible as-is.
                 buf
             }
-            PreviewWhich::After | PreviewWhich::Original | PreviewWhich::Final => process::render(&buf, &chain),
+            PreviewWhich::After | PreviewWhich::Original | PreviewWhich::Final | PreviewWhich::TuneBefore | PreviewWhich::TuneAfter => process::render(&buf, &chain),
         };
         if phone {
             out = process::phone_speaker(&out);
@@ -1346,8 +1374,8 @@ impl AppCore {
     pub fn save_setup(&self, name: &str) -> R<SavedProfile> {
         // Keep the answers to "What mic is plugged into this?".
         let existing = self.load_setup();
-        let (existing_choices, active_profile, mic_setups) =
-            existing.map(|p| (p.mic_behind, p.active_profile, p.mic_setups)).unwrap_or_default();
+        let (existing_choices, active_profile, mic_setups, voiceover_target) =
+            existing.map(|p| (p.mic_behind, p.active_profile, p.mic_setups, p.voiceover_target)).unwrap_or_default();
         let inner = self.inner.lock().unwrap();
         let p = SavedProfile {
             name: if name.trim().is_empty() { "My setup".into() } else { name.trim().to_string() },
@@ -1356,6 +1384,7 @@ impl AppCore {
             mic_behind: existing_choices,
             active_profile,
             mic_setups,
+            voiceover_target,
             camera_settings: inner.applied_camera.as_ref().map(|c| c.1.clone()),
             camera_id: inner.applied_camera.as_ref().map(|c| c.0.clone()),
             obs_input: inner.applied_input.clone(),
