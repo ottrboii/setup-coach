@@ -3,6 +3,7 @@ import { api, on } from '../api.js';
 import { esc, html, icons, scoreRing, scoreWord, findingCard, upgradeCard, toast, errorBanner, advanced, kvTable, fmt } from '../components.js';
 import { state, selectedCamera, CAMERA_CONSTRAINT } from '../state.js';
 import { delta } from './micreport.js';
+import { isRouteHidden } from '../profilenav.js';
 
 const STEPS = [
   { step: 'neutral', secs: 4, title: 'Sit like you do on stream', text: 'Look at your main screen and relax.' },
@@ -287,7 +288,7 @@ export async function render(root, { go, refreshNav }) {
     page.append(actions);
 
     function nextBtn() {
-      if (page.querySelector('#next')) return;
+      if (page.querySelector('#next') || isRouteHidden('health')) return;
       const n = html('<div class="card hero stack" id="next"><h2>Next: stream health</h2><p class="muted">Watch for dropped frames and lag while you stream — in plain words.</p><div class="row"><button class="btn primary lg">Open stream health</button></div></div>');
       n.querySelector('button').addEventListener('click', () => go('health'));
       page.append(n);

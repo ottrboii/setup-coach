@@ -15,6 +15,7 @@ import * as backups from './screens/backups.js';
 import * as ab from './screens/ab.js';
 import * as abrecord from './screens/abrecord.js';
 import * as sync from './screens/sync.js';
+import { isRouteHidden, activeInfo, ensureProfileForNav, PROFILE_EVENT } from './profilenav.js';
 import { initFeedback } from './feedback.js';
 
 const ROUTES = {
@@ -47,14 +48,23 @@ function current() {
 function renderNav(active) {
   const nav = document.getElementById('nav');
   nav.innerHTML = '';
-  NAV.forEach((n, i) => {
-    const coachArea = active === 'coach' ? (state.coach?.area === 'camera' ? 'camera' : 'mic') : null;
-    const isActive = n.route === active || (n.match || []).includes(active) || n.route === coachArea;
+  // Screens the chosen profile does not need go under "Not needed for ...". The one you are on stays in the main list.
+  const coachArea = active === 'coach' ? (state.coach?.area === 'camera' ? 'camera' : 'mic') : null;
+  const isActiveItem = (n) => n.route === active || (n.match || []).includes(active) || n.route === coachArea;
+  const hidden = NAV.filter((n) => isRouteHidden(n.route) && !isActiveItem(n));
+  const shown = NAV.filter((n) => !hidden.includes(n));
+  const link = (n, num) => {
+    const isActive = isActiveItem(n);
     const done = n.done();
-    const a = html(`<a href="#/${n.route}" class="${isActive ? 'active' : ''} ${done ? 'done' : ''}" ${isActive ? 'aria-current="page"' : ''}>
-      <span class="dot">${done ? '✓' : i + 1}</span><span class="label">${esc(n.label)}</span></a>`);
-    nav.append(a);
-  });
+    return html(`<a href="#/${n.route}" class="${isActive ? 'active' : ''} ${done ? 'done' : ''}" ${isActive ? 'aria-current="page"' : ''}>
+      <span class="dot">${done ? '✓' : num}</span><span class="label">${esc(n.label)}</span></a>`);
+  };
+  shown.forEach((n, i) => nav.append(link(n, i + 1)));
+  if (hidden.length) {
+    const more = html(`<details class="nav-more"><summary>Not needed for ${esc(activeInfo()?.label || 'this setup')}</summary></details>`);
+    hidden.forEach((n) => more.append(link(n, '·')));
+    nav.append(more);
+  }
   const pill = document.getElementById('obs-pill');
   const obs = state.env?.obs;
   const led = !obs ? '' : obs.connected ? 'good' : obs.running ? 'warn' : 'bad';
@@ -69,6 +79,7 @@ async function render() {
   }
   const route = current();
   renderNav(route);
+  if (!state.profile || !state.profileInfos) ensureProfileForNav().then(() => renderNav(current()));
   const main = document.getElementById('main');
   main.innerHTML = '';
   main.scrollTop = 0;
@@ -103,6 +114,7 @@ window.addEventListener('unhandledrejection', (ev) => {
 });
 
 window.addEventListener('hashchange', render);
+window.addEventListener(PROFILE_EVENT, () => renderNav(current()));
 initFeedback();
 if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', render);
 else render();

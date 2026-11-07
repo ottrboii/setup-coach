@@ -41,15 +41,18 @@ const PROFILE_INFO = {
   streaming: { id: 'streaming', label: 'Streaming', summary: 'You talk for a long time and chat hears you live. Mic stays out of the camera view.',
     placement: 'Put the mic about a fist to two fists from your mouth, just out of the camera view, pointing at your mouth.',
     room_advice: 'Some room echo and a quiet fan are fine; we can tidy most of it up.', distance_cm: [5, 15],
-    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -55, flag: -50, major: -45 }, snr: { met: 50, close: 45, major: 30 }, room_decay: { met: 0.35, close: 0.4, flag: 0.45, major: 0.7 } } },
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -55, flag: -50, major: -45 }, snr: { met: 50, close: 45, major: 30 }, room_decay: { met: 0.35, close: 0.4, flag: 0.45, major: 0.7 } },
+    irrelevant: { areas: [], keep: [], ids: [] } },
   voiceover: { id: 'voiceover', label: 'Recording / voiceover', summary: 'You record narration or voiceover and want it as clean and close as possible.',
     placement: 'Move the mic closer, about one fist from your mouth, with a pop filter between you and it. Your face can be in the middle of the mic.',
     room_advice: 'A quiet, soft room matters most here: close doors, add blankets or cushions near you.', distance_cm: [5, 10],
-    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -57, flag: -55, major: -50 }, snr: { met: 50, close: 47, major: 40 }, room_decay: { met: 0.27, close: 0.31, flag: 0.35, major: 0.5 } } },
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -60, close: -57, flag: -55, major: -50 }, snr: { met: 50, close: 47, major: 40 }, room_decay: { met: 0.27, close: 0.31, flag: 0.35, major: 0.5 } },
+    irrelevant: { areas: ['camera', 'stream'], keep: [], ids: ['mic.keyboard'] } },
   call: { id: 'call', label: 'Call / meeting', summary: 'You talk with other people. Clear and easy matters more than studio quality.',
     placement: 'Anywhere comfortable in front of you works. Keep the mic where it is and about a hand from your mouth; a headset sits 1 to 3 cm from the corner of your mouth.',
     room_advice: 'A bit of background noise is fine on a call. Just avoid sitting next to a loud fan.', distance_cm: [3, 20],
-    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -50, close: -47, flag: -45, major: -40 }, snr: { met: 25, close: 22, major: 15 }, room_decay: { met: 0.5, close: 0.58, flag: 0.65, major: 0.75 } } },
+    targets: { speech_peak: [-18, -12], speech_peak_close: [-22, -9], loud_peak: { met: -6, close: -3, flag: -1, major: 0 }, noise_floor: { met: -50, close: -47, flag: -45, major: -40 }, snr: { met: 25, close: 22, major: 15 }, room_decay: { met: 0.5, close: 0.58, flag: 0.65, major: 0.75 } },
+    irrelevant: { areas: ['stream'], keep: [], ids: [] } },
 };
 let activeProfile = 'streaming';
 let lastMicDevice = null;
