@@ -1,5 +1,5 @@
 ﻿# Setup Coach — Project overview
-_Updated 2026-11-07. Owner: Otto (Ottr Gaming Influencer AB). Coordinator session: SETUP COACH: COORDINATOR._
+_Updated 2026-11-11. Owner: Otto (Ottr Gaming Influencer AB). Coordinator session: SETUP COACH: COORDINATOR._
 
 ## What it is
 A Windows app that coaches non-technical streamers (the "bought an SM7B and left it on defaults" crowd) to a properly set-up **mic, camera and stream**. Philosophy: **no AI processing** — fix the physical setup first with live, animated coaching, then apply plain static settings (OBS filters + our VST3, Windows settings, camera controls, GoXLR via GoXLR Utility), then re-measure to verify. Business: up-front purchase + affiliate links at the moment a physical limit is measured (or affiliate-only for volume).
@@ -16,6 +16,9 @@ First full build done and green on Windows CI (installer + VST3 artifacts). Not 
 - In-app switch diagrams (#32-#33): self-drawn RE20 bass-tilt diagram (`help.diagram`); the maker link is a "Copy address" button because links do nothing in the webview.
 - Quick scan (#34, `fix_and_verify`): uses the picked mic, shows per item Fixed / Couldn't fix / Needs you, then re-scans to verify.
 - #35 also: gain advice follows what the mic can do (`GainAccess`), clearer `mic.reflection`, quieter hub finding.
+- Screens hidden by profile (#37): Camera / Lip sync / Stream health leave the nav and Home under Recording and Call, in a collapsed "Not needed for ..." group; still reachable by link or finding.
+- Fix my level (#38 backend, #39 UI): `fix_mic_level` nudges gain in small steps through GoXLR Utility or software gain, measures after each, vault backup + undo, Fixed / Couldn't fix / Needs you. `system.mic_boost_on` and `mic.gain_stacked` follow `GainAccess`. Button in `app/ui/levelfix.js`.
+- Make it sound better (voice tuning, design `docs/voice-tuning-design.md` #40; P1-P5 #41-#48): voice-type measurement (`audio/voice.rs`, #42); mic response curves in `MicProfile.response`, `eq_prior` removed (#41), 5 of 7 design mics digitised from maker sheets, all `verified: false` (#43); composer `audio/tune.rs` with offline verify and a -6/+3 dB cap (#44); de-esser centre frequency configurable in chain.json (#45); backend commands `start/gentler/apply/undo_voice_tune`, `get/set_voiceover_target` (#46); verification judged against the chain the user has now, so no change / no improvement means nothing is applied (#47); screen `#/tune` with Read step, Before/After player, Keep / Gentler / Undo and voiceover goal picker (#48, `app/ui/`). Never run on real hardware.
 - Research: `docs/field-complaints/*.md` (camera, mic-audio, stream-obs, dual-pc with gap list, #24).
 - Core engine: mic/camera analysis, findings, processing chain + verification, system/OBS audit, stream health, device profiles, live coaching engine.
 - App: Tauri 2 backend with Windows platform code (type-checked, CI-built, never run on a real PC yet) + static UI with live animated coaching and a full mock mode.
@@ -62,6 +65,5 @@ Rust workspace (`core/` = `coach_core`, `app/src-tauri/` = `setup-coach-app`), s
 - Analyser voice-above-noise may be set from peaks; streaming bars need real recordings. Voiceover/call bars are unverified against real recordings.
 - Room-echo measurement comes out empty at RT60 ~1.0 s.
 - Backend `open_url` command (without mini-mode) so the maker page can be a real link instead of Copy address.
-- UI should use `SetupProfileInfo.irrelevant` to hide camera/stream-health screens in voiceover.
-- `system.mic_boost_on` and `mic.gain_stacked` still say "turn up gain" for mics with no gain.
+- Voice tune: curves for 2 of 7 design mics are missing and none is verified; without a mic chart the tune is mostly "nothing to change"; needs a real-voice listening test, and the Fix my level / tune screens are unchecked on hardware.
 
